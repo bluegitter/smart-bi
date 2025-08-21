@@ -1,103 +1,173 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import React from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowRight, BarChart3, Brain, Zap, Users } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+
+export default function HomePage() {
+  const router = useRouter()
+  
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="flex-1 overflow-auto">
+      {/* 欢迎横幅 */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-4xl font-bold mb-4">欢迎使用 Smart BI</h1>
+          <p className="text-xl mb-6 opacity-90">
+            基于AI的智能数据分析和可视化平台，让数据洞察变得简单
+          </p>
+          <div className="flex items-center gap-4">
+            <Button 
+              className="bg-white text-blue-600 hover:bg-slate-50"
+              onClick={() => router.push('/dashboards')}
+            >
+              开始使用
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button variant="outline" className="border-white text-white hover:bg-white/10">
+              观看演示
+            </Button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+
+      {/* 主要内容 */}
+      <div className="p-8">
+        <div className="max-w-6xl mx-auto">
+          {/* 快速入门 */}
+          <section className="mb-12">
+            <h2 className="text-2xl font-semibold mb-6">快速入门</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card 
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => router.push('/dashboards')}
+              >
+                <CardHeader className="pb-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+                    <BarChart3 className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <CardTitle className="text-lg">创建看板</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600">
+                    使用拖拽组件快速构建数据看板
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader className="pb-3">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mb-2">
+                    <Brain className="h-5 w-5 text-green-600" />
+                  </div>
+                  <CardTitle className="text-lg">AI 生成</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600">
+                    通过自然语言描述自动生成看板
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card 
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => router.push('/datasources')}
+              >
+                <CardHeader className="pb-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
+                    <Zap className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <CardTitle className="text-lg">连接数据</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600">
+                    连接各种数据源，统一管理数据
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardHeader className="pb-3">
+                  <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center mb-2">
+                    <Users className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <CardTitle className="text-lg">团队协作</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600">
+                    与团队成员共享和协作编辑看板
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+
+          {/* 最近活动 */}
+          <section className="mb-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold">最近活动</h2>
+              <Button variant="outline">查看全部</Button>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 最近看板 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">最近访问的看板</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {[
+                      { name: '销售业绩看板', time: '2小时前', status: '已更新' },
+                      { name: '用户行为分析', time: '昨天', status: '正常' },
+                      { name: '财务报表', time: '3天前', status: '正常' },
+                    ].map((dashboard, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 rounded hover:bg-slate-50">
+                        <div>
+                          <div className="font-medium text-sm">{dashboard.name}</div>
+                          <div className="text-xs text-slate-500">{dashboard.time}</div>
+                        </div>
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                          {dashboard.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 系统状态 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">系统状态</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">数据源连接</span>
+                      <span className="text-sm text-green-600">✓ 正常</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">AI 服务</span>
+                      <span className="text-sm text-green-600">✓ 正常</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">缓存服务</span>
+                      <span className="text-sm text-green-600">✓ 正常</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">数据同步</span>
+                      <span className="text-sm text-yellow-600">⚠ 延迟</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
-  );
+  )
 }
