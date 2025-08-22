@@ -131,7 +131,8 @@ const MetricSchema = new Schema<IMetric>({
         default: 'ASC'
       }
     }],
-    limit: Number
+    limit: Number,
+    customSql: String
   },
   // 新增：参数定义
   parameters: [{

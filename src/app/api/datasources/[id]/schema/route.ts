@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DataSource } from '@/models/DataSource'
 import { executeQuery } from '@/lib/mysql'
+import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/devAuth'
+import { connectDB } from '@/lib/mongodb'
 
 /**
  * 获取数据源的表结构信息
@@ -18,6 +21,14 @@ export async function GET(
         { error: '缺少数据源ID' },
         { status: 400 }
       )
+    }
+
+    await connectDB()
+    
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     // 获取数据源配置
@@ -113,6 +124,14 @@ export async function POST(
         { error: '缺少数据源ID' },
         { status: 400 }
       )
+    }
+
+    await connectDB()
+    
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     // 强制刷新表结构，逻辑与GET相同

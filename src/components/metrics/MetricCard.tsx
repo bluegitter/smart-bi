@@ -11,7 +11,7 @@ import type { Metric } from '@/types'
 
 interface MetricCardProps {
   metric: Metric
-  onEdit: () => void
+  onEdit: (metric: Metric) => void
   onDelete: () => void
   onTagClick: (tag: string) => void
   className?: string
@@ -99,7 +99,7 @@ export function MetricCard({ metric, onEdit, onDelete, onTagClick, className }: 
                 className="h-8 w-8"
                 onClick={(e) => {
                   e.stopPropagation()
-                  onEdit()
+                  onEdit(metric)
                 }}
               >
                 <Edit2 className="h-3 w-3" />

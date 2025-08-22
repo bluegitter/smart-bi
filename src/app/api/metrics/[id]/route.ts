@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/mongodb'
 import { Metric } from '@/models/Metric'
 import { DataSource } from '@/models/DataSource'
 import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/devAuth'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
 
@@ -21,7 +22,65 @@ const updateMetricSchema = z.object({
   category: z.string().min(1, '分类不能为空').optional(),
   unit: z.string().optional(),
   tags: z.array(z.string()).optional(),
-  isActive: z.boolean().optional()
+  isActive: z.boolean().optional(),
+  // 新增：SQL构建器字段
+  queryConfig: z.object({
+    select: z.array(z.object({
+      field: z.string(),
+      alias: z.string().optional(),
+      aggregation: z.enum(['SUM', 'AVG', 'COUNT', 'MAX', 'MIN', 'DISTINCT']).optional(),
+      table: z.string().optional()
+    })).optional(),
+    from: z.array(z.object({
+      name: z.string(),
+      alias: z.string().optional(),
+      schema: z.string().optional()
+    })).optional(),
+    joins: z.array(z.object({
+      type: z.enum(['INNER', 'LEFT', 'RIGHT', 'FULL']),
+      table: z.string(),
+      alias: z.string().optional(),
+      condition: z.string()
+    })).optional(),
+    where: z.array(z.object({
+      field: z.string().optional(),
+      operator: z.enum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'like', 'between']).optional(),
+      value: z.any().optional(),
+      logic: z.enum(['AND', 'OR']).optional(),
+      isParameter: z.boolean().optional(),
+      parameterName: z.string().optional()
+    })).optional(),
+    groupBy: z.array(z.string()).optional(),
+    having: z.array(z.object({
+      field: z.string().optional(),
+      operator: z.enum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'like', 'between']).optional(),
+      value: z.any().optional(),
+      logic: z.enum(['AND', 'OR']).optional()
+    })).optional(),
+    orderBy: z.array(z.object({
+      field: z.string(),
+      direction: z.enum(['ASC', 'DESC'])
+    })).optional(),
+    limit: z.number().optional(),
+    customSql: z.string().optional()
+  }).optional(),
+  parameters: z.array(z.object({
+    name: z.string(),
+    displayName: z.string(),
+    type: z.enum(['string', 'number', 'date', 'boolean', 'list']),
+    required: z.boolean().optional(),
+    defaultValue: z.any().optional(),
+    options: z.array(z.object({
+      label: z.string(),
+      value: z.any()
+    })).optional(),
+    validation: z.object({
+      min: z.number().optional(),
+      max: z.number().optional(),
+      pattern: z.string().optional()
+    }).optional()
+  })).optional(),
+  version: z.number().optional()
 })
 
 // GET - 获取单个指标
@@ -32,14 +91,9 @@ export async function GET(
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const { id } = await params
@@ -78,6 +132,9 @@ export async function GET(
           unit: 1,
           tags: 1,
           isActive: 1,
+          queryConfig: 1,
+          parameters: 1,
+          version: 1,
           createdAt: 1,
           updatedAt: 1,
           dataSource: { $arrayElemAt: ['$dataSource', 0] }
@@ -107,14 +164,9 @@ export async function PUT(
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const { id } = await params
@@ -234,14 +286,9 @@ export async function DELETE(
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const { id } = await params

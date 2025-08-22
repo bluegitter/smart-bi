@@ -127,8 +127,9 @@ export default function MetricBuilderPage() {
       return
     }
 
-    if (!queryConfig.from[0]?.name) {
-      alert('请配置FROM表名')
+    // 如果有自定义SQL，则不需要验证FROM表名
+    if (!queryConfig.customSql && !queryConfig.from[0]?.name) {
+      alert('请配置FROM表名或使用自定义SQL')
       return
     }
 
@@ -168,6 +169,11 @@ export default function MetricBuilderPage() {
   }
 
   const handlePreview = async () => {
+    if (!selectedDataSource) {
+      alert('请先选择数据源')
+      return
+    }
+
     setPreviewLoading(true)
     try {
       const response = await fetch('/api/metrics/preview', {
@@ -175,7 +181,8 @@ export default function MetricBuilderPage() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           queryConfig,
-          parameters: {}
+          parameters: {},
+          datasourceId: selectedDataSource
         })
       })
 
@@ -490,7 +497,7 @@ export default function MetricBuilderPage() {
       {/* 头部 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
-          <Button variant="outline" onClick={() => router.back()}>
+          <Button variant="outline" onClick={() => router.push('/metrics')}>
             <ArrowLeft className="h-4 w-4 mr-1" />
             返回
           </Button>

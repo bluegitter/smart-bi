@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/mongodb'
 import { Metric } from '@/models/Metric'
 import { DataSource } from '@/models/DataSource'
 import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/devAuth'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
 
@@ -21,7 +22,65 @@ const createMetricSchema = z.object({
   category: z.string().min(1, '分类不能为空'),
   unit: z.string().optional(),
   tags: z.array(z.string()).default([]),
-  isActive: z.boolean().default(true)
+  isActive: z.boolean().default(true),
+  // 新增：SQL构建器字段
+  queryConfig: z.object({
+    select: z.array(z.object({
+      field: z.string(),
+      alias: z.string().optional(),
+      aggregation: z.enum(['SUM', 'AVG', 'COUNT', 'MAX', 'MIN', 'DISTINCT']).optional(),
+      table: z.string().optional()
+    })).optional(),
+    from: z.array(z.object({
+      name: z.string(),
+      alias: z.string().optional(),
+      schema: z.string().optional()
+    })).optional(),
+    joins: z.array(z.object({
+      type: z.enum(['INNER', 'LEFT', 'RIGHT', 'FULL']),
+      table: z.string(),
+      alias: z.string().optional(),
+      condition: z.string()
+    })).optional(),
+    where: z.array(z.object({
+      field: z.string().optional(),
+      operator: z.enum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'like', 'between']).optional(),
+      value: z.any().optional(),
+      logic: z.enum(['AND', 'OR']).optional(),
+      isParameter: z.boolean().optional(),
+      parameterName: z.string().optional()
+    })).optional(),
+    groupBy: z.array(z.string()).optional(),
+    having: z.array(z.object({
+      field: z.string().optional(),
+      operator: z.enum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'like', 'between']).optional(),
+      value: z.any().optional(),
+      logic: z.enum(['AND', 'OR']).optional()
+    })).optional(),
+    orderBy: z.array(z.object({
+      field: z.string(),
+      direction: z.enum(['ASC', 'DESC'])
+    })).optional(),
+    limit: z.number().optional(),
+    customSql: z.string().optional()
+  }).optional(),
+  parameters: z.array(z.object({
+    name: z.string(),
+    displayName: z.string(),
+    type: z.enum(['string', 'number', 'date', 'boolean', 'list']),
+    required: z.boolean().optional(),
+    defaultValue: z.any().optional(),
+    options: z.array(z.object({
+      label: z.string(),
+      value: z.any()
+    })).optional(),
+    validation: z.object({
+      min: z.number().optional(),
+      max: z.number().optional(),
+      pattern: z.string().optional()
+    }).optional()
+  })).optional(),
+  version: z.number().optional()
 })
 
 // 测试数据库指标定义
@@ -277,14 +336,9 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const { searchParams } = new URL(request.url)
@@ -369,6 +423,9 @@ export async function GET(request: NextRequest) {
             unit: 1,
             tags: 1,
             isActive: 1,
+            queryConfig: 1,
+            parameters: 1,
+            version: 1,
             createdAt: 1,
             updatedAt: 1,
             dataSource: { $arrayElemAt: ['$dataSource', 0] }
@@ -487,14 +544,9 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const body = await request.json()
@@ -511,7 +563,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, displayName, description, type, formula, datasourceId, category, unit, tags, isActive } = validationResult.data
+    const { name, displayName, description, type, formula, datasourceId, category, unit, tags, isActive, queryConfig, parameters, version } = validationResult.data
 
     // 验证数据源是否存在且属于当前用户
     const dataSource = await DataSource.findOne({
@@ -540,12 +592,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 创建新指标
-    const metric = new Metric({
+    const metricData: any = {
       name,
       displayName,
       description,
       type,
-      formula,
       datasourceId: new ObjectId(datasourceId),
       category,
       unit,
@@ -553,7 +604,23 @@ export async function POST(request: NextRequest) {
       isActive,
       createdAt: new Date(),
       updatedAt: new Date()
-    })
+    }
+
+    // 传统formula或新的queryConfig
+    if (formula) {
+      metricData.formula = formula
+    }
+    if (queryConfig) {
+      metricData.queryConfig = queryConfig
+    }
+    if (parameters) {
+      metricData.parameters = parameters
+    }
+    if (version) {
+      metricData.version = version
+    }
+
+    const metric = new Metric(metricData)
 
     await metric.save()
 

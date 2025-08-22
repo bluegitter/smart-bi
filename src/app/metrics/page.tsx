@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { Plus, Search, Filter, Tag, Edit2, Trash2, Database, Sparkles, Lock } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -18,6 +19,7 @@ export default function MetricsPage() {
   const [editingMetric, setEditingMetric] = useState<Metric | null>(null)
   const [showRecommendations, setShowRecommendations] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const router = useRouter()
 
   const {
     metrics,
@@ -90,6 +92,24 @@ export default function MetricsPage() {
     } catch (error) {
       console.error('Error deleting metric:', error)
       alert(error instanceof Error ? error.message : 'Failed to delete metric')
+    }
+  }
+
+  // 处理指标编辑 - 根据指标类型路由到不同的编辑界面
+  const handleEditMetric = (metric: Metric) => {
+    // 检查是否是SQL构建器创建的指标
+    // 判断条件：有queryConfig字段且（有customSql或没有传统formula）
+    const isSQLBuilderMetric = metric.queryConfig && (
+      (metric.queryConfig.customSql && metric.queryConfig.customSql.trim().length > 0) ||
+      (!metric.formula || metric.formula.trim().length === 0)
+    )
+    
+    if (isSQLBuilderMetric) {
+      // SQL构建器创建的指标，跳转到构建器页面
+      router.push(`/metrics/builder?id=${metric._id}`)
+    } else {
+      // 普通指标，使用对话框编辑
+      setEditingMetric(metric)
     }
   }
 
@@ -281,7 +301,7 @@ export default function MetricsPage() {
             <MetricCard
               key={metric._id}
               metric={metric}
-              onEdit={() => setEditingMetric(metric)}
+              onEdit={handleEditMetric}
               onDelete={() => handleDeleteMetric(metric._id)}
               onTagClick={handleTagClick}
             />

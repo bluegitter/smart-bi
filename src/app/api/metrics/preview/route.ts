@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MetricQueryService } from '@/lib/services/metricQueryService'
+import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/devAuth'
+import { connectDB } from '@/lib/mongodb'
 import type { SQLQueryConfig } from '@/types'
 
 /**
@@ -8,8 +11,16 @@ import type { SQLQueryConfig } from '@/types'
  */
 export async function POST(request: NextRequest) {
   try {
+    await connectDB()
+    
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+
     const body = await request.json()
-    const { queryConfig, parameters = {} } = body
+    const { queryConfig, parameters = {}, datasourceId } = body
 
     // 验证请求参数
     if (!queryConfig) {
@@ -20,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 预览查询结果
-    const result = await MetricQueryService.previewMetricQuery(queryConfig, parameters)
+    const result = await MetricQueryService.previewMetricQuery(queryConfig, parameters, datasourceId)
 
     return NextResponse.json(result)
 

@@ -31,6 +31,11 @@ export class SQLQueryBuilder {
    * 构建完整的SQL查询
    */
   build(): string {
+    // 如果有自定义SQL，处理参数替换后返回
+    if (this.config.customSql && this.config.customSql.trim()) {
+      return this.interpolateParameters(this.config.customSql.trim())
+    }
+
     const selectClause = this.buildSelectClause()
     const fromClause = this.buildFromClause()
     const joinClause = this.buildJoinClause()
@@ -285,10 +290,39 @@ export class SQLQueryBuilder {
   }
 
   /**
+   * 参数插值（用于自定义SQL）
+   */
+  private interpolateParameters(sql: string): string {
+    let result = sql
+
+    // 替换参数占位符 #{paramName}
+    Object.entries(this.parameters).forEach(([key, value]) => {
+      const placeholder = new RegExp(`#{${key}}`, 'g')
+      
+      // 根据值类型进行适当的格式化
+      const formattedValue = this.formatValue(value)
+      result = result.replace(placeholder, formattedValue)
+    })
+
+    return result
+  }
+
+  /**
    * 验证SQL配置
    */
   static validate(config: SQLQueryConfig): { valid: boolean, errors: string[] } {
     const errors: string[] = []
+
+    // 如果有自定义SQL，只需验证SQL不为空
+    if (config.customSql) {
+      if (!config.customSql.trim()) {
+        errors.push('自定义SQL不能为空')
+      }
+      return {
+        valid: errors.length === 0,
+        errors
+      }
+    }
 
     // 检查SELECT字段
     if (!config.select || config.select.length === 0) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import { DataSource } from '@/models/DataSource'
 import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/devAuth'
 import { z } from 'zod'
 
 // 数据源创建验证模式
@@ -28,14 +29,9 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const { searchParams } = new URL(request.url)
@@ -113,14 +109,9 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const body = await request.json()

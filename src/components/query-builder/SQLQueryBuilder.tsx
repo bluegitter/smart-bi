@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
-import { Plus, Minus, Play, Eye, Code, Database } from 'lucide-react'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
+import { Plus, Minus, Play, Eye, Code, Database, FileText, RefreshCw } from 'lucide-react'
+import { getAuthHeaders } from '@/lib/authUtils'
 import type { 
   SQLQueryConfig, 
   SelectField, 
@@ -13,6 +15,15 @@ import type {
   WhereCondition,
   OrderByConfig 
 } from '@/types'
+
+interface SchemaTable {
+  name: string
+  columns: { name: string, type: string, nullable?: boolean, comment?: string }[]
+}
+
+interface SchemaInfo {
+  tables: SchemaTable[]
+}
 
 interface SQLQueryBuilderProps {
   initialConfig?: SQLQueryConfig
@@ -42,16 +53,85 @@ export function SQLQueryBuilder({
     }
   )
 
-  const [activeTab, setActiveTab] = useState<'select' | 'from' | 'join' | 'where' | 'group' | 'order'>('select')
+  const [activeTab, setActiveTab] = useState<'select' | 'from' | 'join' | 'where' | 'group' | 'order' | 'sql'>(
+    initialConfig?.customSql ? 'sql' : 'select'
+  )
   const [sqlPreview, setSqlPreview] = useState<string>('')
+  const [customSql, setCustomSql] = useState<string>(initialConfig?.customSql || '')
+  const [useSqlMode, setUseSqlMode] = useState<boolean>(Boolean(initialConfig?.customSql))
+  const [schemaInfo, setSchemaInfo] = useState<SchemaInfo>({ tables: [] })
+  const [loadingSchema, setLoadingSchema] = useState<boolean>(false)
 
   useEffect(() => {
-    onChange(config)
+    if (useSqlMode) {
+      // 在SQL模式下，从自定义SQL生成配置
+      onChange({ ...config, customSql })
+    } else {
+      onChange(config)
+    }
     generateSQLPreview()
-  }, [config])
+  }, [config, customSql, useSqlMode])
+
+  useEffect(() => {
+    if (datasourceId) {
+      loadSchemaInfo()
+    }
+  }, [datasourceId])
+
+  const loadSchemaInfo = async () => {
+    if (!datasourceId) return
+    
+    setLoadingSchema(true)
+    try {
+      const response = await fetch(`/api/datasources/${datasourceId}/schema`, {
+        headers: getAuthHeaders()
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setSchemaInfo({ tables: data.tables || [] })
+      }
+    } catch (error) {
+      console.error('Failed to load schema info:', error)
+    } finally {
+      setLoadingSchema(false)
+    }
+  }
+
+  const getTableOptions = () => {
+    return schemaInfo.tables.map(table => ({
+      value: table.name,
+      label: table.name,
+      description: `${table.columns.length} 个字段`
+    }))
+  }
+
+  const getFieldOptions = (includeTablePrefix = false) => {
+    const options = [
+      { value: '*', label: '*', description: '所有字段' }
+    ]
+    
+    schemaInfo.tables.forEach(table => {
+      table.columns.forEach(column => {
+        const value = includeTablePrefix ? `${table.name}.${column.name}` : column.name
+        options.push({
+          value,
+          label: column.name,
+          description: `${table.name} - ${column.type}${column.comment ? ` (${column.comment})` : ''}`
+        })
+      })
+    })
+    
+    return options
+  }
 
   const generateSQLPreview = () => {
     try {
+      if (useSqlMode) {
+        setSqlPreview(customSql)
+        return
+      }
+      
       // 这里可以调用SQLQueryBuilder类来生成预览SQL
       // 暂时使用简化版本
       let sql = 'SELECT '
@@ -229,10 +309,12 @@ export function SQLQueryBuilder({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
             <div>
               <label className="block text-sm font-medium mb-1">字段名</label>
-              <Input
+              <SearchableSelect
                 value={field.field}
-                onChange={(e) => updateSelectField(index, { field: e.target.value })}
-                placeholder="字段名或 *"
+                onChange={(value) => updateSelectField(index, { field: value })}
+                options={getFieldOptions(true)}
+                placeholder="选择字段或输入字段名"
+                allowCustomValue={true}
               />
             </div>
             
@@ -287,14 +369,16 @@ export function SQLQueryBuilder({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">表名</label>
-              <Input
+              <SearchableSelect
                 value={table.name}
-                onChange={(e) => {
+                onChange={(value) => {
                   const newFrom = [...config.from]
-                  newFrom[index] = { ...newFrom[index], name: e.target.value }
+                  newFrom[index] = { ...newFrom[index], name: value }
                   updateConfig('from', newFrom)
                 }}
-                placeholder="表名"
+                options={getTableOptions()}
+                placeholder="选择表或输入表名"
+                allowCustomValue={true}
               />
             </div>
             
@@ -358,10 +442,12 @@ export function SQLQueryBuilder({
             
             <div>
               <label className="block text-sm font-medium mb-1">表名</label>
-              <Input
+              <SearchableSelect
                 value={join.table}
-                onChange={(e) => updateJoin(index, { table: e.target.value })}
-                placeholder="表名"
+                onChange={(value) => updateJoin(index, { table: value })}
+                options={getTableOptions()}
+                placeholder="选择表或输入表名"
+                allowCustomValue={true}
               />
             </div>
             
@@ -425,10 +511,12 @@ export function SQLQueryBuilder({
             
             <div className={index === 0 ? 'md:col-start-1' : ''}>
               <label className="block text-sm font-medium mb-1">字段</label>
-              <Input
+              <SearchableSelect
                 value={condition.field}
-                onChange={(e) => updateWhereCondition(index, { field: e.target.value })}
-                placeholder="字段名"
+                onChange={(value) => updateWhereCondition(index, { field: value })}
+                options={getFieldOptions(true)}
+                placeholder="选择字段或输入字段名"
+                allowCustomValue={true}
               />
             </div>
             
@@ -516,10 +604,12 @@ export function SQLQueryBuilder({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div>
               <label className="block text-sm font-medium mb-1">字段</label>
-              <Input
+              <SearchableSelect
                 value={order.field}
-                onChange={(e) => updateOrderBy(index, { field: e.target.value })}
-                placeholder="字段名"
+                onChange={(value) => updateOrderBy(index, { field: value })}
+                options={getFieldOptions(true)}
+                placeholder="选择字段或输入字段名"
+                allowCustomValue={true}
               />
             </div>
             
@@ -548,6 +638,94 @@ export function SQLQueryBuilder({
     </div>
   )
 
+  const renderSqlTab = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">自定义 SQL</h3>
+        <div className="flex items-center space-x-4">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => loadSchemaInfo()}
+            disabled={loadingSchema}
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${loadingSchema ? 'animate-spin' : ''}`} />
+            刷新表结构
+          </Button>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={useSqlMode}
+              onChange={(e) => setUseSqlMode(e.target.checked)}
+              className="rounded"
+            />
+            <span className="text-sm">使用 SQL 模式</span>
+          </label>
+        </div>
+      </div>
+      
+      <Card className="p-4">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">SQL 语句</label>
+            <textarea
+              value={customSql}
+              onChange={(e) => setCustomSql(e.target.value)}
+              className="w-full h-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+              placeholder="在这里输入您的 SQL 查询..."
+              disabled={!useSqlMode}
+            />
+          </div>
+          
+          {!useSqlMode && (
+            <div className="text-sm text-gray-500">
+              启用 SQL 模式以直接编写和使用自定义 SQL 查询
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* 表结构信息面板 */}
+      <Card className="p-4">
+        <h4 className="text-md font-medium mb-3 flex items-center">
+          <Database className="h-4 w-4 mr-2" />
+          表结构
+        </h4>
+        
+        {loadingSchema ? (
+          <div className="text-center py-4">
+            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+            <p className="text-sm text-gray-500">加载表结构中...</p>
+          </div>
+        ) : schemaInfo.tables.length > 0 ? (
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {schemaInfo.tables.map(table => (
+              <div key={table.name} className="border border-gray-200 rounded-lg">
+                <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                  <h5 className="font-medium text-sm">{table.name}</h5>
+                </div>
+                <div className="p-3">
+                  <div className="grid grid-cols-1 gap-1 text-sm">
+                    {table.columns.map(column => (
+                      <div key={`${table.name}.${column.name}`} className="flex justify-between items-center">
+                        <span className="font-mono text-blue-600">{column.name}</span>
+                        <span className="text-gray-500">{column.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-4 text-gray-500">
+            {datasourceId ? '无法获取表结构信息' : '请先选择数据源'}
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+
   return (
     <div className="h-full flex flex-col">
       {/* 标签页 */}
@@ -557,7 +735,8 @@ export function SQLQueryBuilder({
           { key: 'from', label: 'FROM', icon: Database },
           { key: 'join', label: 'JOIN', icon: Database },
           { key: 'where', label: 'WHERE', icon: Database },
-          { key: 'group', label: 'GROUP/ORDER', icon: Database }
+          { key: 'group', label: 'GROUP/ORDER', icon: Database },
+          { key: 'sql', label: 'SQL 编写', icon: FileText }
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -577,24 +756,31 @@ export function SQLQueryBuilder({
       {/* 内容区域 */}
       <div className="flex-1 flex flex-col lg:flex-row gap-6">
         {/* 左侧配置面板 */}
-        <div className="lg:w-2/3 space-y-6">
+        <div className={`${activeTab === 'sql' ? 'w-full' : 'lg:w-2/3'} space-y-6`}>
           {activeTab === 'select' && renderSelectTab()}
           {activeTab === 'from' && renderFromTab()}
           {activeTab === 'join' && renderJoinTab()}
           {activeTab === 'where' && renderWhereTab()}
           {activeTab === 'group' && renderGroupTab()}
+          {activeTab === 'sql' && renderSqlTab()}
         </div>
 
         {/* 右侧SQL预览面板 */}
-        <div className="lg:w-1/3">
-          <Card className="p-4 h-full">
+        {activeTab !== 'sql' && (
+          <div className="lg:w-1/3">
+            <Card className="p-4 h-full">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium flex items-center">
                 <Code className="h-5 w-5 mr-2" />
                 SQL 预览
               </h3>
               {onPreview && (
-                <Button size="sm" onClick={() => onPreview(config)}>
+                <Button size="sm" onClick={() => {
+                  const previewConfig = useSqlMode 
+                    ? { ...config, customSql }
+                    : config
+                  onPreview(previewConfig)
+                }}>
                   <Eye className="h-4 w-4 mr-1" />
                   预览数据
                 </Button>
@@ -604,8 +790,9 @@ export function SQLQueryBuilder({
             <div className="bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm whitespace-pre-wrap overflow-auto max-h-96">
               {sqlPreview || '// SQL预览将在这里显示'}
             </div>
-          </Card>
-        </div>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )

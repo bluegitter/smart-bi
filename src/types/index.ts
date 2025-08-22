@@ -88,6 +88,7 @@ export interface SQLQueryConfig {
   having: WhereCondition[]
   orderBy: OrderByConfig[]
   limit?: number
+  customSql?: string
 }
 
 export interface SelectField {

@@ -1,13 +1,14 @@
 'use client'
 
 import React from 'react'
-import { Search, Filter, X, Database, ChevronDown, ChevronRight, Box } from 'lucide-react'
+import { Search, Filter, X, Database, ChevronDown, ChevronRight, Box, RefreshCw } from 'lucide-react'
 import { useDrag } from 'react-dnd'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { CompactMetricCard } from './CompactMetricCard'
 import { cn } from '@/lib/utils'
+import { getAuthHeaders } from '@/lib/authUtils'
 import type { Metric } from '@/types'
 
 interface MetricsLibraryPanelProps {
@@ -20,93 +21,7 @@ interface MetricsLibraryPanelProps {
   onHeightChange?: (height: number) => void
 }
 
-// Mock metrics data - in real app this would come from an API
-const mockMetrics: Metric[] = [
-  {
-    _id: '1',
-    name: 'total_sales',
-    displayName: '总销售额',
-    description: '所有订单的总销售金额',
-    type: 'sum',
-    category: '销售',
-    unit: '元',
-    tags: ['核心指标', '财务'],
-    isActive: true,
-    datasourceId: 'ds1',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    _id: '2',
-    name: 'order_count',
-    displayName: '订单数量',
-    description: '总订单数量',
-    type: 'count',
-    category: '销售',
-    tags: ['核心指标'],
-    isActive: true,
-    datasourceId: 'ds1',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    _id: '3',
-    name: 'avg_order_value',
-    displayName: '平均订单价值',
-    description: '平均每个订单的价值',
-    type: 'avg',
-    category: '销售',
-    unit: '元',
-    tags: ['核心指标', '财务'],
-    isActive: true,
-    datasourceId: 'ds1',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    _id: '4',
-    name: 'customer_count',
-    displayName: '客户数量',
-    description: '总客户数量',
-    type: 'count',
-    category: '客户',
-    tags: ['客户分析'],
-    isActive: true,
-    datasourceId: 'ds1',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    _id: '5',
-    name: 'conversion_rate',
-    displayName: '转化率',
-    description: '访客到客户的转化率',
-    type: 'ratio',
-    category: '营销',
-    unit: '%',
-    tags: ['营销指标'],
-    isActive: true,
-    datasourceId: 'ds1',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    _id: '6',
-    name: 'revenue_growth',
-    displayName: '收入增长率',
-    description: '月度收入增长率',
-    type: 'ratio',
-    category: '财务',
-    unit: '%',
-    tags: ['增长指标', '财务'],
-    isActive: true,
-    datasourceId: 'ds1',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }
-]
-
-const categories = ['全部', '销售', '客户', '营销', '财务']
+// Dynamic categories will be computed from metrics
 
 // 容器组件拖拽卡片
 function DraggableContainerCard() {
@@ -154,19 +69,55 @@ export function MetricsLibraryPanel({
 }: MetricsLibraryPanelProps) {
   const [searchTerm, setSearchTerm] = React.useState('')
   const [selectedCategory, setSelectedCategory] = React.useState('全部')
-  const [expandedCategories, setExpandedCategories] = React.useState<Record<string, boolean>>({
-    '销售': true,
-    '客户': true,
-    '营销': true,
-    '财务': true
-  })
+  const [expandedCategories, setExpandedCategories] = React.useState<Record<string, boolean>>({})
   const [isDragging, setIsDragging] = React.useState(false)
   const [isResizing, setIsResizing] = React.useState(false)
+  const [metrics, setMetrics] = React.useState<Metric[]>([])
+  const [loading, setLoading] = React.useState(false)
   const panelRef = React.useRef<HTMLDivElement>(null)
+
+  // Load metrics from API
+  const loadMetrics = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/metrics?limit=100', {
+        headers: getAuthHeaders()
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setMetrics(data.metrics || [])
+        
+        // Initialize expanded categories
+        const categories = [...new Set((data.metrics || []).map((m: Metric) => m.category))]
+        const initialExpanded: Record<string, boolean> = {}
+        categories.forEach(cat => {
+          initialExpanded[cat] = true
+        })
+        setExpandedCategories(initialExpanded)
+      }
+    } catch (error) {
+      console.error('Failed to load metrics:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Load metrics when component mounts or opens
+  React.useEffect(() => {
+    if (isOpen) {
+      loadMetrics()
+    }
+  }, [isOpen, loadMetrics])
+
+  // Compute dynamic categories
+  const categories = React.useMemo(() => {
+    const uniqueCategories = [...new Set(metrics.map(m => m.category))].sort()
+    return ['全部', ...uniqueCategories]
+  }, [metrics])
 
   // Filter metrics based on search and category
   const filteredMetrics = React.useMemo(() => {
-    let filtered = mockMetrics
+    let filtered = metrics
 
     if (searchTerm) {
       filtered = filtered.filter(metric =>
@@ -283,14 +234,25 @@ export function MetricsLibraryPanel({
             <Database className="h-5 w-5 text-blue-600" />
             <h3 className="font-semibold">指标库</h3>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={loadMetrics}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -329,7 +291,12 @@ export function MetricsLibraryPanel({
       {/* Metrics List */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-3 space-y-2">
-          {Object.keys(groupedMetrics).length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8 text-slate-500">
+              <RefreshCw className="h-8 w-8 mx-auto mb-2 opacity-50 animate-spin" />
+              <p>加载指标中...</p>
+            </div>
+          ) : Object.keys(groupedMetrics).length === 0 ? (
             <div className="text-center py-8 text-slate-500">
               <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>未找到匹配的指标</p>

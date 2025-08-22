@@ -99,14 +99,41 @@ export class MetricQueryService {
 
       // 如果有queryConfig，使用SQL构建器
       if (metric.queryConfig) {
-        const builder = new SQLQueryBuilder(metric.queryConfig)
-        builder.setParameters(parameters)
-        sql = builder.build()
-        queryData = await executeQuery(sql)
+        try {
+          const builder = new SQLQueryBuilder(metric.queryConfig)
+          builder.setParameters(parameters)
+          sql = builder.build()
+          
+          // 验证生成的SQL不为空
+          if (!sql || sql.trim().length === 0) {
+            return {
+              success: false,
+              data: [],
+              metricId,
+              count: 0,
+              timestamp: new Date().toISOString(),
+              error: '无法生成有效的SQL查询语句，请检查指标配置'
+            }
+          }
+          
+          console.log(`执行指标查询 (${metricId}):`, sql)
+          queryData = await executeQuery(sql)
+        } catch (buildError) {
+          console.error(`构建SQL失败 (${metricId}):`, buildError)
+          return {
+            success: false,
+            data: [],
+            metricId,
+            count: 0,
+            timestamp: new Date().toISOString(),
+            error: `SQL构建失败: ${buildError instanceof Error ? buildError.message : '未知错误'}`
+          }
+        }
       } 
       // 否则使用传统的formula
       else if (metric.formula) {
         sql = this.interpolateParameters(metric.formula, parameters)
+        console.log(`执行遗留指标查询 (${metricId}):`, sql)
         queryData = await executeQuery(sql)
       } 
       // 都没有则返回错误
@@ -187,7 +214,8 @@ export class MetricQueryService {
    */
   static async previewMetricQuery(
     queryConfig: SQLQueryConfig,
-    parameters: Record<string, any> = {}
+    parameters: Record<string, any> = {},
+    datasourceId?: string
   ): Promise<{
     success: boolean
     data: any[]
@@ -196,16 +224,39 @@ export class MetricQueryService {
     error?: string
   }> {
     try {
-      const builder = new SQLQueryBuilder(queryConfig)
-      builder.setParameters(parameters)
-      
-      // 限制预览结果数量
-      const previewConfig = { ...queryConfig, limit: 100 }
-      const previewBuilder = new SQLQueryBuilder(previewConfig)
-      previewBuilder.setParameters(parameters)
-      
-      const sql = previewBuilder.build()
+      let sql: string
+
+      // 如果使用自定义SQL模式
+      if (queryConfig.customSql) {
+        sql = queryConfig.customSql
+        // 限制预览结果数量
+        if (!sql.toUpperCase().includes('LIMIT')) {
+          sql += ' LIMIT 100'
+        }
+      } else {
+        const builder = new SQLQueryBuilder(queryConfig)
+        builder.setParameters(parameters)
+        
+        // 限制预览结果数量
+        const previewConfig = { ...queryConfig, limit: Math.min(queryConfig.limit || 100, 100) }
+        const previewBuilder = new SQLQueryBuilder(previewConfig)
+        previewBuilder.setParameters(parameters)
+        
+        sql = previewBuilder.build()
+      }
+
       console.log('预览SQL:', sql)
+
+      // 如果没有配置有效的查询
+      if (!sql.trim()) {
+        return {
+          success: false,
+          data: [],
+          sql: '',
+          count: 0,
+          error: '请配置有效的SQL查询'
+        }
+      }
 
       // 执行查询
       const data = await executeQuery(sql)
@@ -217,6 +268,7 @@ export class MetricQueryService {
         count: data.length
       }
     } catch (error) {
+      console.error('预览查询失败:', error)
       return {
         success: false,
         data: [],
