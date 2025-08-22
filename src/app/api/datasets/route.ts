@@ -1,0 +1,94 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/devAuth'
+import { DatasetService } from '@/lib/services/datasetService'
+import type { CreateDatasetRequest, DatasetSearchParams } from '@/types/dataset'
+
+// GET /api/datasets - 获取数据集列表
+export async function GET(request: NextRequest) {
+  try {
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+
+    const { searchParams } = new URL(request.url)
+    
+    const params: DatasetSearchParams = {
+      keyword: searchParams.get('keyword') || undefined,
+      category: searchParams.get('category') || undefined,
+      tags: searchParams.get('tags')?.split(',') || undefined,
+      type: searchParams.get('type') as any || undefined,
+      status: searchParams.get('status') as any || 'active',
+      sortBy: searchParams.get('sortBy') as any || 'updatedAt',
+      sortOrder: searchParams.get('sortOrder') as any || 'desc',
+      page: parseInt(searchParams.get('page') || '1'),
+      limit: parseInt(searchParams.get('limit') || '20')
+    }
+
+    const result = await DatasetService.searchDatasets(user._id, params)
+    
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error('获取数据集列表失败:', error)
+    
+    // 在开发环境提供更详细的错误信息
+    if (process.env.NODE_ENV === 'development') {
+      return NextResponse.json({ 
+        error: error instanceof Error ? error.message : '获取数据集列表失败',
+        details: error instanceof Error ? error.stack : undefined,
+        type: error?.constructor?.name
+      }, { status: 500 })
+    }
+    
+    return NextResponse.json({ 
+      error: '获取数据集列表失败'
+    }, { status: 500 })
+  }
+}
+
+// POST /api/datasets - 创建数据集
+export async function POST(request: NextRequest) {
+  try {
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+
+    const body: CreateDatasetRequest = await request.json()
+    
+    // 验证请求体
+    if (!body.name || !body.displayName || !body.type) {
+      return NextResponse.json({ 
+        error: '缺少必填字段: name, displayName, type' 
+      }, { status: 400 })
+    }
+
+    // 验证数据集配置
+    if (body.type === 'table' && !body.tableConfig) {
+      return NextResponse.json({ 
+        error: '表类型数据集必须提供 tableConfig' 
+      }, { status: 400 })
+    }
+
+    if (body.type === 'sql' && !body.sqlConfig) {
+      return NextResponse.json({ 
+        error: 'SQL类型数据集必须提供 sqlConfig' 
+      }, { status: 400 })
+    }
+
+    if (body.type === 'view' && !body.viewConfig) {
+      return NextResponse.json({ 
+        error: '视图类型数据集必须提供 viewConfig' 
+      }, { status: 400 })
+    }
+
+    const dataset = await DatasetService.createDataset(user._id, body)
+    
+    return NextResponse.json({ dataset }, { status: 201 })
+  } catch (error) {
+    console.error('创建数据集失败:', error)
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : '创建数据集失败' 
+    }, { status: 500 })
+  }
+}

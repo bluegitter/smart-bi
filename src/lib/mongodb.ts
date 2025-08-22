@@ -6,7 +6,10 @@ if (!process.env.MONGODB_URI) {
 }
 
 const uri = process.env.MONGODB_URI
-const options = {}
+const options = {
+  serverSelectionTimeoutMS: 30000, // 30 seconds
+  socketTimeoutMS: 45000, // 45 seconds
+}
 
 let client: MongoClient
 let clientPromise: Promise<MongoClient>
@@ -43,8 +46,14 @@ export async function connectDB(): Promise<void> {
     if (!isMongooseConnected) {
       if (mongoose.connection.readyState === 0) {
         await mongoose.connect(uri, {
-          dbName: 'smartbi'
+          dbName: 'smartbi',
+          serverSelectionTimeoutMS: 30000,
+          socketTimeoutMS: 45000,
         })
+        
+        // 配置mongoose避免超时问题
+        mongoose.set('bufferCommands', false)
+        
         isMongooseConnected = true
         console.log('Mongoose connected to MongoDB')
       }

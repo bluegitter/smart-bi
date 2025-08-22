@@ -1,6 +1,16 @@
 // 基础类型定义
 export type ObjectId = string
 
+// Re-export dataset types for convenience
+export type { 
+  Dataset, 
+  DatasetField, 
+  DatasetType,
+  CreateDatasetRequest,
+  UpdateDatasetRequest,
+  DatasetSearchParams 
+} from './dataset'
+
 // 用户类型
 export interface User {
   _id: ObjectId
@@ -26,10 +36,15 @@ export interface ComponentLayout {
   size: { width: number, height: number }
   config: Record<string, any>
   dataConfig: {
-    datasourceId: ObjectId
-    query: string
-    metrics: string[]
-    dimensions: string[]
+    // 新的数据集绑定方式
+    datasetId?: ObjectId
+    selectedMeasures?: string[] // 选中的度量字段
+    selectedDimensions?: string[] // 选中的维度字段
+    // 保留原有的直接绑定方式（向后兼容）
+    datasourceId?: ObjectId
+    query?: string
+    metrics?: string[]
+    dimensions?: string[]
     filters: Filter[]
   }
   // 容器组件专用属性 - 嵌套的子组件
@@ -240,7 +255,7 @@ export interface DateRange {
 
 // 拖拽相关类型
 export interface DragItem {
-  type: 'component' | 'metric' | 'container' | 'container-child'
+  type: 'component' | 'metric' | 'container' | 'container-child' | 'dataset-field'
   id: string
   data: any // Flexible data structure to handle different drag sources
   // 容器拖拽时的附加信息

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { PropertyPanel } from './PropertyPanel'
 import { MetricsLibraryPanel } from './MetricsLibraryPanel'
+import { DatasetLibraryPanel } from '@/components/dataset/DatasetLibraryPanel'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/hooks/useDashboards'
 import { useActions, useIsFullscreen } from '@/store/useAppStore'
@@ -65,12 +66,15 @@ export function DashboardCanvas({
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
   const [isMetricsLibraryOpen, setIsMetricsLibraryOpen] = React.useState(false)
   const [metricsLibraryHeight, setMetricsLibraryHeight] = React.useState(400)
+  const [isDatasetLibraryOpen, setIsDatasetLibraryOpen] = React.useState(false)
+  const [datasetLibraryHeight, setDatasetLibraryHeight] = React.useState(500)
   
   // 全屏状态和操作
   const isFullscreen = useIsFullscreen()
   const { toggleFullscreen } = useActions()
   
   const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
+  const [datasetLibraryPosition, setDatasetLibraryPosition] = React.useState({ x: 340, y: isFullscreen ? 60 : 120 })
 
   // 计算指标面板的最佳高度
   const calculateOptimalHeight = React.useCallback(() => {
@@ -257,7 +261,7 @@ export function DashboardCanvas({
   }, [components])
 
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: ['component', 'metric', 'container', 'container-child'],
+    accept: ['component', 'metric', 'container', 'container-child', 'dataset-field'],
     drop: (item: DragItem, monitor) => {
       console.log('Drop zone triggered with item:', item)
       const offset = monitor.getSourceClientOffset()
@@ -451,6 +455,63 @@ export function DashboardCanvas({
       setSelectedComponent(newComponent)
       setIsPropertyPanelOpen(true)
       console.log('Component creation completed')
+    } else if (item.type === 'dataset-field') {
+      // 从数据集库拖拽字段到画布，自动创建对应的图表组件
+      console.log('Creating component from dataset field drag')
+      const fieldData = item.data as { 
+        datasetId: string; 
+        datasetName: string; 
+        field: any; 
+        fieldType: 'dimension' | 'measure' 
+      }
+      console.log('Field data:', fieldData)
+      
+      // 根据字段类型选择合适的图表类型
+      const getChartTypeForField = (fieldType: string, dataType: string): ComponentLayout['type'] => {
+        if (fieldType === 'measure') {
+          return dataType === 'number' ? 'kpi-card' : 'bar-chart'
+        } else {
+          return dataType === 'date' ? 'line-chart' : 'bar-chart'
+        }
+      }
+      
+      const chartType = getChartTypeForField(fieldData.fieldType, fieldData.field.type)
+      console.log('Selected chart type:', chartType)
+      
+      const newComponent: ComponentLayout = {
+        id: `dataset-${fieldData.datasetId}-${fieldData.field.name}-${Date.now()}`,
+        type: chartType,
+        title: `${fieldData.datasetName} - ${fieldData.field.displayName}`,
+        position: { x, y },
+        size: chartType === 'kpi-card' ? { width: 300, height: 150 } : { width: 400, height: 300 },
+        config: {
+          style: {
+            colorScheme: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'],
+            showBackground: true,
+            showBorder: true,
+            showShadow: false,
+            opacity: 1
+          }
+        },
+        dataConfig: {
+          // 新的数据集绑定方式
+          datasetId: fieldData.datasetId,
+          selectedMeasures: fieldData.fieldType === 'measure' ? [fieldData.field.name] : [],
+          selectedDimensions: fieldData.fieldType === 'dimension' ? [fieldData.field.name] : [],
+          filters: [],
+        },
+      }
+      
+      console.log('Creating new component from dataset field:', newComponent)
+      setComponents(prev => {
+        const updated = [...prev, newComponent]
+        console.log('Updated components array:', updated)
+        return updated
+      })
+      // 自动选择新创建的组件
+      setSelectedComponent(newComponent)
+      setIsPropertyPanelOpen(true)
+      console.log('Dataset field component creation completed')
     } else if (item.type === 'container-child') {
       // 从容器拖拽子组件到画布
       console.log('Moving container child to canvas')
@@ -749,6 +810,16 @@ export function DashboardCanvas({
               variant="ghost" 
               size="icon" 
               className="h-6 w-6"
+              onClick={() => setIsDatasetLibraryOpen(!isDatasetLibraryOpen)}
+              disabled={isPreviewMode}
+              title="数据集库"
+            >
+              <Database className="h-3 w-3" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6"
               onClick={() => setIsPropertyPanelOpen(!isPropertyPanelOpen)}
               disabled={!selectedComponent}
               title="属性设置"
@@ -946,6 +1017,16 @@ export function DashboardCanvas({
         onMove={handleMetricsLibraryMove}
         height={metricsLibraryHeight}
         onHeightChange={setMetricsLibraryHeight}
+      />
+
+      {/* 数据集库面板 */}
+      <DatasetLibraryPanel
+        isOpen={isDatasetLibraryOpen && !isPreviewMode}
+        onClose={() => setIsDatasetLibraryOpen(false)}
+        position={datasetLibraryPosition}
+        onMove={(pos) => setDatasetLibraryPosition(pos)}
+        height={datasetLibraryHeight}
+        onHeightChange={setDatasetLibraryHeight}
       />
     </div>
   )

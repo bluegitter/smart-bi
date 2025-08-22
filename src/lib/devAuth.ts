@@ -26,7 +26,7 @@ export async function verifyDevAuth(request: NextRequest) {
         return user
       }
     } catch (error) {
-      console.warn('Token verification failed:', error)
+      console.warn('Token verification failed:', error?.message || error)
     }
   }
   

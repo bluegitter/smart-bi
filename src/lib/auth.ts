@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken'
+import { NextRequest } from 'next/server'
 
 interface User {
   _id: string
@@ -80,6 +81,7 @@ export function extractUserFromToken(token: string): User | null {
     return null
   }
 }
+
 
 // 开发环境专用：生成测试token
 export function generateDevToken(): string {

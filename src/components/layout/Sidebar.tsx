@@ -7,7 +7,8 @@ import {
   BarChart3, 
   Database, 
   Settings, 
-  TrendingUp
+  TrendingUp,
+  Table
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
@@ -21,6 +22,7 @@ const sidebarItems = [
   { icon: Home, label: '首页', href: '/' },
   { icon: BarChart3, label: '看板', href: '/dashboards' },
   { icon: Database, label: '数据源', href: '/datasources' },
+  { icon: Table, label: '数据集', href: '/datasets' },
   { icon: TrendingUp, label: '指标库', href: '/metrics' },
   { icon: Settings, label: '设置', href: '/settings' },
 ]
