@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: smart-bi-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpassword
+      MONGO_INITDB_DATABASE: smartbi
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./src/scripts/init-db.js:/docker-entrypoint-initdb.d/init-db.js:ro
+    networks:
+      - smart-bi-network
+
+  # Next.js Application
+  smart-bi-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-bi-app
+    restart: unless-stopped
+    environment:
+      # Database connection
+      MONGODB_URI: mongodb://admin:adminpassword@mongodb:27017/smartbi?authSource=admin
+      
+      # Application settings
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_TELEMETRY_DISABLED: 1
+      
+      # Add other environment variables as needed
+      # JWT_SECRET: your-secret-key
+      # API_BASE_URL: http://localhost:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+    networks:
+      - smart-bi-network
+    volumes:
+      # Mount uploads directory if needed
+      - uploads_data:/app/uploads
+
+  # # Optional: MongoDB Express for database management
+  # mongo-express:
+  #   image: mongo-express:1.0.2
+  #   container_name: smart-bi-mongo-express
+  #   restart: unless-stopped
+  #   environment:
+  #     ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+  #     ME_CONFIG_MONGODB_ADMINPASSWORD: password123
+  #     ME_CONFIG_MONGODB_SERVER: mongodb
+  #     ME_CONFIG_MONGODB_PORT: 27017
+  #     ME_CONFIG_BASICAUTH_USERNAME: admin
+  #     ME_CONFIG_BASICAUTH_PASSWORD: password123
+  #   ports:
+  #     - "8081:8081"
+  #   depends_on:
+  #     - mongodb
+  #   networks:
+  #     - smart-bi-network
+
+volumes:
+  mongodb_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  smart-bi-network:
+    driver: bridge

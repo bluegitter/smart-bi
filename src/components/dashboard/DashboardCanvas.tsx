@@ -16,6 +16,7 @@ import {
   SimpleTable, 
   SimpleKPICard, 
   SimpleGauge,
+  ContainerComponent,
   generateMockData 
 } from '@/components/charts/ChartComponents'
 import type { DragItem, ComponentLayout, Dashboard } from '@/types'
@@ -51,6 +52,7 @@ export function DashboardCanvas({
 
   const [components, setComponents] = React.useState<ComponentLayout[]>(initialComponents)
   const [selectedComponent, setSelectedComponent] = React.useState<ComponentLayout | null>(null)
+  const [selectedChildParentId, setSelectedChildParentId] = React.useState<string | null>(null) // 跟踪子组件的父容器ID
   const [isPropertyPanelOpen, setIsPropertyPanelOpen] = React.useState(false)
   const [isPreviewMode, setIsPreviewMode] = React.useState(initialPreviewMode)
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
@@ -126,6 +128,51 @@ export function DashboardCanvas({
     return () => window.removeEventListener('resize', handleResize)
   }, [isMetricsLibraryOpen, calculateOptimalHeight])
 
+  // 监听键盘事件
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Delete键删除选中组件
+      if (e.key === 'Delete' && selectedComponent && !isPreviewMode) {
+        e.preventDefault()
+        if (selectedChildParentId) {
+          // 删除容器子组件
+          handleDeleteChild(selectedChildParentId, selectedComponent.id)
+        } else {
+          // 删除普通组件
+          handleComponentDelete(selectedComponent.id)
+        }
+      }
+      
+      // ESC键退出编辑模式
+      if (e.key === 'Escape' && !isPreviewMode) {
+        e.preventDefault()
+        setIsPreviewMode(true)
+        setSelectedComponent(null)
+        setIsPropertyPanelOpen(false)
+        setIsMetricsLibraryOpen(false)
+      }
+    }
+
+    // 只在组件已挂载且用户没有在输入框中时监听键盘事件
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 检查是否在输入元素中
+      const activeElement = document.activeElement
+      const isInputElement = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.tagName === 'SELECT' ||
+        activeElement.getAttribute('contenteditable') === 'true'
+      )
+      
+      if (!isInputElement) {
+        handleKeyDown(e)
+      }
+    }
+
+    document.addEventListener('keydown', handleGlobalKeyDown)
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [selectedComponent, selectedChildParentId, isPreviewMode])
+
   // 处理指标面板位置变化，同时重新计算高度
   const handleMetricsLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
     // 确保位置在合理范围内
@@ -189,7 +236,7 @@ export function DashboardCanvas({
   }, [components])
 
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: ['component', 'metric'],
+    accept: ['component', 'metric', 'container', 'container-child'],
     drop: (item: DragItem, monitor) => {
       console.log('Drop zone triggered with item:', item)
       const offset = monitor.getSourceClientOffset()
@@ -257,6 +304,8 @@ export function DashboardCanvas({
             return { width: 350, height: 280 }
           case 'table':
             return { width: 500, height: 300 }
+          case 'container':
+            return { width: 600, height: 400 }
           default:
             return { width: 400, height: 300 }
         }
@@ -277,6 +326,8 @@ export function DashboardCanvas({
             return '关键指标'
           case 'gauge':
             return '进度仪表盘'
+          case 'container':
+            return '容器组件'
           default:
             return '新图表'
         }
@@ -304,6 +355,19 @@ export function DashboardCanvas({
           dimensions: [],
           filters: [],
         },
+        // 容器组件专用属性
+        ...(componentType === 'container' && {
+          children: [],
+          containerConfig: {
+            layout: 'flex',
+            padding: 16,
+            gap: 12,
+            backgroundColor: '#ffffff',
+            borderStyle: 'dashed',
+            borderColor: '#e2e8f0',
+            borderWidth: 2
+          }
+        })
       }
       setComponents(prev => [...prev, newComponent])
       // 自动选择新创建的组件
@@ -366,6 +430,44 @@ export function DashboardCanvas({
       setSelectedComponent(newComponent)
       setIsPropertyPanelOpen(true)
       console.log('Component creation completed')
+    } else if (item.type === 'container-child') {
+      // 从容器拖拽子组件到画布
+      console.log('Moving container child to canvas')
+      const childData = item.data as { component: ComponentLayout, containerId: string, index: number }
+      
+      // 创建新的独立组件，使用合适的画布尺寸
+      const getCanvasSize = (type: ComponentLayout['type']) => {
+        switch (type) {
+          case 'kpi-card':
+            return { width: 300, height: 180 }
+          case 'gauge':
+            return { width: 250, height: 200 }
+          case 'pie-chart':
+            return { width: 350, height: 280 }
+          case 'table':
+            return { width: 500, height: 300 }
+          default:
+            return { width: 400, height: 300 }
+        }
+      }
+      
+      const newComponent: ComponentLayout = {
+        ...childData.component,
+        id: `moved-${childData.component.id}-${Date.now()}`, // 新ID避免冲突
+        position: { x, y },
+        size: getCanvasSize(childData.component.type)
+      }
+      
+      // 添加到画布
+      setComponents(prev => [...prev, newComponent])
+      
+      // 从容器中删除子组件
+      handleDeleteChild(childData.containerId, childData.component.id)
+      
+      // 自动选择新创建的组件
+      setSelectedComponent(newComponent)
+      setIsPropertyPanelOpen(true)
+      console.log('Container child moved to canvas:', newComponent)
     }
   }
 
@@ -391,6 +493,7 @@ export function DashboardCanvas({
 
   const handleComponentSelect = (component: ComponentLayout) => {
     setSelectedComponent(component)
+    setSelectedChildParentId(null) // 清除子组件父容器ID
     setIsPropertyPanelOpen(true)
   }
 
@@ -411,6 +514,133 @@ export function DashboardCanvas({
     if (selectedComponent?.id === componentId) {
       setSelectedComponent(prev => prev ? { ...prev, ...updates } : null)
     }
+  }
+
+  // 处理拖拽到容器组件的逻辑
+  const handleDropToContainer = (item: DragItem, containerId: string, position?: { x: number; y: number }) => {
+    console.log('Dropping item to container:', item, containerId)
+    
+    if (item.type === 'metric') {
+      // 拖拽指标到容器，创建新的图表组件作为子组件
+      const metricData = item.data as { _id: string; name: string; displayName: string; category: string; type: string; unit?: string }
+      
+      const getChartTypeForMetric = (metricType: string, metricCategory: string): ComponentLayout['type'] => {
+        if (metricType === 'ratio' || metricCategory === '营销') {
+          return 'pie-chart'
+        } else if (metricType === 'count') {
+          return 'bar-chart'
+        } else if (metricType === 'sum') {
+          return 'line-chart'
+        } else {
+          return 'kpi-card'
+        }
+      }
+      
+      const chartType = getChartTypeForMetric(metricData.type, metricData.category)
+      
+      const newChildComponent: ComponentLayout = {
+        id: `metric-${metricData._id}-${Date.now()}`,
+        type: chartType,
+        title: metricData.unit ? `${metricData.displayName} (${metricData.unit})` : metricData.displayName,
+        position: position || { x: 0, y: 0 }, // 在容器内的相对位置
+        size: chartType === 'kpi-card' ? { width: 200, height: 120 } : { width: 300, height: 200 },
+        config: {
+          style: {
+            colorScheme: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'],
+            showBackground: true,
+            showBorder: true,
+            showShadow: false,
+            opacity: 1
+          }
+        },
+        dataConfig: {
+          datasourceId: '',
+          query: '',
+          metrics: [metricData.name],
+          dimensions: [],
+          filters: [],
+        },
+      }
+      
+      // 将子组件添加到容器中
+      setComponents(prev => prev.map(comp => {
+        if (comp.id === containerId && comp.type === 'container') {
+          return {
+            ...comp,
+            children: [...(comp.children || []), newChildComponent]
+          }
+        }
+        return comp
+      }))
+      
+    } else if (item.type === 'component') {
+      // 拖拽现有组件到容器 - 暂时不支持，避免复杂的布局问题
+      console.log('Moving existing component to container - not implemented yet')
+    }
+  }
+
+  // 处理选择容器内的子组件
+  const handleSelectChild = (childComponent: ComponentLayout, containerId?: string) => {
+    setSelectedComponent(childComponent)
+    setSelectedChildParentId(containerId || null)
+    setIsPropertyPanelOpen(true)
+  }
+
+  // 处理更新容器内的子组件
+  const handleUpdateChild = (containerId: string, childId: string, updates: Partial<ComponentLayout>) => {
+    setComponents(prev => prev.map(comp => {
+      if (comp.id === containerId && comp.type === 'container' && comp.children) {
+        return {
+          ...comp,
+          children: comp.children.map(child => 
+            child.id === childId ? { ...child, ...updates } : child
+          )
+        }
+      }
+      return comp
+    }))
+    
+    // 如果更新的是当前选中的子组件，也要更新选中状态
+    if (selectedComponent?.id === childId) {
+      setSelectedComponent(prev => prev ? { ...prev, ...updates } : null)
+    }
+  }
+
+  // 处理删除容器内的子组件
+  const handleDeleteChild = (containerId: string, childId: string) => {
+    setComponents(prev => prev.map(comp => {
+      if (comp.id === containerId && comp.type === 'container' && comp.children) {
+        return {
+          ...comp,
+          children: comp.children.filter(child => child.id !== childId)
+        }
+      }
+      return comp
+    }))
+    
+    // 如果删除的是当前选中的子组件，清除选择
+    if (selectedComponent?.id === childId) {
+      setSelectedComponent(null)
+      setIsPropertyPanelOpen(false)
+    }
+  }
+
+  // 处理容器内子组件的拖拽排序
+  const handleMoveChild = (containerId: string, dragIndex: number, hoverIndex: number) => {
+    setComponents(prev => prev.map(comp => {
+      if (comp.id === containerId && comp.type === 'container' && comp.children) {
+        const newChildren = [...comp.children]
+        const dragChild = newChildren[dragIndex]
+        newChildren.splice(dragIndex, 1)
+        newChildren.splice(hoverIndex, 0, dragChild)
+        
+        return {
+          ...comp,
+          children: newChildren
+        }
+      }
+      return comp
+    }))
   }
 
   const handleSave = async () => {
@@ -584,6 +814,11 @@ export function DashboardCanvas({
               setIsPropertyPanelOpen(false)
             }
           }}
+          onDoubleClick={() => {
+            if (isPreviewMode) {
+              setIsPreviewMode(false)
+            }
+          }}
         >
           {/* 画布内容区域 - 确保有足够的滚动空间 */}
           <div className="relative min-w-full min-h-full" style={{ minWidth: '1200px', minHeight: '800px' }}>
@@ -611,10 +846,16 @@ export function DashboardCanvas({
                   component={component}
                   isSelected={selectedComponent?.id === component.id}
                   isPreviewMode={isPreviewMode}
+                  selectedChildId={selectedComponent?.id}
                   onMove={handleComponentMove}
                   onResize={handleComponentResize}
                   onSelect={handleComponentSelect}
                   onDelete={handleComponentDelete}
+                  onDropToContainer={handleDropToContainer}
+                  onSelectChild={handleSelectChild}
+                  onUpdateChild={handleUpdateChild}
+                  onDeleteChild={handleDeleteChild}
+                  onMoveChild={handleMoveChild}
                 />
               ))
             )}
@@ -628,6 +869,8 @@ export function DashboardCanvas({
         onClose={() => setIsPropertyPanelOpen(false)}
         selectedComponent={selectedComponent}
         onUpdateComponent={handleComponentUpdate}
+        onUpdateChild={handleUpdateChild}
+        parentContainerId={selectedChildParentId}
       />
 
       {/* 指标库面板 */}
@@ -648,26 +891,45 @@ interface DraggableComponentProps {
   component: ComponentLayout
   isSelected: boolean
   isPreviewMode: boolean
+  selectedChildId?: string
   onMove: (id: string, position: { x: number; y: number }) => void
   onResize: (id: string, size: { width: number; height: number }) => void
   onSelect: (component: ComponentLayout) => void
   onDelete: (id: string) => void
+  onDropToContainer: (item: DragItem, containerId: string, position?: { x: number; y: number }) => void
+  onSelectChild: (childComponent: ComponentLayout) => void
+  onUpdateChild: (containerId: string, childId: string, updates: Partial<ComponentLayout>) => void
+  onDeleteChild: (containerId: string, childId: string) => void
+  onMoveChild: (containerId: string, dragIndex: number, hoverIndex: number) => void
 }
 
 function DraggableComponent({ 
   component, 
   isSelected,
   isPreviewMode,
+  selectedChildId,
   onMove, 
   onResize,
   onSelect,
-  onDelete 
+  onDelete,
+  onDropToContainer,
+  onSelectChild,
+  onUpdateChild,
+  onDeleteChild,
+  onMoveChild
 }: DraggableComponentProps) {
   const [isDragging, setIsDragging] = React.useState(false)
   const [isHovered, setIsHovered] = React.useState(false)
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isPreviewMode) return
+    
+    // 检查是否点击在子组件上，如果是则不启动容器拖拽
+    const target = e.target as HTMLElement
+    const isChildComponent = target.closest('[data-container-child="true"]')
+    if (isChildComponent) {
+      return
+    }
     
     e.preventDefault()
     e.stopPropagation()
@@ -864,6 +1126,23 @@ function DraggableComponent({
                 config={component.config}
               />
             </div>
+          </div>
+        )}
+
+        {component.type === 'container' && (
+          <div className="w-full h-full">
+            <ContainerComponent
+              component={component}
+              isPreviewMode={isPreviewMode}
+              isSelected={isSelected}
+              selectedChildId={selectedChildId}
+              onDropToContainer={onDropToContainer}
+              onSelectChild={onSelectChild}
+              onUpdateChild={onUpdateChild}
+              onDeleteChild={onDeleteChild}
+              onMoveChild={onMoveChild}
+              className="h-full"
+            />
           </div>
         )}
       </div>

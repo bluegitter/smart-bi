@@ -38,7 +38,7 @@ export function Sidebar({ className }: SidebarProps) {
       className
     )}>
       {/* 导航菜单 */}
-      <div className="p-4 border-b border-slate-200">
+      <div className="p-4  border-slate-200">
         <nav className="space-y-1">
           {sidebarItems.map((item) => {
             const Icon = item.icon
@@ -61,12 +61,7 @@ export function Sidebar({ className }: SidebarProps) {
         </nav>
       </div>
 
-      {/* 可滚动内容区域 */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4 space-y-4">
-
-        </div>
-      </div>
+      
     </aside>
   )
 }

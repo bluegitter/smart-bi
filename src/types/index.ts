@@ -20,7 +20,7 @@ export interface User {
 // 组件布局类型
 export interface ComponentLayout {
   id: string
-  type: 'line-chart' | 'bar-chart' | 'pie-chart' | 'table' | 'kpi-card' | 'gauge'
+  type: 'line-chart' | 'bar-chart' | 'pie-chart' | 'table' | 'kpi-card' | 'gauge' | 'container'
   title: string
   position: { x: number, y: number }
   size: { width: number, height: number }
@@ -31,6 +31,18 @@ export interface ComponentLayout {
     metrics: string[]
     dimensions: string[]
     filters: Filter[]
+  }
+  // 容器组件专用属性 - 嵌套的子组件
+  children?: ComponentLayout[]
+  // 容器组件专用属性 - 布局配置
+  containerConfig?: {
+    layout: 'grid' | 'flex' | 'absolute'
+    padding: number
+    gap: number
+    backgroundColor?: string
+    borderStyle?: 'solid' | 'dashed' | 'none'
+    borderColor?: string
+    borderWidth?: number
   }
 }
 
@@ -144,9 +156,15 @@ export interface DateRange {
 
 // 拖拽相关类型
 export interface DragItem {
-  type: 'component' | 'metric'
+  type: 'component' | 'metric' | 'container' | 'container-child'
   id: string
   data: any // Flexible data structure to handle different drag sources
+  // 容器拖拽时的附加信息
+  containerId?: string // 当拖拽到容器内时记录目标容器ID
+  isFromContainer?: boolean // 标记是否从容器内拖出
+  // 容器子组件拖拽时的信息
+  index?: number // 子组件在容器中的索引
+  component?: ComponentLayout // 子组件信息
 }
 
 // 应用状态类型

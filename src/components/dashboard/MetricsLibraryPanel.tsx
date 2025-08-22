@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Search, Filter, X, Database, ChevronDown, ChevronRight } from 'lucide-react'
+import { Search, Filter, X, Database, ChevronDown, ChevronRight, Box } from 'lucide-react'
+import { useDrag } from 'react-dnd'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -106,6 +107,41 @@ const mockMetrics: Metric[] = [
 ]
 
 const categories = ['全部', '销售', '客户', '营销', '财务']
+
+// 容器组件拖拽卡片
+function DraggableContainerCard() {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: 'component',
+    item: {
+      type: 'component',
+      id: 'container',
+      data: { type: 'container', name: '容器组件' }
+    },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  }))
+
+  return (
+    <div
+      ref={drag}
+      className={cn(
+        "p-3 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 hover:bg-blue-100 transition-all cursor-move",
+        isDragging && "opacity-50 scale-95"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <div className="p-2 rounded-md bg-blue-100 text-blue-600">
+          <Box className="w-4 h-4" />
+        </div>
+        <div>
+          <div className="font-medium text-sm text-blue-800">容器组件</div>
+          <div className="text-xs text-blue-600">拖拽到画布创建容器</div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function MetricsLibraryPanel({ 
   className, 
@@ -283,6 +319,11 @@ export function MetricsLibraryPanel({
             </Button>
           ))}
         </div>
+      </div>
+
+      {/* Container Component */}
+      <div className="px-3 pb-2">
+        <DraggableContainerCard />
       </div>
 
       {/* Metrics List */}

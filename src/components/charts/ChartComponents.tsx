@@ -3,6 +3,9 @@
 import React from 'react'
 import { TrendingUp, TrendingDown, BarChart3, PieChart, Table, Activity } from 'lucide-react'
 
+// 导出容器组件
+export { ContainerComponent } from './ContainerComponent'
+
 // Mock数据生成器
 export const generateMockData = {
   lineChart: () => {

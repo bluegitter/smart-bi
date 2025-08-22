@@ -13,6 +13,8 @@ interface PropertyPanelProps {
   onClose: () => void
   selectedComponent: ComponentLayout | null
   onUpdateComponent: (componentId: string, updates: Partial<ComponentLayout>) => void
+  onUpdateChild?: (containerId: string, childId: string, updates: Partial<ComponentLayout>) => void
+  parentContainerId?: string // 如果选中的是子组件，这里存储父容器ID
 }
 
 const chartTypeOptions = [
@@ -21,7 +23,8 @@ const chartTypeOptions = [
   { value: 'pie-chart', label: '饼图', icon: '🥧' },
   { value: 'table', label: '数据表', icon: '📋' },
   { value: 'kpi-card', label: '指标卡片', icon: '📌' },
-  { value: 'gauge', label: '仪表盘', icon: '⏰' }
+  { value: 'gauge', label: '仪表盘', icon: '⏰' },
+  { value: 'container', label: '容器组件', icon: '📦' }
 ]
 
 const colorSchemes = [
@@ -32,7 +35,7 @@ const colorSchemes = [
   { name: '暖色系', colors: ['#dc2626', '#ea580c', '#f59e0b', '#eab308', '#84cc16'] }
 ]
 
-export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComponent }: PropertyPanelProps) {
+export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComponent, onUpdateChild, parentContainerId }: PropertyPanelProps) {
   const [activeSection, setActiveSection] = React.useState<string>('basic')
   const [expandedSections, setExpandedSections] = React.useState<Record<string, boolean>>({
     basic: true,
@@ -51,7 +54,13 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
   }
 
   const handleUpdate = (updates: Partial<ComponentLayout>) => {
-    onUpdateComponent(selectedComponent.id, updates)
+    // 如果选中的是容器子组件，使用特殊的更新逻辑
+    if (parentContainerId && onUpdateChild) {
+      onUpdateChild(parentContainerId, selectedComponent.id, updates)
+    } else {
+      // 普通组件更新
+      onUpdateComponent(selectedComponent.id, updates)
+    }
   }
 
   const handleChartTypeChange = (newType: ComponentLayout['type']) => {
@@ -118,6 +127,15 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
           ...selectedComponent.config?.gauge,
           ...gaugeUpdates
         }
+      }
+    })
+  }
+
+  const handleContainerConfigUpdate = (containerUpdates: any) => {
+    handleUpdate({
+      containerConfig: {
+        ...selectedComponent.containerConfig,
+        ...containerUpdates
       }
     })
   }
@@ -581,6 +599,78 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                           onChange={(e) => handleGaugeConfigUpdate({ showThresholds: e.target.checked })}
                         />
                         <label htmlFor="showThresholds" className="text-sm">显示阈值</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedComponent.type === 'container' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">容器设置</label>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">布局方式</label>
+                        <select 
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          value={selectedComponent.containerConfig?.layout || 'flex'}
+                          onChange={(e) => handleContainerConfigUpdate({ layout: e.target.value })}
+                        >
+                          <option value="flex">弹性布局</option>
+                          <option value="grid">网格布局</option>
+                          <option value="absolute">绝对定位</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">内边距 (px)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="50"
+                          value={selectedComponent.containerConfig?.padding || 16}
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          onChange={(e) => handleContainerConfigUpdate({ padding: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">间距 (px)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          value={selectedComponent.containerConfig?.gap || 12}
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          onChange={(e) => handleContainerConfigUpdate({ gap: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">边框样式</label>
+                        <select 
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          value={selectedComponent.containerConfig?.borderStyle || 'solid'}
+                          onChange={(e) => handleContainerConfigUpdate({ borderStyle: e.target.value })}
+                        >
+                          <option value="solid">实线</option>
+                          <option value="dashed">虚线</option>
+                          <option value="none">无边框</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">边框颜色</label>
+                        <input
+                          type="color"
+                          value={selectedComponent.containerConfig?.borderColor || '#e2e8f0'}
+                          className="w-full h-8 border border-slate-200 rounded"
+                          onChange={(e) => handleContainerConfigUpdate({ borderColor: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">背景颜色</label>
+                        <input
+                          type="color"
+                          value={selectedComponent.containerConfig?.backgroundColor || '#ffffff'}
+                          className="w-full h-8 border border-slate-200 rounded"
+                          onChange={(e) => handleContainerConfigUpdate({ backgroundColor: e.target.value })}
+                        />
                       </div>
                     </div>
                   </div>
