@@ -720,9 +720,9 @@ export function DashboardCanvas({
   }
 
   return (
-    <div className={cn("flex-1 bg-white flex flex-col relative", className)}>
+    <div className={cn("flex-1 bg-white flex flex-col", className)} style={{ height: '100vh', overflow: 'hidden' }}>
       {/* 工具栏 - 绝对固定在顶部 */}
-      <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0 bg-white z-50 sticky top-0">
+      <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0 bg-white z-50">
         <div className="flex items-center gap-2">
           <h1 className="font-semibold">
             {dashboard?.name || dashboardName}
@@ -829,10 +829,13 @@ export function DashboardCanvas({
       </div>
 
       {/* 画布容器 - 独立的滚动区域 */}
-      <div className={cn(
-        "flex-1 flex",
-        isFullscreen ? "h-[calc(100vh-48px)]" : "h-[calc(100vh-140px)]"
-      )}>
+      <div 
+        className="flex-1 flex"
+        style={{ 
+          height: 'calc(100vh - 48px)',
+          maxHeight: 'calc(100vh - 48px)',
+          overflow: 'hidden'
+        }}>
         {/* 画布区域 */}
         <div 
           ref={(node) => {
@@ -840,15 +843,19 @@ export function DashboardCanvas({
             drop(node)
           }}
           className={cn(
-            "flex-1 relative p-6 overflow-auto",
+            "w-full h-full",
             isPreviewMode ? "bg-white" : "bg-slate-50",
             !isPreviewMode && "bg-grid-pattern",
             isOver && !isPreviewMode && "bg-blue-50 ring-2 ring-blue-300 ring-inset"
           )}
-          style={!isPreviewMode ? {
-            backgroundImage: `radial-gradient(circle, #e2e8f0 1px, transparent 1px)`,
-            backgroundSize: '24px 24px',
-          } : {}}
+          style={{
+            overflow: 'auto',
+            position: 'relative',
+            ...(!isPreviewMode ? {
+              backgroundImage: `radial-gradient(circle, #e2e8f0 1px, transparent 1px)`,
+              backgroundSize: '24px 24px',
+            } : {})
+          }}
           onClick={() => {
             if (!isPreviewMode) {
               setSelectedComponent(null)
@@ -861,8 +868,19 @@ export function DashboardCanvas({
             }
           }}
         >
-          {/* 画布内容区域 - 确保有足够的滚动空间 */}
-          <div className="relative min-w-full min-h-full" style={{ minWidth: '1200px', minHeight: '800px' }}>
+          {/* 画布内容区域 - 动态计算滚动空间 */}
+          <div 
+            className="relative"
+            style={{ 
+              width: components.length > 0 
+                ? Math.max(1200, Math.max(...components.map(c => c.position.x + c.size.width)) + 200) + 'px'
+                : '2000px', // 强制宽度测试滚动
+              height: components.length > 0 
+                ? Math.max(800, Math.max(...components.map(c => c.position.y + c.size.height)) + 200) + 'px'
+                : '2000px', // 强制高度测试滚动
+              padding: '24px'
+            }}
+          >
             {components.length === 0 && !isPreviewMode ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <Card className="w-96">

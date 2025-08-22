@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import { metricsService } from '@/lib/metricsService'
 import type { Metric } from '@/types'
 
 interface UseMetricsOptions {
@@ -43,24 +42,41 @@ export function useMetrics(options: UseMetricsOptions = {}): UseMetricsReturn {
   const [category, setCategory] = useState(options.category || '')
   const [tags, setTags] = useState<string[]>(options.tags || [])
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token')
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  }
+
   // 获取指标数据
   const fetchMetrics = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       
-      const response = await metricsService.getMetrics({
-        category: category || undefined,
-        search: search || undefined,
-        tags: tags.length > 0 ? tags : undefined,
-        limit: 50 // 增加限制以获取更多数据
-      })
+      const query = new URLSearchParams()
+      if (category) query.append('category', category)
+      if (search) query.append('search', search)
+      if (tags.length > 0) query.append('tags', tags.join(','))
+      query.append('limit', '50')
       
-      setMetrics(response.metrics || [])
-      setCategories(response.categories || [])
-      setAllTags(response.tags || [])
-      setTotal(response.total || 0)
-      setHasMore(response.hasMore || false)
+      const response = await fetch(`/api/metrics?${query}`, {
+        headers: getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch metrics')
+      }
+
+      const data = await response.json()
+      
+      setMetrics(data.metrics || [])
+      setCategories(data.categories?.map((c: any) => c.name) || [])
+      setAllTags(data.tags?.map((t: any) => t.name) || [])
+      setTotal(data.pagination?.total || 0)
+      setHasMore(data.pagination ? data.pagination.page < data.pagination.pages : false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch metrics')
       setMetrics([])
@@ -73,7 +89,17 @@ export function useMetrics(options: UseMetricsOptions = {}): UseMetricsReturn {
   const createMetric = useCallback(async (metricData: Partial<Metric>) => {
     try {
       setError(null)
-      await metricsService.createMetric(metricData)
+      const response = await fetch('/api/metrics', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(metricData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create metric')
+      }
+
       await fetchMetrics() // 重新获取数据
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create metric'
@@ -86,7 +112,17 @@ export function useMetrics(options: UseMetricsOptions = {}): UseMetricsReturn {
   const updateMetric = useCallback(async (id: string, metricData: Partial<Metric>) => {
     try {
       setError(null)
-      await metricsService.updateMetric(id, metricData)
+      const response = await fetch(`/api/metrics/${id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(metricData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update metric')
+      }
+
       await fetchMetrics() // 重新获取数据
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update metric'
@@ -99,7 +135,16 @@ export function useMetrics(options: UseMetricsOptions = {}): UseMetricsReturn {
   const deleteMetric = useCallback(async (id: string) => {
     try {
       setError(null)
-      await metricsService.deleteMetric(id)
+      const response = await fetch(`/api/metrics/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete metric')
+      }
+
       await fetchMetrics() // 重新获取数据
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete metric'
@@ -151,8 +196,20 @@ export function useMetricsList(limit = 20) {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const response = await metricsService.getMetrics({ limit })
-        setMetrics(response.metrics || [])
+        const token = localStorage.getItem('token')
+        const response = await fetch(`/api/metrics?limit=${limit}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setMetrics(data.metrics || [])
+        } else {
+          setMetrics([])
+        }
       } catch (error) {
         console.error('Error fetching metrics:', error)
         setMetrics([])
@@ -180,8 +237,21 @@ export function useMetric(id: string) {
       try {
         setLoading(true)
         setError(null)
-        const fetchedMetric = await metricsService.getMetric(id)
-        setMetric(fetchedMetric)
+        const token = localStorage.getItem('token')
+        const response = await fetch(`/api/metrics/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (response.ok) {
+          const fetchedMetric = await response.json()
+          setMetric(fetchedMetric)
+        } else {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to fetch metric')
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch metric')
         setMetric(null)

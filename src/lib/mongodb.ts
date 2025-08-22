@@ -1,4 +1,5 @@
 import { MongoClient, Db } from 'mongodb'
+import mongoose from 'mongoose'
 
 if (!process.env.MONGODB_URI) {
   throw new Error('MONGODB_URI environment variable is not defined')
@@ -27,6 +28,31 @@ export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db
   const client = await clientPromise
   const db = client.db('smartbi')
   return { client, db }
+}
+
+// Mongoose 连接状态
+let isMongooseConnected = false
+
+// 简化的连接函数，用于API路由
+export async function connectDB(): Promise<void> {
+  try {
+    // 连接 MongoDB native driver
+    await clientPromise
+    
+    // 连接 Mongoose
+    if (!isMongooseConnected) {
+      if (mongoose.connection.readyState === 0) {
+        await mongoose.connect(uri, {
+          dbName: 'smartbi'
+        })
+        isMongooseConnected = true
+        console.log('Mongoose connected to MongoDB')
+      }
+    }
+  } catch (error) {
+    console.error('MongoDB connection failed:', error)
+    throw error
+  }
 }
 
 // 导出数据库连接promise以供其他模块使用

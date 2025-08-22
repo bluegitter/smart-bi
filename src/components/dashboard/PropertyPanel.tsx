@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
+import { useSidebarCollapsed, useIsFullscreen } from '@/store/useAppStore'
 import type { ComponentLayout } from '@/types'
 
 interface PropertyPanelProps {
@@ -44,7 +45,16 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
     advanced: false
   })
 
+  // 获取sidebar和全屏状态
+  const sidebarCollapsed = useSidebarCollapsed()
+  const isFullscreen = useIsFullscreen()
+
   if (!isOpen || !selectedComponent) return null
+
+  // 计算属性面板的位置
+  // 当sidebar折叠或全屏时，面板位置为 right-0
+  // 当sidebar展开时，面板位置需要考虑sidebar的宽度(320px)
+  const panelRight = (sidebarCollapsed || isFullscreen) ? 0 : 0
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -148,7 +158,15 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
   }
 
   return (
-    <div className="w-80 bg-white border-l border-slate-200 flex flex-col" style={{ height: 'calc(100vh - 48px)' }}>
+    <div 
+      className="fixed w-80 bg-white border-l border-slate-200 flex flex-col z-50 shadow-lg"
+      style={{ 
+        top: isFullscreen ? '0' : '64px', // Header高度64px，全屏时从顶部开始
+        height: isFullscreen ? '100vh' : 'calc(100vh - 64px)',
+        right: panelRight,
+        transition: 'right 0.3s ease-in-out'
+      }}
+    >
       {/* 头部 */}
       <div className="h-16 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">

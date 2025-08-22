@@ -7,57 +7,12 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { CreateDataSourceModal } from '@/components/datasource/CreateDataSourceModal'
-
-// 模拟数据源数据
-const mockDataSources = [
-  {
-    id: '1',
-    name: 'MySQL 生产环境',
-    type: 'mysql' as const,
-    status: 'connected' as const,
-    host: 'prod-mysql.example.com',
-    database: 'production_db',
-    lastConnected: '2024-01-15 14:30',
-    tablesCount: 45,
-    createdBy: '张三',
-    description: '生产环境主数据库，包含用户、订单、产品等核心数据'
-  },
-  {
-    id: '2',
-    name: 'PostgreSQL 分析库',
-    type: 'postgresql' as const,
-    status: 'connected' as const,
-    host: 'analytics-pg.example.com',
-    database: 'analytics_db',
-    lastConnected: '2024-01-15 13:45',
-    tablesCount: 28,
-    createdBy: '李四',
-    description: '数据分析专用数据库，包含汇总统计数据'
-  },
-  {
-    id: '3',
-    name: 'MongoDB 日志库',
-    type: 'mongodb' as const,
-    status: 'connecting' as const,
-    host: 'logs-mongo.example.com',
-    database: 'logs_db',
-    lastConnected: '2024-01-15 12:20',
-    tablesCount: 12,
-    createdBy: '王五',
-    description: '应用日志和事件数据存储'
-  },
-  {
-    id: '4',
-    name: '销售API接口',
-    type: 'api' as const,
-    status: 'error' as const,
-    apiUrl: 'https://api.sales.example.com/v1',
-    lastConnected: '2024-01-14 16:00',
-    tablesCount: 0,
-    createdBy: '赵六',
-    description: '销售系统API接口，提供实时销售数据'
-  }
-]
+import { EditDataSourceModal } from '@/components/datasource/EditDataSourceModal'
+import { useDataSources } from '@/hooks/useDataSources'
+import { useToast } from '@/hooks/useToast'
+import { ToastContainer } from '@/components/ui/Toast'
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog'
+import type { DataSource } from '@/types'
 
 const dataSourceTypeLabels = {
   mysql: 'MySQL',
@@ -88,39 +43,126 @@ const statusConfig = {
   }
 }
 
+// 获取数据源状态
+const getDataSourceStatus = (dataSource: DataSource): 'connected' | 'connecting' | 'error' => {
+  if (!dataSource.isActive) return 'error'
+  // 根据实际情况判断状态，这里简化处理
+  return 'connected'
+}
+
 export default function DataSourcesPage() {
   const router = useRouter()
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
+  const [editingDataSource, setEditingDataSource] = React.useState<DataSource | null>(null)
   const [searchTerm, setSearchTerm] = React.useState('')
+  const [testingConnections, setTestingConnections] = React.useState<Set<string>>(new Set())
+  
+  const { toasts, removeToast, showSuccess, showError } = useToast()
+  const { showConfirm, confirmDialog } = useConfirmDialog()
 
-  const filteredDataSources = mockDataSources.filter(ds => 
+  const {
+    dataSources,
+    loading,
+    error,
+    createDataSource,
+    updateDataSource,
+    deleteDataSource,
+    testConnection,
+    setError
+  } = useDataSources()
+
+  const filteredDataSources = dataSources.filter(ds => 
     ds.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ds.description.toLowerCase().includes(searchTerm.toLowerCase())
+    (ds.description && ds.description.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
-  const handleCreateDataSource = (dataSourceData: {
+  const handleCreateDataSource = async (dataSourceData: {
     name: string
     type: string
     config: Record<string, any>
   }) => {
-    console.log('Creating data source:', dataSourceData)
-    // TODO: 实现创建数据源的逻辑
+    try {
+      await createDataSource(dataSourceData)
+      setIsCreateModalOpen(false)
+    } catch (err) {
+      console.error('Failed to create data source:', err)
+    }
   }
 
-  const handleTestConnection = (dataSourceId: string) => {
-    console.log('Testing connection for:', dataSourceId)
-    // TODO: 实现测试连接的逻辑
+  const handleTestConnection = async (dataSource: DataSource) => {
+    const dataSourceId = dataSource._id || dataSource.id
+    setTestingConnections(prev => new Set([...prev, dataSourceId]))
+    
+    try {
+      const result = await testConnection({
+        type: dataSource.type,
+        config: dataSource.config
+      })
+      
+      if (result.success) {
+        showSuccess('连接测试成功', result.message)
+      } else {
+        showError('连接测试失败', result.error || '未知错误')
+      }
+    } catch (err) {
+      console.error('Connection test failed:', err)
+      showError('连接测试失败', '网络错误或服务异常')
+    } finally {
+      setTestingConnections(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(dataSourceId)
+        return newSet
+      })
+    }
   }
 
-  const handleEditDataSource = (dataSourceId: string) => {
-    console.log('Editing data source:', dataSourceId)
-    // TODO: 实现编辑数据源的逻辑
+  const handleEditDataSource = (dataSource: DataSource) => {
+    setEditingDataSource(dataSource)
+    setIsEditModalOpen(true)
   }
 
-  const handleDeleteDataSource = (dataSourceId: string) => {
-    console.log('Deleting data source:', dataSourceId)
-    // TODO: 实现删除数据源的逻辑
+  const handleUpdateDataSource = async (id: string, dataSourceData: {
+    name: string
+    type: string
+    config: Record<string, any>
+  }) => {
+    try {
+      await updateDataSource(id, dataSourceData)
+      setIsEditModalOpen(false)
+      setEditingDataSource(null)
+    } catch (err) {
+      console.error('Failed to update data source:', err)
+    }
   }
+
+  const handleDeleteDataSource = (dataSourceId: string, dataSourceName: string) => {
+    showConfirm({
+      title: '删除数据源',
+      message: `确定要删除数据源"${dataSourceName}"吗？此操作不可恢复，相关的指标和看板也会受到影响。`,
+      confirmText: '删除',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteDataSource(dataSourceId)
+          showSuccess('删除成功', `数据源"${dataSourceName}"已被删除`)
+        } catch (err) {
+          console.error('Failed to delete data source:', err)
+          showError('删除失败', '删除数据源时发生错误，请稍后重试')
+        }
+      }
+    })
+  }
+
+  // 计算统计数据
+  const stats = React.useMemo(() => {
+    const total = dataSources.length
+    const connected = dataSources.filter(ds => getDataSourceStatus(ds) === 'connected').length
+    const connecting = dataSources.filter(ds => getDataSourceStatus(ds) === 'connecting').length
+    const error = dataSources.filter(ds => getDataSourceStatus(ds) === 'error').length
+    
+    return { total, connected, connecting, error }
+  }, [dataSources])
 
   return (
     <div className="flex-1 p-6">
@@ -167,7 +209,7 @@ export default function DataSourcesPage() {
                 <Database className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <div className="text-2xl font-semibold">4</div>
+                <div className="text-2xl font-semibold">{stats.total}</div>
                 <div className="text-sm text-slate-500">总数据源</div>
               </div>
             </div>
@@ -181,7 +223,7 @@ export default function DataSourcesPage() {
                 <CheckCircle className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <div className="text-2xl font-semibold">2</div>
+                <div className="text-2xl font-semibold">{stats.connected}</div>
                 <div className="text-sm text-slate-500">已连接</div>
               </div>
             </div>
@@ -195,7 +237,7 @@ export default function DataSourcesPage() {
                 <Clock className="h-5 w-5 text-yellow-600" />
               </div>
               <div>
-                <div className="text-2xl font-semibold">1</div>
+                <div className="text-2xl font-semibold">{stats.connecting}</div>
                 <div className="text-sm text-slate-500">连接中</div>
               </div>
             </div>
@@ -209,7 +251,7 @@ export default function DataSourcesPage() {
                 <XCircle className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <div className="text-2xl font-semibold">1</div>
+                <div className="text-2xl font-semibold">{stats.error}</div>
                 <div className="text-sm text-slate-500">连接失败</div>
               </div>
             </div>
@@ -218,142 +260,154 @@ export default function DataSourcesPage() {
       </div>
 
       {/* 数据源列表 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredDataSources.map((dataSource) => {
-          const status = statusConfig[dataSource.status]
-          const StatusIcon = status.icon
-          
-          return (
-            <Card key={dataSource.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        {loading && dataSources.length === 0 ? (
+          <div className="col-span-full text-center py-8">
+            <div className="text-slate-500">正在加载数据源...</div>
+          </div>
+        ) : error ? (
+          <div className="col-span-full text-center py-8">
+            <div className="text-red-500">加载失败: {error}</div>
+            <Button variant="outline" onClick={() => setError(null)} className="mt-2">
+              重试
+            </Button>
+          </div>
+        ) : filteredDataSources.length === 0 ? (
+          <div className="col-span-full text-center py-8">
+            <div className="text-slate-500">暂无数据源</div>
+          </div>
+        ) : (
+          filteredDataSources.map((dataSource) => {
+            const dataSourceId = dataSource._id || dataSource.id
+            const status = statusConfig[getDataSourceStatus(dataSource)]
+            const StatusIcon = status.icon
+            const isTestingConnection = testingConnections.has(dataSourceId)
+            
+            return (
+              <Card key={dataSourceId} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
-                      <Database className="h-6 w-6 text-slate-600" />
+                  <div className="flex items-start gap-2 flex-1">
+                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <Database className="h-5 w-5 text-slate-600" />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <CardTitle className="text-lg">{dataSource.name}</CardTitle>
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${status.bgColor} ${status.color}`}>
-                          <StatusIcon className="h-3 w-3" />
+                        <CardTitle className="text-base truncate">{dataSource.name}</CardTitle>
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${status.bgColor} ${status.color} whitespace-nowrap`}>
+                          <StatusIcon className="h-2.5 w-2.5" />
                           {status.label}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-slate-500 mb-2">
-                        <span>{dataSourceTypeLabels[dataSource.type]}</span>
-                        {dataSource.tablesCount > 0 && (
-                          <span>{dataSource.tablesCount} 个数据表</span>
+                      <div className="text-xs text-slate-500 mb-1">
+                        {dataSourceTypeLabels[dataSource.type]}
+                        {dataSource.schemaInfo?.tables?.length && (
+                          <span className="ml-2">{dataSource.schemaInfo.tables.length} 表</span>
                         )}
                       </div>
-                      <p className="text-sm text-slate-600 line-clamp-2">
-                        {dataSource.description}
-                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleTestConnection(dataSource.id)}
+                      className="h-7 w-7"
+                      onClick={() => handleTestConnection(dataSource)}
+                      disabled={isTestingConnection}
                       title="测试连接"
                     >
-                      <TestTube className="h-4 w-4" />
+                      <TestTube className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon" 
-                      className="h-8 w-8"
-                      onClick={() => handleEditDataSource(dataSource.id)}
+                      className="h-7 w-7"
+                      onClick={() => handleEditDataSource(dataSource)}
                       title="编辑"
                     >
-                      <Edit className="h-4 w-4" />
+                      <Edit className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-600"
-                      onClick={() => handleDeleteDataSource(dataSource.id)}
+                      className="h-7 w-7 text-red-500 hover:text-red-600"
+                      onClick={() => handleDeleteDataSource(dataSourceId, dataSource.name)}
                       title="删除"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="pt-2">
+                <div className="space-y-2">
                   {/* 连接信息 */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <div className="text-slate-500">连接地址</div>
-                      <div className="font-medium">
-                        {dataSource.host || dataSource.apiUrl || '未设置'}
+                      <div className="font-medium truncate" title={dataSource.config?.host || dataSource.config?.apiUrl || '未设置'}>
+                        {dataSource.config?.host || dataSource.config?.apiUrl || '未设置'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-slate-500">数据库名</div>
-                      <div className="font-medium">
-                        {dataSource.database || '无'}
+                      <div className="text-slate-500">数据库</div>
+                      <div className="font-medium truncate" title={dataSource.config?.database || '无'}>
+                        {dataSource.config?.database || '无'}
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500">最近连接</div>
-                      <div className="font-medium">{dataSource.lastConnected}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500">创建者</div>
-                      <div className="font-medium">{dataSource.createdBy}</div>
                     </div>
                   </div>
 
                   {/* 操作按钮 */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-1 pt-2 border-t border-slate-100">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex items-center gap-1"
-                      onClick={() => handleTestConnection(dataSource.id)}
+                      className="flex items-center gap-1 text-xs px-2 py-1 h-7"
+                      onClick={() => handleTestConnection(dataSource)}
+                      disabled={isTestingConnection}
                     >
                       <TestTube className="h-3 w-3" />
-                      测试连接
+                      {isTestingConnection ? '测试中' : '测试'}
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push(`/datasources/${dataSource.id}/schema`)}
+                      className="text-xs px-2 py-1 h-7"
+                      onClick={() => router.push(`/datasources/${dataSourceId}/schema`)}
                     >
-                      查看结构
+                      结构
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push(`/datasources/${dataSource.id}/query`)}
+                      className="text-xs px-2 py-1 h-7"
+                      onClick={() => router.push(`/datasources/${dataSourceId}/query`)}
                     >
-                      查询数据
+                      查询
                     </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          )
-        })}
+            )
+          })
+        )}
 
         {/* 新建数据源卡片 */}
         <Card 
           className="border-2 border-dashed border-slate-300 hover:border-slate-400 transition-colors cursor-pointer"
           onClick={() => setIsCreateModalOpen(true)}
         >
-          <CardContent className="p-8 flex flex-col items-center justify-center text-center h-full min-h-[300px]">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-              <Plus className="h-8 w-8 text-slate-400" />
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full min-h-[180px]">
+            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+              <Plus className="h-6 w-6 text-slate-400" />
             </div>
-            <h3 className="font-medium mb-2">添加新数据源</h3>
-            <p className="text-sm text-slate-500 mb-4">
-              连接数据库、API或上传文件，开始数据分析
+            <h3 className="font-medium mb-2 text-sm">添加新数据源</h3>
+            <p className="text-xs text-slate-500 mb-3">
+              连接数据库、API或上传文件
             </p>
-            <Button variant="outline">
+            <Button variant="outline" size="sm" className="text-xs px-3 py-1 h-7">
               立即添加
             </Button>
           </CardContent>
@@ -366,6 +420,24 @@ export default function DataSourcesPage() {
         onClose={() => setIsCreateModalOpen(false)}
         onCreateDataSource={handleCreateDataSource}
       />
+      
+      {/* 编辑数据源模态框 */}
+      <EditDataSourceModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setEditingDataSource(null)
+        }}
+        onUpdateDataSource={handleUpdateDataSource}
+        dataSource={editingDataSource}
+        onTestConnection={testConnection}
+      />
+      
+      {/* Toast 通知 */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      
+      {/* 确认对话框 */}
+      {confirmDialog}
     </div>
   )
 }

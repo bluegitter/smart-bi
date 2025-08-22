@@ -6,16 +6,24 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
+import { DataSource } from '@/types'
 import { useToast } from '@/hooks/useToast'
 
-interface CreateDataSourceModalProps {
+interface EditDataSourceModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateDataSource: (dataSource: CreateDataSourceData) => void
+  onUpdateDataSource: (id: string, dataSource: UpdateDataSourceData) => Promise<void>
+  dataSource: DataSource | null
+  onTestConnection: (config: TestConnectionConfig) => Promise<{ success: boolean; message: string; error?: string }>
 }
 
-interface CreateDataSourceData {
+interface UpdateDataSourceData {
   name: string
+  type: string
+  config: Record<string, any>
+}
+
+interface TestConnectionConfig {
   type: string
   config: Record<string, any>
 }
@@ -65,8 +73,7 @@ const dataSourceTypes = [
   }
 ]
 
-export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: CreateDataSourceModalProps) {
-  const [step, setStep] = React.useState(1)
+export function EditDataSourceModal({ isOpen, onClose, onUpdateDataSource, dataSource, onTestConnection }: EditDataSourceModalProps) {
   const [selectedType, setSelectedType] = React.useState<DataSourceType | null>(null)
   const [formData, setFormData] = React.useState({
     name: '',
@@ -83,13 +90,31 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
     filePath: ''
   })
   const [isConnecting, setIsConnecting] = React.useState(false)
+  const [isUpdating, setIsUpdating] = React.useState(false)
   
   const { showSuccess, showError } = useToast()
 
+  // Initialize form data when modal opens or dataSource changes
   React.useEffect(() => {
-    if (isOpen) {
-      // 重置状态
-      setStep(1)
+    if (isOpen && dataSource) {
+      setSelectedType(dataSource.type as DataSourceType)
+      setFormData({
+        name: dataSource.name || '',
+        host: dataSource.config?.host || '',
+        port: dataSource.config?.port?.toString() || '',
+        database: dataSource.config?.database || '',
+        username: dataSource.config?.username || '',
+        password: '', // Don't populate password for security
+        apiUrl: dataSource.config?.apiUrl || '',
+        headers: dataSource.config?.headers || {},
+        filePath: dataSource.config?.filePath || ''
+      })
+    }
+  }, [isOpen, dataSource])
+
+  // Reset form when modal closes
+  React.useEffect(() => {
+    if (!isOpen) {
       setSelectedType(null)
       setFormData({
         name: '',
@@ -102,22 +127,12 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
         headers: {},
         filePath: ''
       })
+      setIsConnecting(false)
+      setIsUpdating(false)
     }
   }, [isOpen])
 
-  if (!isOpen) return null
-
-  const handleNext = () => {
-    if (step === 1 && selectedType) {
-      setStep(2)
-    }
-  }
-
-  const handleBack = () => {
-    if (step === 2) {
-      setStep(1)
-    }
-  }
+  if (!isOpen || !dataSource) return null
 
   const handleTestConnection = async () => {
     if (!selectedType) return
@@ -133,7 +148,7 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
           port: Number(formData.port),
           database: formData.database,
           username: formData.username,
-          password: formData.password
+          password: formData.password || dataSource.config?.password // Use existing password if not changed
         }
       } else if (selectedType === 'mongodb') {
         config = {
@@ -141,7 +156,7 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
           port: Number(formData.port),
           database: formData.database,
           username: formData.username,
-          password: formData.password
+          password: formData.password || dataSource.config?.password
         }
       } else if (selectedType === 'api') {
         config = {
@@ -154,22 +169,12 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
         }
       }
 
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/datasources/test', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: selectedType,
-          config
-        })
+      const result = await onTestConnection({
+        type: selectedType,
+        config
       })
-
-      const result = await response.json()
       
-      if (response.ok && result.success) {
+      if (result.success) {
         showSuccess('连接测试成功', result.message)
       } else {
         showError('连接测试失败', result.error || '未知错误')
@@ -182,44 +187,55 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
     }
   }
 
-  const handleCreate = () => {
-    if (!selectedType || !formData.name) return
+  const handleUpdate = async () => {
+    if (!selectedType || !formData.name || !dataSource) return
 
-    let config: Record<string, any> = {}
+    setIsUpdating(true)
 
-    if (selectedType === 'mysql' || selectedType === 'postgresql') {
-      config = {
-        host: formData.host,
-        port: Number(formData.port),
-        database: formData.database,
-        username: formData.username,
-        password: formData.password
+    try {
+      let config: Record<string, any> = {}
+
+      if (selectedType === 'mysql' || selectedType === 'postgresql') {
+        config = {
+          host: formData.host,
+          port: Number(formData.port),
+          database: formData.database,
+          username: formData.username,
+          // Only update password if it was changed
+          ...(formData.password && { password: formData.password })
+        }
+      } else if (selectedType === 'mongodb') {
+        config = {
+          host: formData.host,
+          port: Number(formData.port),
+          database: formData.database,
+          username: formData.username,
+          ...(formData.password && { password: formData.password })
+        }
+      } else if (selectedType === 'api') {
+        config = {
+          apiUrl: formData.apiUrl,
+          headers: formData.headers
+        }
+      } else if (selectedType === 'csv') {
+        config = {
+          filePath: formData.filePath
+        }
       }
-    } else if (selectedType === 'mongodb') {
-      config = {
-        host: formData.host,
-        port: Number(formData.port),
-        database: formData.database,
-        username: formData.username,
-        password: formData.password
-      }
-    } else if (selectedType === 'api') {
-      config = {
-        apiUrl: formData.apiUrl,
-        headers: formData.headers
-      }
-    } else if (selectedType === 'csv') {
-      config = {
-        filePath: formData.filePath
-      }
+
+      await onUpdateDataSource(dataSource._id || dataSource.id, {
+        name: formData.name,
+        type: selectedType,
+        config
+      })
+
+      onClose()
+    } catch (error) {
+      console.error('Failed to update data source:', error)
+      showError('更新失败', '更新数据源时发生错误，请稍后重试')
+    } finally {
+      setIsUpdating(false)
     }
-
-    onCreateDataSource({
-      name: formData.name,
-      type: selectedType,
-      config
-    })
-    onClose()
   }
 
   const selectedTypeInfo = selectedType ? dataSourceTypes.find(t => t.id === selectedType) : null
@@ -230,9 +246,9 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
         {/* 头部 */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div>
-            <h2 className="text-xl font-semibold">添加数据源</h2>
+            <h2 className="text-xl font-semibold">编辑数据源</h2>
             <p className="text-sm text-slate-500 mt-1">
-              {step === 1 ? '选择数据源类型' : '配置连接信息'}
+              修改 "{dataSource.name}" 的配置信息
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -240,92 +256,9 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
           </Button>
         </div>
 
-        {/* 进度指示器 */}
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className={cn(
-              "flex items-center gap-2 text-sm",
-              step >= 1 ? "text-blue-600" : "text-slate-400"
-            )}>
-              <div className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center text-xs",
-                step >= 1 ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-400"
-              )}>
-                {step > 1 ? <Check className="w-3 h-3" /> : '1'}
-              </div>
-              选择类型
-            </div>
-            <div className={cn(
-              "flex-1 h-px",
-              step >= 2 ? "bg-blue-600" : "bg-slate-200"
-            )} />
-            <div className={cn(
-              "flex items-center gap-2 text-sm",
-              step >= 2 ? "text-blue-600" : "text-slate-400"
-            )}>
-              <div className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center text-xs",
-                step >= 2 ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-400"
-              )}>
-                2
-              </div>
-              配置连接
-            </div>
-          </div>
-        </div>
-
         {/* 内容区域 */}
         <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {step === 1 && (
-            <div>
-              <div className="mb-6">
-                <h3 className="text-lg font-medium mb-2">选择数据源类型</h3>
-                <p className="text-sm text-slate-500">
-                  选择你要连接的数据源类型
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {dataSourceTypes.map((type) => {
-                  const Icon = type.icon
-                  return (
-                    <Card
-                      key={type.id}
-                      className={cn(
-                        "cursor-pointer transition-all hover:shadow-md",
-                        selectedType === type.id && "ring-2 ring-blue-500"
-                      )}
-                      onClick={() => setSelectedType(type.id as DataSourceType)}
-                    >
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "w-10 h-10 rounded-lg flex items-center justify-center",
-                            type.bgColor
-                          )}>
-                            <Icon className={cn("h-5 w-5", type.color)} />
-                          </div>
-                          <div className="flex-1">
-                            <CardTitle className="text-base">{type.name}</CardTitle>
-                          </div>
-                          {selectedType === type.id && (
-                            <Check className="h-5 w-5 text-blue-600" />
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-slate-600">
-                          {type.description}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {step === 2 && selectedTypeInfo && (
+          {selectedTypeInfo && (
             <div>
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -394,10 +327,10 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium mb-2">密码 *</label>
+                        <label className="block text-sm font-medium mb-2">密码 (留空保持不变)</label>
                         <Input
                           type="password"
-                          placeholder="数据库密码"
+                          placeholder="输入新密码或留空保持不变"
                           value={formData.password}
                           onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                         />
@@ -424,6 +357,7 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
                       <textarea
                         placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}'
                         className="w-full h-24 px-3 py-2 border border-slate-200 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        value={JSON.stringify(formData.headers, null, 2)}
                         onChange={(e) => {
                           try {
                             const headers = JSON.parse(e.target.value || '{}')
@@ -449,6 +383,9 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
                         onChange={(e) => setFormData(prev => ({ ...prev, filePath: e.target.value }))}
                         className="w-full"
                       />
+                      <p className="text-xs text-slate-500 mt-1">
+                        当前文件: {dataSource.config?.filePath || '无'}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -477,37 +414,16 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
         </div>
 
         {/* 底部按钮 */}
-        <div className="flex items-center justify-between p-6 border-t border-slate-200">
-          <div className="text-sm text-slate-500">
-            {step === 1 && '第 1 步，共 2 步'}
-            {step === 2 && '第 2 步，共 2 步'}
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={onClose}>
-              取消
-            </Button>
-            {step === 1 && (
-              <Button 
-                onClick={handleNext}
-                disabled={!selectedType}
-              >
-                下一步
-              </Button>
-            )}
-            {step === 2 && (
-              <>
-                <Button variant="outline" onClick={handleBack}>
-                  上一步
-                </Button>
-                <Button 
-                  onClick={handleCreate}
-                  disabled={!formData.name}
-                >
-                  创建数据源
-                </Button>
-              </>
-            )}
-          </div>
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-200">
+          <Button variant="outline" onClick={onClose} disabled={isUpdating}>
+            取消
+          </Button>
+          <Button 
+            onClick={handleUpdate}
+            disabled={!formData.name || isUpdating}
+          >
+            {isUpdating ? '更新中...' : '更新数据源'}
+          </Button>
         </div>
       </div>
     </div>

@@ -1,142 +1,299 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Metric } from '@/types'
+import { connectDB } from '@/lib/mongodb'
+import { Metric } from '@/models/Metric'
+import { DataSource } from '@/models/DataSource'
+import { verifyToken } from '@/lib/auth'
+import { z } from 'zod'
+import { ObjectId } from 'mongodb'
 
-// Mock data store - 在实际项目中应该从外部导入或连接数据库
-let mockMetrics: Metric[] = [
-  {
-    _id: '1',
-    name: 'sales_amount',
-    displayName: '销售额',
-    description: '总销售金额',
-    type: 'sum',
-    formula: 'SUM(orders.amount)',
-    datasourceId: 'ds1',
-    category: '销售',
-    unit: '元',
-    tags: ['销售', '收入', '核心指标'],
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
-  },
-  {
-    _id: '2',
-    name: 'order_count',
-    displayName: '订单数',
-    description: '订单总数量',
-    type: 'count',
-    formula: 'COUNT(orders.id)',
-    datasourceId: 'ds1',
-    category: '销售',
-    unit: '个',
-    tags: ['销售', '订单'],
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
-  }
-]
+// 指标更新验证模式
+const updateMetricSchema = z.object({
+  name: z.string().min(1, '指标名称不能为空').regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, '指标名称只能包含字母、数字和下划线，且必须以字母开头').optional(),
+  displayName: z.string().min(1, '显示名称不能为空').optional(),
+  description: z.string().optional(),
+  type: z.enum(['count', 'sum', 'avg', 'max', 'min', 'ratio', 'custom'], {
+    errorMap: () => ({ message: '无效的指标类型' })
+  }).optional(),
+  formula: z.string().optional(),
+  datasourceId: z.string().refine((val) => ObjectId.isValid(val), {
+    message: '无效的数据源ID'
+  }).optional(),
+  category: z.string().min(1, '分类不能为空').optional(),
+  unit: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  isActive: z.boolean().optional()
+})
 
-// GET /api/metrics/[id] - 获取单个指标
+// GET - 获取单个指标
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
-    const metric = mockMetrics.find(m => m._id === id)
+    await connectDB()
     
-    if (!metric) {
-      return NextResponse.json(
-        { error: 'Metric not found' },
-        { status: 404 }
-      )
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
     }
 
-    return NextResponse.json(metric)
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    }
+
+    const { id } = await params
+
+    if (!ObjectId.isValid(id)) {
+      return NextResponse.json({ error: '无效的指标ID' }, { status: 400 })
+    }
+
+    // 通过数据源关联查询指标，确保用户只能访问自己的指标
+    const metric = await Metric.aggregate([
+      {
+        $match: { _id: new ObjectId(id) }
+      },
+      {
+        $lookup: {
+          from: 'datasources',
+          localField: 'datasourceId',
+          foreignField: '_id',
+          as: 'dataSource'
+        }
+      },
+      {
+        $match: {
+          'dataSource.userId': user._id
+        }
+      },
+      {
+        $project: {
+          name: 1,
+          displayName: 1,
+          description: 1,
+          type: 1,
+          formula: 1,
+          datasourceId: 1,
+          category: 1,
+          unit: 1,
+          tags: 1,
+          isActive: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          dataSource: { $arrayElemAt: ['$dataSource', 0] }
+        }
+      }
+    ])
+
+    if (!metric || metric.length === 0) {
+      return NextResponse.json({ error: '指标不存在或无权访问' }, { status: 404 })
+    }
+
+    return NextResponse.json(metric[0])
   } catch (error) {
-    console.error('Error fetching metric:', error)
+    console.error('获取指标失败:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch metric' },
+      { error: '获取指标失败' },
       { status: 500 }
     )
   }
 }
 
-// PUT /api/metrics/[id] - 更新指标
+// PUT - 更新指标
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await connectDB()
+    
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
+    }
+
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    }
+
     const { id } = await params
+
+    if (!ObjectId.isValid(id)) {
+      return NextResponse.json({ error: '无效的指标ID' }, { status: 400 })
+    }
+
     const body = await request.json()
     
-    const metricIndex = mockMetrics.findIndex(m => m._id === id)
-    if (metricIndex === -1) {
+    // 验证请求数据
+    const validationResult = updateMetricSchema.safeParse(body)
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: 'Metric not found' },
-        { status: 404 }
+        { 
+          error: '数据验证失败',
+          details: validationResult.error.errors
+        },
+        { status: 400 }
       )
     }
 
-    // 如果更新指标名称，检查是否与其他指标冲突
-    if (body.name && body.name !== mockMetrics[metricIndex].name) {
-      const existingMetric = mockMetrics.find(m => m.name === body.name && m._id !== id)
-      if (existingMetric) {
+    const updateData = validationResult.data
+
+    // 通过数据源关联查询指标，确保用户只能更新自己的指标
+    const existingMetric = await Metric.aggregate([
+      {
+        $match: { _id: new ObjectId(id) }
+      },
+      {
+        $lookup: {
+          from: 'datasources',
+          localField: 'datasourceId',
+          foreignField: '_id',
+          as: 'dataSource'
+        }
+      },
+      {
+        $match: {
+          'dataSource.userId': user._id
+        }
+      }
+    ])
+
+    if (!existingMetric || existingMetric.length === 0) {
+      return NextResponse.json({ error: '指标不存在或无权访问' }, { status: 404 })
+    }
+
+    const originalMetric = existingMetric[0]
+
+    // 如果要更新数据源，验证新数据源是否存在且属于当前用户
+    if (updateData.datasourceId && updateData.datasourceId !== originalMetric.datasourceId.toString()) {
+      const newDataSource = await DataSource.findOne({
+        _id: new ObjectId(updateData.datasourceId),
+        userId: user._id
+      })
+
+      if (!newDataSource) {
         return NextResponse.json(
-          { error: 'Metric name already exists' },
+          { error: '新数据源不存在或无权访问' },
+          { status: 404 }
+        )
+      }
+    }
+
+    // 如果要更新指标名称，检查是否在同一数据源下重名
+    if (updateData.name && updateData.name !== originalMetric.name) {
+      const targetDatasourceId = updateData.datasourceId ? new ObjectId(updateData.datasourceId) : originalMetric.datasourceId
+      
+      const duplicateMetric = await Metric.findOne({
+        name: updateData.name,
+        datasourceId: targetDatasourceId,
+        _id: { $ne: new ObjectId(id) }
+      })
+
+      if (duplicateMetric) {
+        return NextResponse.json(
+          { error: '指标名称在该数据源下已存在' },
           { status: 409 }
         )
       }
     }
 
-    // 更新指标
-    const updatedMetric: Metric = {
-      ...mockMetrics[metricIndex],
-      ...body,
-      _id: id, // 确保ID不被覆盖
+    // 构建更新数据
+    const finalUpdateData: any = {
+      ...updateData,
       updatedAt: new Date()
     }
 
-    mockMetrics[metricIndex] = updatedMetric
+    // 如果有数据源ID，转换为ObjectId
+    if (finalUpdateData.datasourceId) {
+      finalUpdateData.datasourceId = new ObjectId(finalUpdateData.datasourceId)
+    }
+
+    // 更新指标
+    const updatedMetric = await Metric.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      finalUpdateData,
+      { new: true }
+    ).populate('datasourceId', 'name type')
 
     return NextResponse.json(updatedMetric)
   } catch (error) {
-    console.error('Error updating metric:', error)
+    console.error('更新指标失败:', error)
     return NextResponse.json(
-      { error: 'Failed to update metric' },
+      { error: '更新指标失败' },
       { status: 500 }
     )
   }
 }
 
-// DELETE /api/metrics/[id] - 删除指标（软删除）
+// DELETE - 删除指标
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
+    await connectDB()
     
-    const metricIndex = mockMetrics.findIndex(m => m._id === id)
-    if (metricIndex === -1) {
-      return NextResponse.json(
-        { error: 'Metric not found' },
-        { status: 404 }
-      )
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
     }
 
-    // 软删除：标记为不活跃
-    mockMetrics[metricIndex] = {
-      ...mockMetrics[metricIndex],
-      isActive: false,
-      updatedAt: new Date()
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
     }
 
-    return NextResponse.json({ message: 'Metric deleted successfully' })
+    const { id } = await params
+
+    if (!ObjectId.isValid(id)) {
+      return NextResponse.json({ error: '无效的指标ID' }, { status: 400 })
+    }
+
+    // 通过数据源关联查询指标，确保用户只能删除自己的指标
+    const metric = await Metric.aggregate([
+      {
+        $match: { _id: new ObjectId(id) }
+      },
+      {
+        $lookup: {
+          from: 'datasources',
+          localField: 'datasourceId',
+          foreignField: '_id',
+          as: 'dataSource'
+        }
+      },
+      {
+        $match: {
+          'dataSource.userId': user._id
+        }
+      }
+    ])
+
+    if (!metric || metric.length === 0) {
+      return NextResponse.json({ error: '指标不存在或无权访问' }, { status: 404 })
+    }
+
+    // TODO: 检查是否有仪表板或图表在使用这个指标
+    // const dashboardsUsingMetric = await Dashboard.countDocuments({
+    //   'components.metricId': new ObjectId(id)
+    // })
+
+    // if (dashboardsUsingMetric > 0) {
+    //   return NextResponse.json(
+    //     { error: '指标正在被仪表板使用，无法删除' },
+    //     { status: 409 }
+    //   )
+    // }
+
+    // 删除指标
+    await Metric.findOneAndDelete({ _id: new ObjectId(id) })
+
+    return NextResponse.json({ message: '指标删除成功' })
   } catch (error) {
-    console.error('Error deleting metric:', error)
+    console.error('删除指标失败:', error)
     return NextResponse.json(
-      { error: 'Failed to delete metric' },
+      { error: '删除指标失败' },
       { status: 500 }
     )
   }

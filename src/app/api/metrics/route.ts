@@ -1,8 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Metric } from '@/types'
+import { connectDB } from '@/lib/mongodb'
+import { Metric } from '@/models/Metric'
+import { DataSource } from '@/models/DataSource'
+import { verifyToken } from '@/lib/auth'
+import { z } from 'zod'
+import { ObjectId } from 'mongodb'
 
-// Mock data store (in production, this would be MongoDB)
-let mockMetrics: Metric[] = [
+// 指标创建验证模式
+const createMetricSchema = z.object({
+  name: z.string().min(1, '指标名称不能为空').regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, '指标名称只能包含字母、数字和下划线，且必须以字母开头'),
+  displayName: z.string().min(1, '显示名称不能为空'),
+  description: z.string().optional(),
+  type: z.enum(['count', 'sum', 'avg', 'max', 'min', 'ratio', 'custom'], {
+    errorMap: () => ({ message: '无效的指标类型' })
+  }),
+  formula: z.string().optional(),
+  datasourceId: z.string().refine((val) => ObjectId.isValid(val), {
+    message: '无效的数据源ID'
+  }),
+  category: z.string().min(1, '分类不能为空'),
+  unit: z.string().optional(),
+  tags: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true)
+})
+
+// Mock data store - keeping for fallback if needed
+let mockMetrics = [
   {
     _id: '1',
     name: 'sales_amount',
@@ -125,118 +148,257 @@ let mockMetrics: Metric[] = [
   }
 ]
 
-// GET /api/metrics - 获取指标列表
+// GET - 获取指标列表
 export async function GET(request: NextRequest) {
   try {
+    await connectDB()
+    
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
+    }
+
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
-    const category = searchParams.get('category')
-    const search = searchParams.get('search')
-    const tags = searchParams.get('tags')?.split(',')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
+    const category = searchParams.get('category')
+    const type = searchParams.get('type')
+    const search = searchParams.get('search')
+    const datasourceId = searchParams.get('datasourceId')
+    const tags = searchParams.get('tags')?.split(',').filter(Boolean)
 
-    let filteredMetrics = mockMetrics.filter(metric => metric.isActive)
+    const skip = (page - 1) * limit
 
-    // 按分类过滤
+    // 构建查询条件 - 通过数据源关联查询用户的指标
+    const pipeline: any[] = [
+      // 关联数据源表
+      {
+        $lookup: {
+          from: 'datasources',
+          localField: 'datasourceId',
+          foreignField: '_id',
+          as: 'dataSource'
+        }
+      },
+      // 过滤出属于当前用户的指标
+      {
+        $match: {
+          'dataSource.userId': new ObjectId(user._id)
+        }
+      }
+    ]
+
+    // 添加额外的过滤条件
+    const matchConditions: any = {}
+    
     if (category) {
-      filteredMetrics = filteredMetrics.filter(metric => 
-        metric.category.toLowerCase().includes(category.toLowerCase())
-      )
+      matchConditions.category = category
     }
-
-    // 按搜索关键词过滤
+    
+    if (type) {
+      matchConditions.type = type
+    }
+    
+    if (datasourceId && ObjectId.isValid(datasourceId)) {
+      matchConditions.datasourceId = new ObjectId(datasourceId)
+    }
+    
     if (search) {
-      const searchLower = search.toLowerCase()
-      filteredMetrics = filteredMetrics.filter(metric => 
-        metric.name.toLowerCase().includes(searchLower) ||
-        metric.displayName.toLowerCase().includes(searchLower) ||
-        metric.description?.toLowerCase().includes(searchLower)
-      )
+      matchConditions.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { displayName: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ]
+    }
+    
+    if (tags && tags.length > 0) {
+      matchConditions.tags = { $in: tags }
     }
 
-    // 按标签过滤
-    if (tags && tags.length > 0) {
-      filteredMetrics = filteredMetrics.filter(metric =>
-        tags.some(tag => metric.tags.includes(tag))
-      )
+    if (Object.keys(matchConditions).length > 0) {
+      pipeline.push({ $match: matchConditions })
     }
+
+    // 添加排序
+    pipeline.push({ $sort: { createdAt: -1 } })
 
     // 分页
-    const startIndex = (page - 1) * limit
-    const endIndex = startIndex + limit
-    const paginatedMetrics = filteredMetrics.slice(startIndex, endIndex)
+    const [metrics, totalResult] = await Promise.all([
+      Metric.aggregate([
+        ...pipeline,
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $project: {
+            name: 1,
+            displayName: 1,
+            description: 1,
+            type: 1,
+            formula: 1,
+            datasourceId: 1,
+            category: 1,
+            unit: 1,
+            tags: 1,
+            isActive: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            dataSource: { $arrayElemAt: ['$dataSource', 0] }
+          }
+        }
+      ]),
+      Metric.aggregate([
+        ...pipeline,
+        { $count: 'total' }
+      ])
+    ])
 
-    // 获取所有可用的分类和标签
-    const categories = [...new Set(mockMetrics.map(m => m.category))]
-    const allTags = [...new Set(mockMetrics.flatMap(m => m.tags))]
+    const total = totalResult[0]?.total || 0
+
+    // 获取分类和标签统计
+    const [categories, allTags] = await Promise.all([
+      Metric.aggregate([
+        ...pipeline.slice(0, 2), // 只用前两个步骤（lookup和用户过滤）
+        { $group: { _id: '$category', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      Metric.aggregate([
+        ...pipeline.slice(0, 2),
+        { $unwind: '$tags' },
+        { $group: { _id: '$tags', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ])
+    ])
 
     return NextResponse.json({
-      metrics: paginatedMetrics,
-      total: filteredMetrics.length,
-      page,
-      limit,
-      categories,
-      tags: allTags,
-      hasMore: endIndex < filteredMetrics.length
+      metrics,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      },
+      categories: categories.map(c => ({ name: c._id, count: c.count })),
+      tags: allTags.map(t => ({ name: t._id, count: t.count }))
     })
   } catch (error) {
-    console.error('Error fetching metrics:', error)
+    console.error('获取指标列表失败:', error)
+    
+    // 如果是MongoDB连接超时或其他连接错误，返回空数据
+    if (error instanceof Error && (
+      error.message.includes('buffering timed out') || 
+      error.message.includes('connection') ||
+      error.name === 'MongooseError'
+    )) {
+      console.warn('MongoDB连接失败，返回空指标列表')
+      return NextResponse.json({
+        metrics: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          pages: 0
+        },
+        categories: [],
+        tags: [],
+        warning: 'MongoDB连接失败，请检查数据库连接'
+      })
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to fetch metrics' },
+      { error: '获取指标列表失败' },
       { status: 500 }
     )
   }
 }
 
-// POST /api/metrics - 创建新指标
+// POST - 创建指标
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    await connectDB()
     
-    // 验证必需字段
-    const requiredFields = ['name', 'displayName', 'type', 'datasourceId', 'category']
-    for (const field of requiredFields) {
-      if (!body[field]) {
-        return NextResponse.json(
-          { error: `Missing required field: ${field}` },
-          { status: 400 }
-        )
-      }
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
     }
 
-    // 检查指标名称是否已存在
-    const existingMetric = mockMetrics.find(m => m.name === body.name)
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    
+    // 验证请求数据
+    const validationResult = createMetricSchema.safeParse(body)
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { 
+          error: '数据验证失败',
+          details: validationResult.error.errors
+        },
+        { status: 400 }
+      )
+    }
+
+    const { name, displayName, description, type, formula, datasourceId, category, unit, tags, isActive } = validationResult.data
+
+    // 验证数据源是否存在且属于当前用户
+    const dataSource = await DataSource.findOne({
+      _id: new ObjectId(datasourceId),
+      userId: user._id
+    })
+
+    if (!dataSource) {
+      return NextResponse.json(
+        { error: '数据源不存在或无权访问' },
+        { status: 404 }
+      )
+    }
+
+    // 检查指标名称是否已存在（在同一数据源下）
+    const existingMetric = await Metric.findOne({
+      name,
+      datasourceId: new ObjectId(datasourceId)
+    })
+
     if (existingMetric) {
       return NextResponse.json(
-        { error: 'Metric name already exists' },
+        { error: '指标名称在该数据源下已存在' },
         { status: 409 }
       )
     }
 
     // 创建新指标
-    const newMetric: Metric = {
-      _id: Date.now().toString(), // 简单的ID生成
-      name: body.name,
-      displayName: body.displayName,
-      description: body.description,
-      type: body.type,
-      formula: body.formula,
-      datasourceId: body.datasourceId,
-      category: body.category,
-      unit: body.unit,
-      tags: body.tags || [],
-      isActive: body.isActive !== false,
+    const metric = new Metric({
+      name,
+      displayName,
+      description,
+      type,
+      formula,
+      datasourceId: new ObjectId(datasourceId),
+      category,
+      unit,
+      tags,
+      isActive,
       createdAt: new Date(),
       updatedAt: new Date()
-    }
+    })
 
-    mockMetrics.push(newMetric)
+    await metric.save()
 
-    return NextResponse.json(newMetric, { status: 201 })
+    // 返回创建的指标（包含数据源信息）
+    const result = await Metric.findById(metric._id).populate('datasourceId', 'name type')
+
+    return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    console.error('Error creating metric:', error)
+    console.error('创建指标失败:', error)
     return NextResponse.json(
-      { error: 'Failed to create metric' },
+      { error: '创建指标失败' },
       { status: 500 }
     )
   }
