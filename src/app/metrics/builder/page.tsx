@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { SQLQueryBuilder } from '@/components/query-builder/SQLQueryBuilder'
 import { Save, ArrowLeft, Play, Database, Settings, TestTube } from 'lucide-react'
 import type { SQLQueryConfig, Metric, DataSource, MetricParameter } from '@/types'
+import { getAuthHeaders, initDevAuth } from '@/lib/authUtils'
 
 export default function MetricBuilderPage() {
   const router = useRouter()
@@ -53,18 +54,28 @@ export default function MetricBuilderPage() {
   const [activeTab, setActiveTab] = useState<'basic' | 'query' | 'params' | 'preview'>('basic')
 
   useEffect(() => {
-    loadDataSources()
-    if (isEdit) {
-      loadMetric()
-    }
+    // 确保开发环境有token
+    initDevAuth()
+    
+    // 延迟一点加载数据源，确保token已设置
+    const timer = setTimeout(() => {
+      loadDataSources()
+      if (isEdit) {
+        loadMetric()
+      }
+    }, 100)
+    
+    return () => clearTimeout(timer)
   }, [isEdit, metricId])
 
   const loadDataSources = async () => {
     try {
-      const response = await fetch('/api/datasources')
+      const response = await fetch('/api/datasources', {
+        headers: getAuthHeaders()
+      })
       if (response.ok) {
         const data = await response.json()
-        setDataSources(data.datasources || [])
+        setDataSources(data.dataSources || [])
       }
     } catch (error) {
       console.error('加载数据源失败:', error)
@@ -76,7 +87,9 @@ export default function MetricBuilderPage() {
     
     setLoading(true)
     try {
-      const response = await fetch(`/api/metrics/${metricId}`)
+      const response = await fetch(`/api/metrics/${metricId}`, {
+        headers: getAuthHeaders()
+      })
       if (response.ok) {
         const metric: Metric = await response.json()
         
@@ -134,9 +147,7 @@ export default function MetricBuilderPage() {
 
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(metricData)
       })
 
@@ -161,9 +172,7 @@ export default function MetricBuilderPage() {
     try {
       const response = await fetch('/api/metrics/preview', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           queryConfig,
           parameters: {}
