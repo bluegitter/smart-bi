@@ -124,10 +124,15 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
 
   const currentChartType = chartTypeOptions.find(option => option.value === selectedComponent.type)
 
+  const handleScrollCapture = (e: React.UIEvent) => {
+    // 阻止滚动事件向上传播到画布区域
+    e.stopPropagation()
+  }
+
   return (
-    <div className="w-80 bg-white border-l border-slate-200 flex flex-col h-full">
+    <div className="w-80 bg-white border-l border-slate-200 flex flex-col h-screen">
       {/* 头部 */}
-      <div className="h-16 border-b border-slate-200 px-4 flex items-center justify-between">
+      <div className="h-16 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <Settings className="h-5 w-5 text-slate-600" />
           <span className="font-medium">组件属性</span>
@@ -137,8 +142,18 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
         </Button>
       </div>
 
-      {/* 内容区域 */}
-      <div className="flex-1 overflow-y-auto">
+      {/* 内容区域 - 独立滚动容器 */}
+      <div 
+        className="flex-1 overflow-y-scroll"
+        style={{
+          scrollbarWidth: 'none', /* Firefox */
+          msOverflowStyle: 'none', /* IE and Edge */
+          maxHeight: 'calc(100vh - 120px)' /* 头部64px + 底部56px = 120px */
+        }}
+        onScroll={handleScrollCapture}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         <div className="p-4 space-y-4">
           {/* 基础设置 */}
           <Card>
@@ -197,9 +212,9 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                       <label className="block text-xs text-slate-500 mb-1">X坐标</label>
                       <Input
                         type="number"
-                        value={selectedComponent.position.x}
+                        value={selectedComponent.position.x.toString()}
                         onChange={(e) => handleUpdate({
-                          position: { ...selectedComponent.position, x: Number(e.target.value) }
+                          position: { ...selectedComponent.position, x: parseInt(e.target.value) || 0 }
                         })}
                         size="sm"
                       />
@@ -208,9 +223,9 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                       <label className="block text-xs text-slate-500 mb-1">Y坐标</label>
                       <Input
                         type="number"
-                        value={selectedComponent.position.y}
+                        value={selectedComponent.position.y.toString()}
                         onChange={(e) => handleUpdate({
-                          position: { ...selectedComponent.position, y: Number(e.target.value) }
+                          position: { ...selectedComponent.position, y: parseInt(e.target.value) || 0 }
                         })}
                         size="sm"
                       />
@@ -219,9 +234,9 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                       <label className="block text-xs text-slate-500 mb-1">宽度</label>
                       <Input
                         type="number"
-                        value={selectedComponent.size.width}
+                        value={selectedComponent.size.width.toString()}
                         onChange={(e) => handleUpdate({
-                          size: { ...selectedComponent.size, width: Number(e.target.value) }
+                          size: { ...selectedComponent.size, width: parseInt(e.target.value) || 200 }
                         })}
                         size="sm"
                       />
@@ -230,9 +245,9 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                       <label className="block text-xs text-slate-500 mb-1">高度</label>
                       <Input
                         type="number"
-                        value={selectedComponent.size.height}
+                        value={selectedComponent.size.height.toString()}
                         onChange={(e) => handleUpdate({
-                          size: { ...selectedComponent.size, height: Number(e.target.value) }
+                          size: { ...selectedComponent.size, height: parseInt(e.target.value) || 150 }
                         })}
                         size="sm"
                       />
@@ -781,7 +796,7 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
       </div>
 
       {/* 底部操作按钮 */}
-      <div className="border-t border-slate-200 p-4">
+      <div className="border-t border-slate-200 p-4 flex-shrink-0">
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="flex-1">
             重置

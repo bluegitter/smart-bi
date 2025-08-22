@@ -2,10 +2,11 @@
 
 import React, { useEffect } from 'react'
 import { useDrop } from 'react-dnd'
-import { Plus, Layout, Save, Eye, Settings, Maximize2, Loader2 } from 'lucide-react'
+import { Plus, Layout, Save, Eye, Settings, Maximize2, Loader2, Database } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { PropertyPanel } from './PropertyPanel'
+import { MetricsLibraryPanel } from './MetricsLibraryPanel'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/hooks/useDashboards'
 import { 
@@ -53,6 +54,108 @@ export function DashboardCanvas({
   const [isPropertyPanelOpen, setIsPropertyPanelOpen] = React.useState(false)
   const [isPreviewMode, setIsPreviewMode] = React.useState(initialPreviewMode)
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
+  const [isMetricsLibraryOpen, setIsMetricsLibraryOpen] = React.useState(false)
+  const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ x: 0, y: 120 })
+  const [metricsLibraryHeight, setMetricsLibraryHeight] = React.useState(400)
+
+  // 计算指标面板的最佳高度
+  const calculateOptimalHeight = React.useCallback(() => {
+    const windowHeight = window.innerHeight
+    const panelTop = metricsLibraryPosition.y
+    const bottomPadding = 50 // 距离底部的安全距离
+    const minHeight = 300
+    const maxHeight = 800
+    
+    const availableHeight = windowHeight - panelTop - bottomPadding
+    const optimalHeight = Math.max(minHeight, Math.min(maxHeight, availableHeight))
+    
+    return optimalHeight
+  }, [metricsLibraryPosition.y])
+
+  // 当指标面板打开时自动计算高度和调整位置
+  React.useEffect(() => {
+    if (isMetricsLibraryOpen) {
+      const windowHeight = window.innerHeight
+      const windowWidth = window.innerWidth
+      const panelWidth = 320
+      const minHeight = 300
+      
+      // 计算最佳位置
+      let newX = metricsLibraryPosition.x
+      let newY = metricsLibraryPosition.y
+      
+      // 检查水平位置是否需要调整
+      if (newX + panelWidth > windowWidth - 10) {
+        newX = Math.max(0, windowWidth - panelWidth - 10)
+      }
+      
+      // 确保不会超出左边界
+      newX = Math.max(0, newX)
+      
+      // 检查垂直位置是否需要调整
+      const maxY = windowHeight - minHeight - 50
+      if (newY > maxY) {
+        newY = Math.max(70, maxY)
+      }
+      
+      // 如果位置需要调整，更新位置
+      if (newX !== metricsLibraryPosition.x || newY !== metricsLibraryPosition.y) {
+        setMetricsLibraryPosition({ x: newX, y: newY })
+      }
+      
+      // 计算最佳高度
+      const panelTop = newY
+      const bottomPadding = 50
+      const availableHeight = windowHeight - panelTop - bottomPadding
+      const optimalHeight = Math.max(minHeight, Math.min(800, availableHeight))
+      
+      setMetricsLibraryHeight(optimalHeight)
+    }
+  }, [isMetricsLibraryOpen]) // 只依赖于打开状态
+
+  // 监听窗口大小变化
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (isMetricsLibraryOpen) {
+        const optimalHeight = calculateOptimalHeight()
+        setMetricsLibraryHeight(optimalHeight)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [isMetricsLibraryOpen, calculateOptimalHeight])
+
+  // 处理指标面板位置变化，同时重新计算高度
+  const handleMetricsLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
+    // 确保位置在合理范围内
+    const windowWidth = window.innerWidth
+    const windowHeight = window.innerHeight
+    const panelWidth = 320
+    
+    const constrainedPosition = {
+      x: Math.max(0, Math.min(newPosition.x, windowWidth - panelWidth)),
+      y: Math.max(60, Math.min(newPosition.y, windowHeight - 300))
+    }
+    
+    setMetricsLibraryPosition(constrainedPosition)
+    
+    // 位置变化后立即重新计算高度
+    if (isMetricsLibraryOpen) {
+      setTimeout(() => {
+        const windowHeight = window.innerHeight
+        const panelTop = constrainedPosition.y
+        const bottomPadding = 50
+        const minHeight = 300
+        const maxHeight = 800
+        
+        const availableHeight = windowHeight - panelTop - bottomPadding
+        const optimalHeight = Math.max(minHeight, Math.min(maxHeight, availableHeight))
+        
+        setMetricsLibraryHeight(optimalHeight)
+      }, 0)
+    }
+  }, [isMetricsLibraryOpen])
 
   // 当看板数据加载时，更新组件状态
   useEffect(() => {
@@ -372,10 +475,10 @@ export function DashboardCanvas({
   }
 
   return (
-    <div className={cn("flex-1 bg-white flex", className)}>
-      <div className="flex-1 flex flex-col">
+    <div className={cn("flex-1 bg-white flex overflow-hidden", className)}>
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* 工具栏 */}
-        <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between">
+        <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
             <h1 className="font-semibold">
               {dashboard?.name || dashboardName}
@@ -386,8 +489,19 @@ export function DashboardCanvas({
                 variant="ghost" 
                 size="icon" 
                 className="h-6 w-6"
+                onClick={() => setIsMetricsLibraryOpen(!isMetricsLibraryOpen)}
+                disabled={isPreviewMode}
+                title="指标库"
+              >
+                <Database className="h-3 w-3" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6"
                 onClick={() => setIsPropertyPanelOpen(!isPropertyPanelOpen)}
                 disabled={!selectedComponent}
+                title="属性设置"
               >
                 <Settings className="h-3 w-3" />
               </Button>
@@ -396,6 +510,7 @@ export function DashboardCanvas({
                 size="icon" 
                 className="h-6 w-6"
                 onClick={handlePreviewToggle}
+                title={isPreviewMode ? "编辑模式" : "预览模式"}
               >
                 {isPreviewMode ? <Layout className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
               </Button>
@@ -448,11 +563,17 @@ export function DashboardCanvas({
             drop(node)
           }}
           className={cn(
-            "flex-1 relative p-6 min-h-[600px]",
+            "flex-1 relative p-6 min-h-[600px] overflow-auto",
             isPreviewMode ? "bg-white" : "bg-slate-50",
             !isPreviewMode && "bg-grid-pattern",
             isOver && !isPreviewMode && "bg-blue-50 ring-2 ring-blue-300 ring-inset"
           )}
+          onWheel={(e) => {
+            // 确保画布滚动不受属性面板影响
+            if (!canvasRef.current?.contains(e.target as Node)) {
+              e.preventDefault()
+            }
+          }}
           style={!isPreviewMode ? {
             backgroundImage: `radial-gradient(circle, #e2e8f0 1px, transparent 1px)`,
             backgroundSize: '24px 24px',
@@ -464,37 +585,40 @@ export function DashboardCanvas({
             }
           }}
         >
-          {components.length === 0 && !isPreviewMode ? (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Card className="w-96">
-                <CardContent className="p-8 text-center">
-                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Plus className="h-8 w-8 text-slate-400" />
-                  </div>
-                  <h3 className="font-semibold mb-2">开始创建你的看板</h3>
-                  <p className="text-slate-500 text-sm mb-4">
-                    从左侧拖拽组件到画布，或使用AI智能生成看板
-                  </p>
-                  <Button className="w-full">
-                    使用AI生成看板
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            components.map((component) => (
-              <DraggableComponent
-                key={component.id}
-                component={component}
-                isSelected={selectedComponent?.id === component.id}
-                isPreviewMode={isPreviewMode}
-                onMove={handleComponentMove}
-                onResize={handleComponentResize}
-                onSelect={handleComponentSelect}
-                onDelete={handleComponentDelete}
-              />
-            ))
-          )}
+          {/* 画布内容区域 - 确保有足够的滚动空间 */}
+          <div className="relative min-w-full min-h-full" style={{ minWidth: '1200px', minHeight: '800px' }}>
+            {components.length === 0 && !isPreviewMode ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Card className="w-96">
+                  <CardContent className="p-8 text-center">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Plus className="h-8 w-8 text-slate-400" />
+                    </div>
+                    <h3 className="font-semibold mb-2">开始创建你的看板</h3>
+                    <p className="text-slate-500 text-sm mb-4">
+                      从左侧拖拽组件到画布，或使用AI智能生成看板
+                    </p>
+                    <Button className="w-full">
+                      使用AI生成看板
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              components.map((component) => (
+                <DraggableComponent
+                  key={component.id}
+                  component={component}
+                  isSelected={selectedComponent?.id === component.id}
+                  isPreviewMode={isPreviewMode}
+                  onMove={handleComponentMove}
+                  onResize={handleComponentResize}
+                  onSelect={handleComponentSelect}
+                  onDelete={handleComponentDelete}
+                />
+              ))
+            )}
+          </div>
         </div>
       </div>
       
@@ -504,6 +628,16 @@ export function DashboardCanvas({
         onClose={() => setIsPropertyPanelOpen(false)}
         selectedComponent={selectedComponent}
         onUpdateComponent={handleComponentUpdate}
+      />
+
+      {/* 指标库面板 */}
+      <MetricsLibraryPanel
+        isOpen={isMetricsLibraryOpen && !isPreviewMode}
+        onClose={() => setIsMetricsLibraryOpen(false)}
+        position={metricsLibraryPosition}
+        onMove={handleMetricsLibraryMove}
+        height={metricsLibraryHeight}
+        onHeightChange={setMetricsLibraryHeight}
       />
     </div>
   )
@@ -577,12 +711,12 @@ function DraggableComponent({
   return (
     <div
       className={cn(
-        "absolute bg-white rounded-lg shadow-sm transition-all",
-        !isPreviewMode && "border border-slate-200",
-        !isPreviewMode && "hover:shadow-md cursor-move",
+        "absolute bg-white rounded-lg transition-all",
+        "border border-slate-200", // 预览和编辑模式都显示边框
+        !isPreviewMode && "shadow-sm hover:shadow-md cursor-move",
         !isPreviewMode && isSelected && "ring-2 ring-blue-500 border-blue-300",
         !isPreviewMode && isDragging && "shadow-lg ring-2 ring-blue-400",
-        isPreviewMode && "border-0 shadow-none"
+        isPreviewMode && "shadow-sm" // 预览模式保持轻微阴影
       )}
       style={{
         left: component.position.x,

@@ -6,12 +6,11 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { useAuth } from '@/contexts/AuthContext'
+import { useActions } from '@/store/useAppStore'
 
 export function Header() {
   const { user } = useAuth()
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
-  
-  const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed)
+  const { toggleSidebar } = useActions()
 
   return (
     <header className="h-16 border-b border-slate-200 bg-white px-4 flex items-center justify-between">
@@ -21,7 +20,6 @@ export function Header() {
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
-          className="lg:hidden"
         >
           <Menu className="h-5 w-5" />
         </Button>
