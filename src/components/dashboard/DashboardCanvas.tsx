@@ -2,13 +2,14 @@
 
 import React, { useEffect } from 'react'
 import { useDrop } from 'react-dnd'
-import { Plus, Layout, Save, Eye, Settings, Maximize2, Loader2, Database } from 'lucide-react'
+import { Plus, Layout, Save, Eye, Settings, Maximize2, Minimize2, Loader2, Database } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { PropertyPanel } from './PropertyPanel'
 import { MetricsLibraryPanel } from './MetricsLibraryPanel'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/hooks/useDashboards'
+import { useActions, useIsFullscreen } from '@/store/useAppStore'
 import { 
   SimpleLineChart, 
   SimpleBarChart, 
@@ -57,8 +58,13 @@ export function DashboardCanvas({
   const [isPreviewMode, setIsPreviewMode] = React.useState(initialPreviewMode)
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
   const [isMetricsLibraryOpen, setIsMetricsLibraryOpen] = React.useState(false)
-  const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ x: 0, y: 120 })
   const [metricsLibraryHeight, setMetricsLibraryHeight] = React.useState(400)
+  
+  // 全屏状态和操作
+  const isFullscreen = useIsFullscreen()
+  const { toggleFullscreen } = useActions()
+  
+  const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
 
   // 计算指标面板的最佳高度
   const calculateOptimalHeight = React.useCallback(() => {
@@ -127,6 +133,15 @@ export function DashboardCanvas({
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [isMetricsLibraryOpen, calculateOptimalHeight])
+
+  // 监听全屏模式变化，调整指标面板位置
+  React.useEffect(() => {
+    if (isFullscreen) {
+      setMetricsLibraryPosition(prev => ({ ...prev, y: 60 }))
+    } else {
+      setMetricsLibraryPosition(prev => ({ ...prev, y: 120 }))
+    }
+  }, [isFullscreen])
 
   // 监听键盘事件
   React.useEffect(() => {
@@ -705,87 +720,119 @@ export function DashboardCanvas({
   }
 
   return (
-    <div className={cn("flex-1 bg-white flex overflow-hidden", className)}>
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* 工具栏 */}
-        <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <h1 className="font-semibold">
-              {dashboard?.name || dashboardName}
-              {hasUnsavedChanges && <span className="text-orange-500">*</span>}
-            </h1>
-            <div className="flex items-center gap-1">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-6 w-6"
-                onClick={() => setIsMetricsLibraryOpen(!isMetricsLibraryOpen)}
-                disabled={isPreviewMode}
-                title="指标库"
-              >
-                <Database className="h-3 w-3" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-6 w-6"
-                onClick={() => setIsPropertyPanelOpen(!isPropertyPanelOpen)}
-                disabled={!selectedComponent}
-                title="属性设置"
-              >
-                <Settings className="h-3 w-3" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-6 w-6"
-                onClick={handlePreviewToggle}
-                title={isPreviewMode ? "编辑模式" : "预览模式"}
-              >
-                {isPreviewMode ? <Layout className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              </Button>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
+    <div className={cn("flex-1 bg-white flex flex-col relative", className)}>
+      {/* 工具栏 - 绝对固定在顶部 */}
+      <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0 bg-white z-50 sticky top-0">
+        <div className="flex items-center gap-2">
+          <h1 className="font-semibold">
+            {dashboard?.name || dashboardName}
+            {hasUnsavedChanges && <span className="text-orange-500">*</span>}
+          </h1>
+          <div className="flex items-center gap-1">
             <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handlePreviewToggle}
-              className={cn(isPreviewMode && "bg-blue-50 text-blue-700")}
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6"
+              onClick={() => setIsMetricsLibraryOpen(!isMetricsLibraryOpen)}
+              disabled={isPreviewMode}
+              title="指标库"
             >
-              {isPreviewMode ? (
-                <>
-                  <Layout className="h-3 w-3 mr-1" />
-                  编辑
-                </>
-              ) : (
-                <>
-                  <Eye className="h-3 w-3 mr-1" />
-                  预览
-                </>
-              )}
+              <Database className="h-3 w-3" />
             </Button>
             <Button 
-              size="sm"
-              onClick={handleSave}
-              disabled={saving || !hasUnsavedChanges}
-              className="flex items-center gap-1"
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6"
+              onClick={() => setIsPropertyPanelOpen(!isPropertyPanelOpen)}
+              disabled={!selectedComponent}
+              title="属性设置"
             >
-              {saving ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                <>
-                  <Save className="h-3 w-3" />
-                  保存
-                </>
-              )}
+              <Settings className="h-3 w-3" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6"
+              onClick={handlePreviewToggle}
+              title={isPreviewMode ? "编辑模式" : "预览模式"}
+            >
+              {isPreviewMode ? <Layout className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "退出全屏" : "全屏模式"}
+            >
+              {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
             </Button>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handlePreviewToggle}
+            className={cn(isPreviewMode && "bg-blue-50 text-blue-700")}
+          >
+            {isPreviewMode ? (
+              <>
+                <Layout className="h-3 w-3 mr-1" />
+                编辑
+              </>
+            ) : (
+              <>
+                <Eye className="h-3 w-3 mr-1" />
+                预览
+              </>
+            )}
+          </Button>
+          <Button 
+            size="sm"
+            onClick={handleSave}
+            disabled={saving || !hasUnsavedChanges}
+            className="flex items-center gap-1"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                保存中...
+              </>
+            ) : (
+              <>
+                <Save className="h-3 w-3" />
+                保存
+              </>
+            )}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={toggleFullscreen}
+            className={cn(isFullscreen && "bg-blue-50 text-blue-700")}
+            title={isFullscreen ? "退出全屏" : "全屏模式"}
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="h-3 w-3 mr-1" />
+                退出全屏
+              </>
+            ) : (
+              <>
+                <Maximize2 className="h-3 w-3 mr-1" />
+                全屏
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
 
+      {/* 画布容器 - 独立的滚动区域 */}
+      <div className={cn(
+        "flex-1 flex",
+        isFullscreen ? "h-[calc(100vh-48px)]" : "h-[calc(100vh-140px)]"
+      )}>
         {/* 画布区域 */}
         <div 
           ref={(node) => {
@@ -793,17 +840,11 @@ export function DashboardCanvas({
             drop(node)
           }}
           className={cn(
-            "flex-1 relative p-6 min-h-[600px] overflow-auto",
+            "flex-1 relative p-6 overflow-auto",
             isPreviewMode ? "bg-white" : "bg-slate-50",
             !isPreviewMode && "bg-grid-pattern",
             isOver && !isPreviewMode && "bg-blue-50 ring-2 ring-blue-300 ring-inset"
           )}
-          onWheel={(e) => {
-            // 确保画布滚动不受属性面板影响
-            if (!canvasRef.current?.contains(e.target as Node)) {
-              e.preventDefault()
-            }
-          }}
           style={!isPreviewMode ? {
             backgroundImage: `radial-gradient(circle, #e2e8f0 1px, transparent 1px)`,
             backgroundSize: '24px 24px',
@@ -861,17 +902,17 @@ export function DashboardCanvas({
             )}
           </div>
         </div>
+        
+        {/* 属性面板 */}
+        <PropertyPanel
+          isOpen={isPropertyPanelOpen && !isPreviewMode}
+          onClose={() => setIsPropertyPanelOpen(false)}
+          selectedComponent={selectedComponent}
+          onUpdateComponent={handleComponentUpdate}
+          onUpdateChild={handleUpdateChild}
+          parentContainerId={selectedChildParentId}
+        />
       </div>
-      
-      {/* 属性面板 */}
-      <PropertyPanel
-        isOpen={isPropertyPanelOpen && !isPreviewMode}
-        onClose={() => setIsPropertyPanelOpen(false)}
-        selectedComponent={selectedComponent}
-        onUpdateComponent={handleComponentUpdate}
-        onUpdateChild={handleUpdateChild}
-        parentContainerId={selectedChildParentId}
-      />
 
       {/* 指标库面板 */}
       <MetricsLibraryPanel

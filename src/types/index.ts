@@ -184,6 +184,11 @@ export interface AppState {
   
   // UI状态
   sidebarCollapsed: boolean
+  headerHidden: boolean
+  isFullscreen: boolean
+  // 保存全屏前的状态
+  previousSidebarCollapsed: boolean
+  previousHeaderHidden: boolean
   loading: boolean
   error: string | null
   
@@ -194,6 +199,8 @@ export interface AppState {
     setIsEditing: (editing: boolean) => void
     setSelectedComponent: (component: ComponentLayout | null) => void
     toggleSidebar: () => void
+    toggleHeader: () => void
+    toggleFullscreen: () => void
     setLoading: (loading: boolean) => void
     setError: (error: string | null) => void
   }

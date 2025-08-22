@@ -15,6 +15,11 @@ export const useAppStore = create<AppState>()(
         selectedComponent: null,
         draggedMetric: null,
         sidebarCollapsed: false,
+        headerHidden: false,
+        isFullscreen: false,
+        // 保存全屏前的状态
+        previousSidebarCollapsed: false,
+        previousHeaderHidden: false,
         loading: false,
         error: null,
 
@@ -35,6 +40,30 @@ export const useAppStore = create<AppState>()(
           toggleSidebar: () => 
             set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }), false, 'toggleSidebar'),
           
+          toggleHeader: () => 
+            set((state) => ({ headerHidden: !state.headerHidden }), false, 'toggleHeader'),
+          
+          toggleFullscreen: () => 
+            set((state) => {
+              if (!state.isFullscreen) {
+                // 进入全屏：保存当前状态并隐藏sidebar和header
+                return {
+                  isFullscreen: true,
+                  previousSidebarCollapsed: state.sidebarCollapsed,
+                  previousHeaderHidden: state.headerHidden,
+                  sidebarCollapsed: true,
+                  headerHidden: true
+                }
+              } else {
+                // 退出全屏：恢复之前的状态
+                return {
+                  isFullscreen: false,
+                  sidebarCollapsed: state.previousSidebarCollapsed,
+                  headerHidden: state.previousHeaderHidden
+                }
+              }
+            }, false, 'toggleFullscreen'),
+          
           setLoading: (loading) => 
             set({ loading }, false, 'setLoading'),
           
@@ -48,6 +77,10 @@ export const useAppStore = create<AppState>()(
           user: state.user,
           isAuthenticated: state.isAuthenticated,
           sidebarCollapsed: state.sidebarCollapsed,
+          headerHidden: state.headerHidden,
+          isFullscreen: state.isFullscreen,
+          previousSidebarCollapsed: state.previousSidebarCollapsed,
+          previousHeaderHidden: state.previousHeaderHidden,
         }),
       }
     ),
@@ -65,6 +98,8 @@ export const useDashboards = () => useAppStore((state) => state.dashboards)
 export const useIsEditing = () => useAppStore((state) => state.isEditing)
 export const useSelectedComponent = () => useAppStore((state) => state.selectedComponent)
 export const useSidebarCollapsed = () => useAppStore((state) => state.sidebarCollapsed)
+export const useHeaderHidden = () => useAppStore((state) => state.headerHidden)
+export const useIsFullscreen = () => useAppStore((state) => state.isFullscreen)
 export const useLoading = () => useAppStore((state) => state.loading)
 export const useError = () => useAppStore((state) => state.error)
 export const useActions = () => useAppStore((state) => state.actions)

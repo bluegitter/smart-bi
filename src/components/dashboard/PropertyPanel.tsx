@@ -148,7 +148,7 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
   }
 
   return (
-    <div className="w-80 bg-white border-l border-slate-200 flex flex-col h-screen">
+    <div className="w-80 bg-white border-l border-slate-200 flex flex-col" style={{ height: 'calc(100vh - 48px)' }}>
       {/* 头部 */}
       <div className="h-16 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -162,15 +162,12 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
 
       {/* 内容区域 - 独立滚动容器 */}
       <div 
-        className="flex-1 overflow-y-scroll"
+        className="flex-1 overflow-y-auto min-h-0"
         style={{
-          scrollbarWidth: 'none', /* Firefox */
-          msOverflowStyle: 'none', /* IE and Edge */
-          maxHeight: 'calc(100vh - 120px)' /* 头部64px + 底部56px = 120px */
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#cbd5e1 transparent',
         }}
         onScroll={handleScrollCapture}
-        onWheel={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
       >
         <div className="p-4 space-y-4">
           {/* 基础设置 */}
