@@ -78,6 +78,52 @@ export interface Dashboard {
   updatedAt: Date
 }
 
+// SQL查询配置
+export interface SQLQueryConfig {
+  select: SelectField[]
+  from: TableConfig[]
+  joins: JoinConfig[]
+  where: WhereCondition[]
+  groupBy: string[]
+  having: WhereCondition[]
+  orderBy: OrderByConfig[]
+  limit?: number
+}
+
+export interface SelectField {
+  field: string
+  alias?: string
+  aggregation?: 'SUM' | 'AVG' | 'COUNT' | 'MAX' | 'MIN' | 'DISTINCT'
+  table?: string
+}
+
+export interface TableConfig {
+  name: string
+  alias?: string
+  schema?: string
+}
+
+export interface JoinConfig {
+  type: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL'
+  table: string
+  alias?: string
+  condition: string
+}
+
+export interface WhereCondition {
+  field: string
+  operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like' | 'between'
+  value: any
+  logic?: 'AND' | 'OR'
+  isParameter?: boolean
+  parameterName?: string
+}
+
+export interface OrderByConfig {
+  field: string
+  direction: 'ASC' | 'DESC'
+}
+
 // 指标类型
 export interface Metric {
   _id: ObjectId
@@ -91,8 +137,45 @@ export interface Metric {
   unit?: string
   tags: string[]
   isActive: boolean
+  // 新增SQL查询配置
+  queryConfig?: SQLQueryConfig
+  // 新增参数定义
+  parameters?: MetricParameter[]
+  // 新增数据质量配置
+  qualityChecks?: QualityCheck[]
+  // 新增版本控制
+  version: number
+  parentVersion?: ObjectId
+  // 新增权限控制
+  permissions?: MetricPermission[]
   createdAt: Date
   updatedAt: Date
+}
+
+export interface MetricParameter {
+  name: string
+  displayName: string
+  type: 'string' | 'number' | 'date' | 'boolean' | 'list'
+  required: boolean
+  defaultValue?: any
+  options?: { label: string, value: any }[]
+  validation?: {
+    min?: number
+    max?: number
+    pattern?: string
+  }
+}
+
+export interface QualityCheck {
+  type: 'range' | 'null' | 'duplicate' | 'format'
+  field: string
+  rule: any
+  errorMessage: string
+}
+
+export interface MetricPermission {
+  userId: ObjectId
+  role: 'viewer' | 'editor' | 'owner'
 }
 
 // 数据源类型

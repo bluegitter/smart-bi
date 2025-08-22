@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql'
+import { MetricQueryService } from '@/lib/services/metricQueryService'
 
-// 指标ID到SQL查询的映射
-const metricQueries: Record<string, string> = {
+// 兼容性：指标ID到SQL查询的映射（逐步废弃）
+const legacyMetricQueries: Record<string, string> = {
+  '1': 'SELECT DATE(date) as date, SUM(sales_amount) as value FROM sales_data GROUP BY DATE(date) ORDER BY date DESC LIMIT 10',
+  '2': 'SELECT category, SUM(sales_amount) as value FROM sales_data GROUP BY category ORDER BY value DESC',
+  '3': 'SELECT region, SUM(sales_amount) as value FROM sales_data GROUP BY region ORDER BY value DESC',
+  '4': 'SELECT product_name as name, SUM(sales_amount) as value FROM sales_data GROUP BY product_name ORDER BY value DESC LIMIT 10',
+  '5': 'SELECT department, ROUND(SUM(profit) / SUM(revenue) * 100, 2) as value FROM financial_data GROUP BY department',
+  '6': 'SELECT DATE(date) as date, SUM(revenue) as value FROM financial_data GROUP BY DATE(date) ORDER BY date',
+  '7': 'SELECT device_type as name, COUNT(*) as value FROM user_behavior GROUP BY device_type',
+  '8': 'SELECT action_type as name, COUNT(*) as value FROM user_behavior GROUP BY action_type ORDER BY value DESC',
   'sales_001': 'SELECT DATE(date) as date, SUM(sales_amount) as value FROM sales_data GROUP BY DATE(date) ORDER BY date DESC LIMIT 10',
   'sales_002': 'SELECT category, SUM(sales_amount) as value FROM sales_data GROUP BY category ORDER BY value DESC',
   'sales_003': 'SELECT region, SUM(sales_amount) as value FROM sales_data GROUP BY region ORDER BY value DESC',
@@ -19,6 +28,7 @@ export async function GET(
 ) {
   try {
     const { id: metricId } = await params
+    const { searchParams } = new URL(request.url)
     
     if (!metricId) {
       return NextResponse.json(
@@ -27,8 +37,34 @@ export async function GET(
       )
     }
 
-    // 获取查询SQL
-    const query = metricQueries[metricId]
+    // 解析查询参数
+    const parameters: Record<string, any> = {}
+    searchParams.forEach((value, key) => {
+      // 尝试解析JSON参数
+      try {
+        parameters[key] = JSON.parse(value)
+      } catch {
+        parameters[key] = value
+      }
+    })
+
+    console.log(`获取指标 ${metricId} 的数据，参数:`, parameters)
+
+    // 优先使用新的动态查询服务
+    try {
+      const result = await MetricQueryService.executeMetricQuery(metricId, parameters)
+      if (result.success) {
+        return NextResponse.json(result)
+      } else {
+        // 如果动态查询失败，尝试使用遗留查询
+        console.warn(`动态查询失败，尝试使用遗留查询: ${result.error}`)
+      }
+    } catch (dynamicError) {
+      console.warn('动态查询服务异常，使用遗留查询:', dynamicError)
+    }
+
+    // 回退到遗留查询方式
+    const query = legacyMetricQueries[metricId]
     if (!query) {
       return NextResponse.json(
         { error: '未知的指标ID' },
@@ -36,9 +72,9 @@ export async function GET(
       )
     }
 
-    console.log(`获取指标 ${metricId} 的数据:`, query)
+    console.log(`使用遗留查询获取指标 ${metricId} 的数据:`, query)
 
-    // 执行查询
+    // 执行遗留查询
     const data = await executeQuery(query)
     
     // 数据格式化
@@ -58,11 +94,12 @@ export async function GET(
       metricId,
       data: formattedData,
       count: formattedData.length,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      legacy: true // 标记为遗留查询
     })
 
   } catch (error) {
-    console.error(`获取指标 ${params.id} 数据失败:`, error)
+    console.error(`获取指标数据失败:`, error)
     return NextResponse.json(
       { 
         error: '获取指标数据失败',

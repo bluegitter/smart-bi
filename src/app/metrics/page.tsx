@@ -124,10 +124,19 @@ export default function MetricsPage() {
             智能推荐
           </Button>
           {canCreateMetric && (
-            <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              新建指标
-            </Button>
+            <>
+              <Button 
+                variant="outline"
+                onClick={() => window.open('/metrics/builder', '_blank')}
+              >
+                <Database className="w-4 h-4 mr-2" />
+                SQL构建器
+              </Button>
+              <Button onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                新建指标
+              </Button>
+            </>
           )}
         </div>
       </div>

@@ -68,6 +68,125 @@ const MetricSchema = new Schema<IMetric>({
       message: '标签数量不能超过20个'
     }
   },
+  // 新增：SQL查询配置
+  queryConfig: {
+    select: [{
+      field: String,
+      alias: String,
+      aggregation: {
+        type: String,
+        enum: ['SUM', 'AVG', 'COUNT', 'MAX', 'MIN', 'DISTINCT']
+      },
+      table: String
+    }],
+    from: [{
+      name: { type: String, required: true },
+      alias: String,
+      schema: String
+    }],
+    joins: [{
+      type: {
+        type: String,
+        enum: ['INNER', 'LEFT', 'RIGHT', 'FULL'],
+        required: true
+      },
+      table: { type: String, required: true },
+      alias: String,
+      condition: { type: String, required: true }
+    }],
+    where: [{
+      field: String,
+      operator: {
+        type: String,
+        enum: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'like', 'between']
+      },
+      value: Schema.Types.Mixed,
+      logic: {
+        type: String,
+        enum: ['AND', 'OR'],
+        default: 'AND'
+      },
+      isParameter: { type: Boolean, default: false },
+      parameterName: String
+    }],
+    groupBy: [String],
+    having: [{
+      field: String,
+      operator: {
+        type: String,
+        enum: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'like', 'between']
+      },
+      value: Schema.Types.Mixed,
+      logic: {
+        type: String,
+        enum: ['AND', 'OR'],
+        default: 'AND'
+      }
+    }],
+    orderBy: [{
+      field: { type: String, required: true },
+      direction: {
+        type: String,
+        enum: ['ASC', 'DESC'],
+        default: 'ASC'
+      }
+    }],
+    limit: Number
+  },
+  // 新增：参数定义
+  parameters: [{
+    name: { type: String, required: true },
+    displayName: { type: String, required: true },
+    type: {
+      type: String,
+      enum: ['string', 'number', 'date', 'boolean', 'list'],
+      required: true
+    },
+    required: { type: Boolean, default: false },
+    defaultValue: Schema.Types.Mixed,
+    options: [{
+      label: String,
+      value: Schema.Types.Mixed
+    }],
+    validation: {
+      min: Number,
+      max: Number,
+      pattern: String
+    }
+  }],
+  // 新增：数据质量配置
+  qualityChecks: [{
+    type: {
+      type: String,
+      enum: ['range', 'null', 'duplicate', 'format'],
+      required: true
+    },
+    field: { type: String, required: true },
+    rule: Schema.Types.Mixed,
+    errorMessage: String
+  }],
+  // 新增：版本控制
+  version: {
+    type: Number,
+    default: 1
+  },
+  parentVersion: {
+    type: Schema.Types.ObjectId,
+    ref: 'Metric'
+  },
+  // 新增：权限控制
+  permissions: [{
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ['viewer', 'editor', 'owner'],
+      required: true
+    }
+  }],
   isActive: {
     type: Boolean,
     default: true

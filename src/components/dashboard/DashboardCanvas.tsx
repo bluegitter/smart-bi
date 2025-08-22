@@ -986,6 +986,14 @@ function DraggableComponent({
   const [isDragging, setIsDragging] = React.useState(false)
   const [isHovered, setIsHovered] = React.useState(false)
 
+  // Pre-generate mock data to avoid hooks order issues
+  const mockLineChartData = React.useMemo(() => generateMockData.lineChart(), [component.id])
+  const mockBarChartData = React.useMemo(() => generateMockData.barChart(), [component.id])
+  const mockPieChartData = React.useMemo(() => generateMockData.pieChart(), [component.id])
+  const mockTableData = React.useMemo(() => generateMockData.tableData(), [component.id])
+  const mockKpiData = React.useMemo(() => generateMockData.kpiData(), [component.id])
+  const mockGaugeData = React.useMemo(() => generateMockData.gaugeData(), [component.id])
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isPreviewMode) return
     
@@ -1113,7 +1121,7 @@ function DraggableComponent({
                 />
               ) : (
                 <SimpleLineChart 
-                  data={React.useMemo(() => generateMockData.lineChart(), [component.id])} 
+                  data={mockLineChartData} 
                   width={Math.min(component.size.width - 20, 350)}
                   height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
                   config={component.config}
@@ -1140,7 +1148,7 @@ function DraggableComponent({
                 />
               ) : (
                 <SimpleBarChart 
-                  data={React.useMemo(() => generateMockData.barChart(), [component.id])} 
+                  data={mockBarChartData} 
                   width={Math.min(component.size.width - 20, 350)}
                   height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
                   config={component.config}
@@ -1167,7 +1175,7 @@ function DraggableComponent({
                 />
               ) : (
                 <SimplePieChart 
-                  data={React.useMemo(() => generateMockData.pieChart(), [component.id])} 
+                  data={mockPieChartData} 
                   width={Math.min(component.size.width - 20, 350)}
                   height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
                   config={component.config}
@@ -1186,7 +1194,7 @@ function DraggableComponent({
             )}
             <div className="flex-1 overflow-hidden">
               <SimpleTable 
-                data={React.useMemo(() => generateMockData.tableData(), [component.id])} 
+                data={mockTableData} 
                 config={component.config}
               />
             </div>
@@ -1203,7 +1211,7 @@ function DraggableComponent({
               />
             ) : (
               <SimpleKPICard 
-                data={React.useMemo(() => generateMockData.kpiData(), [component.id])} 
+                data={mockKpiData} 
                 title={!isPreviewMode ? component.title : undefined}
                 config={component.config}
               />
@@ -1220,7 +1228,7 @@ function DraggableComponent({
             )}
             <div className="flex-1 flex items-center justify-center">
               <SimpleGauge 
-                data={React.useMemo(() => generateMockData.gaugeData(), [component.id])} 
+                data={mockGaugeData} 
                 width={Math.min(component.size.width - 40, 180)}
                 height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 120)}
                 config={component.config}
