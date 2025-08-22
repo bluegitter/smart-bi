@@ -74,6 +74,54 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
     })
   }
 
+  const handleChartConfigUpdate = (chartUpdates: any) => {
+    handleUpdate({
+      config: {
+        ...selectedComponent.config,
+        chart: {
+          ...selectedComponent.config?.chart,
+          ...chartUpdates
+        }
+      }
+    })
+  }
+
+  const handleTableConfigUpdate = (tableUpdates: any) => {
+    handleUpdate({
+      config: {
+        ...selectedComponent.config,
+        table: {
+          ...selectedComponent.config?.table,
+          ...tableUpdates
+        }
+      }
+    })
+  }
+
+  const handleKPIConfigUpdate = (kpiUpdates: any) => {
+    handleUpdate({
+      config: {
+        ...selectedComponent.config,
+        kpi: {
+          ...selectedComponent.config?.kpi,
+          ...kpiUpdates
+        }
+      }
+    })
+  }
+
+  const handleGaugeConfigUpdate = (gaugeUpdates: any) => {
+    handleUpdate({
+      config: {
+        ...selectedComponent.config,
+        gauge: {
+          ...selectedComponent.config?.gauge,
+          ...gaugeUpdates
+        }
+      }
+    })
+  }
+
   const currentChartType = chartTypeOptions.find(option => option.value === selectedComponent.type)
 
   return (
@@ -240,7 +288,290 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                   </div>
                 </div>
 
-                {/* 背景设置 */}
+                {/* 图表专属设置 */}
+                {selectedComponent.type === 'line-chart' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">折线图设置</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showGrid"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleChartConfigUpdate({ showGrid: e.target.checked })}
+                        />
+                        <label htmlFor="showGrid" className="text-sm">显示网格</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showPoints"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleChartConfigUpdate({ showPoints: e.target.checked })}
+                        />
+                        <label htmlFor="showPoints" className="text-sm">显示数据点</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showArea"
+                          className="rounded"
+                          defaultChecked={false}
+                          onChange={(e) => handleChartConfigUpdate({ showArea: e.target.checked })}
+                        />
+                        <label htmlFor="showArea" className="text-sm">面积填充</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="smooth"
+                          className="rounded"
+                          defaultChecked={false}
+                          onChange={(e) => handleChartConfigUpdate({ smooth: e.target.checked })}
+                        />
+                        <label htmlFor="smooth" className="text-sm">平滑曲线</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedComponent.type === 'bar-chart' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">柱状图设置</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showValues"
+                          className="rounded"
+                          defaultChecked={false}
+                          onChange={(e) => handleChartConfigUpdate({ showValues: e.target.checked })}
+                        />
+                        <label htmlFor="showValues" className="text-sm">显示数值</label>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">柱子样式</label>
+                        <select 
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          onChange={(e) => handleChartConfigUpdate({ barStyle: e.target.value })}
+                        >
+                          <option value="rounded">圆角</option>
+                          <option value="square">方角</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">方向</label>
+                        <select 
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          onChange={(e) => handleChartConfigUpdate({ orientation: e.target.value })}
+                        >
+                          <option value="vertical">垂直</option>
+                          <option value="horizontal">水平</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedComponent.type === 'pie-chart' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">饼图设置</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showLabels"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleChartConfigUpdate({ showLabels: e.target.checked })}
+                        />
+                        <label htmlFor="showLabels" className="text-sm">显示标签</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showLegend"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleChartConfigUpdate({ showLegend: e.target.checked })}
+                        />
+                        <label htmlFor="showLegend" className="text-sm">显示图例</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showPercentage"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleChartConfigUpdate({ showPercentage: e.target.checked })}
+                        />
+                        <label htmlFor="showPercentage" className="text-sm">显示百分比</label>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">内圆半径 (%)</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="80"
+                          defaultValue="0"
+                          className="w-full"
+                          onChange={(e) => handleChartConfigUpdate({ innerRadius: Number(e.target.value) })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedComponent.type === 'table' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">数据表设置</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showHeader"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleTableConfigUpdate({ showHeader: e.target.checked })}
+                        />
+                        <label htmlFor="showHeader" className="text-sm">显示表头</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showBorder"
+                          className="rounded"
+                          defaultChecked={false}
+                          onChange={(e) => handleTableConfigUpdate({ showBorder: e.target.checked })}
+                        />
+                        <label htmlFor="showBorder" className="text-sm">显示边框</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showStripes"
+                          className="rounded"
+                          defaultChecked={false}
+                          onChange={(e) => handleTableConfigUpdate({ showStripes: e.target.checked })}
+                        />
+                        <label htmlFor="showStripes" className="text-sm">斑马纹</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="compact"
+                          className="rounded"
+                          defaultChecked={false}
+                          onChange={(e) => handleTableConfigUpdate({ compact: e.target.checked })}
+                        />
+                        <label htmlFor="compact" className="text-sm">紧凑模式</label>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">最大行数</label>
+                        <input
+                          type="number"
+                          min="3"
+                          max="20"
+                          defaultValue="6"
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          onChange={(e) => handleTableConfigUpdate({ maxRows: Number(e.target.value) })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedComponent.type === 'kpi-card' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">指标卡设置</label>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">卡片样式</label>
+                        <select 
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          onChange={(e) => handleKPIConfigUpdate({ style: e.target.value })}
+                        >
+                          <option value="modern">现代</option>
+                          <option value="minimal">简约</option>
+                          <option value="colorful">彩色</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showIcon"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleKPIConfigUpdate({ showIcon: e.target.checked })}
+                        />
+                        <label htmlFor="showIcon" className="text-sm">显示图标</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showTrend"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleKPIConfigUpdate({ showTrend: e.target.checked })}
+                        />
+                        <label htmlFor="showTrend" className="text-sm">显示趋势</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showDescription"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleKPIConfigUpdate({ showDescription: e.target.checked })}
+                        />
+                        <label htmlFor="showDescription" className="text-sm">显示描述</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedComponent.type === 'gauge' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">仪表盘设置</label>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">样式</label>
+                        <select 
+                          className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                          onChange={(e) => handleGaugeConfigUpdate({ style: e.target.value })}
+                        >
+                          <option value="modern">现代</option>
+                          <option value="classic">经典</option>
+                          <option value="minimal">简约</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showLabels"
+                          className="rounded"
+                          defaultChecked={true}
+                          onChange={(e) => handleGaugeConfigUpdate({ showLabels: e.target.checked })}
+                        />
+                        <label htmlFor="showLabels" className="text-sm">显示刻度</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="showThresholds"
+                          className="rounded"
+                          defaultChecked={false}
+                          onChange={(e) => handleGaugeConfigUpdate({ showThresholds: e.target.checked })}
+                        />
+                        <label htmlFor="showThresholds" className="text-sm">显示阈值</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 通用背景设置 */}
                 <div>
                   <label className="block text-sm font-medium mb-2">背景</label>
                   <div className="space-y-2">

@@ -1,15 +1,17 @@
 'use client'
 
 import React from 'react'
-import { Search, MessageSquare, User, Menu } from 'lucide-react'
+import { Search, MessageSquare, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { useActions, useSidebarCollapsed, useUser } from '@/store/useAppStore'
+import { UserMenu } from '@/components/auth/UserMenu'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function Header() {
-  const user = useUser()
-  const sidebarCollapsed = useSidebarCollapsed()
-  const { toggleSidebar } = useActions()
+  const { user } = useAuth()
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
+  
+  const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed)
 
   return (
     <header className="h-16 border-b border-slate-200 bg-white px-4 flex items-center justify-between">
@@ -47,29 +49,9 @@ export function Header() {
         </Button>
       </div>
 
-      {/* 右侧：用户信息 */}
+      {/* 右侧：用户菜单 */}
       <div className="flex items-center gap-2">
-        {user ? (
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:block text-right">
-              <div className="text-sm font-medium">{user.name}</div>
-              <div className="text-xs text-slate-500 capitalize">{user.role}</div>
-            </div>
-            <Button variant="ghost" size="icon" className="relative">
-              {user.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt={user.name}
-                  className="w-8 h-8 rounded-full"
-                />
-              ) : (
-                <User className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
-        ) : (
-          <Button variant="outline">登录</Button>
-        )}
+        <UserMenu />
       </div>
     </header>
   )

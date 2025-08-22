@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useDrag } from 'react-dnd'
 import { 
@@ -13,13 +13,15 @@ import {
   ChevronRight,
   TrendingUp,
   Table,
-  PieChart
+  PieChart,
+  Search
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
 import { useSidebarCollapsed } from '@/store/useAppStore'
-import type { ComponentLayout } from '@/types'
+import type { ComponentLayout, Metric } from '@/types'
 
 interface SidebarProps {
   className?: string
@@ -31,13 +33,6 @@ const sidebarItems = [
   { icon: Database, label: '数据源', href: '/datasources' },
   { icon: TrendingUp, label: '指标库', href: '/metrics' },
   { icon: Settings, label: '设置', href: '/settings' },
-]
-
-const mockMetrics = [
-  { id: '1', name: '销售额', category: '销售', type: 'sum', unit: '元' },
-  { id: '2', name: '订单数', category: '销售', type: 'count', unit: '个' },
-  { id: '3', name: '转化率', category: '营销', type: 'ratio', unit: '%' },
-  { id: '4', name: '活跃用户', category: '用户', type: 'count', unit: '人' },
 ]
 
 const mockComponents = [
@@ -53,8 +48,44 @@ export function Sidebar({ className }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const sidebarCollapsed = useSidebarCollapsed()
-  const [metricsExpanded, setMetricsExpanded] = React.useState(true)
-  const [componentsExpanded, setComponentsExpanded] = React.useState(true)
+  const [metricsExpanded, setMetricsExpanded] = useState(true)
+  const [componentsExpanded, setComponentsExpanded] = useState(true)
+  const [metrics, setMetrics] = useState<Metric[]>([])
+  const [metricsSearch, setMetricsSearch] = useState('')
+  const [filteredMetrics, setFilteredMetrics] = useState<Metric[]>([])
+
+  // 获取指标数据
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await fetch('/api/metrics')
+        if (response.ok) {
+          const data = await response.json()
+          setMetrics(data.metrics || [])
+        }
+      } catch (error) {
+        console.error('Error fetching metrics:', error)
+      }
+    }
+
+    fetchMetrics()
+  }, [])
+
+  // 过滤指标
+  useEffect(() => {
+    if (metricsSearch.trim()) {
+      const search = metricsSearch.toLowerCase()
+      setFilteredMetrics(
+        metrics.filter(metric =>
+          metric.name.toLowerCase().includes(search) ||
+          metric.displayName.toLowerCase().includes(search) ||
+          metric.category.toLowerCase().includes(search)
+        )
+      )
+    } else {
+      setFilteredMetrics(metrics.slice(0, 8)) // 只显示前8个
+    }
+  }, [metrics, metricsSearch])
 
   if (sidebarCollapsed) {
     return null
@@ -111,31 +142,75 @@ export function Sidebar({ className }: SidebarProps) {
                 </Button>
               </div>
             </CardHeader>
-            {metricsExpanded && (
+{metricsExpanded && (
               <CardContent className="pt-0">
-                <div className="space-y-2">
-                  {mockMetrics.map((metric) => (
-                    <MetricDragSource
-                      key={metric.id}
-                      metric={metric}
-                    >
-                      <div className="p-2 rounded border border-slate-200 bg-white cursor-move hover:shadow-sm transition-shadow">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-sm">{metric.name}</div>
-                            <div className="text-xs text-slate-500">
-                              {metric.category} • {metric.type}
-                            </div>
-                          </div>
-                          <div className="text-xs text-slate-400">{metric.unit}</div>
-                        </div>
+                <div className="space-y-3">
+                  {/* 搜索框 */}
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                    <Input
+                      placeholder="搜索指标..."
+                      value={metricsSearch}
+                      onChange={(e) => setMetricsSearch(e.target.value)}
+                      className="pl-7 text-xs h-7"
+                    />
+                  </div>
+                  
+                  {/* 指标列表 */}
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {filteredMetrics.length === 0 ? (
+                      <div className="text-xs text-gray-500 text-center py-4">
+                        {metricsSearch ? '未找到匹配的指标' : '暂无指标'}
                       </div>
-                    </MetricDragSource>
-                  ))}
-                  <Button variant="outline" size="sm" className="w-full mt-2">
-                    <Plus className="h-3 w-3 mr-1" />
-                    添加指标
-                  </Button>
+                    ) : (
+                      filteredMetrics.map((metric) => (
+                        <MetricDragSource
+                          key={metric._id}
+                          metric={metric}
+                        >
+                          <div className="p-2 rounded border border-slate-200 bg-white cursor-move hover:shadow-sm transition-shadow">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate">{metric.displayName}</div>
+                                <div className="text-xs text-slate-500 truncate">
+                                  {metric.category} • {metric.type}
+                                </div>
+                              </div>
+                              {metric.unit && (
+                                <div className="text-xs text-slate-400 ml-1">{metric.unit}</div>
+                              )}
+                            </div>
+                            {/* 标签 */}
+                            {metric.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {metric.tags.slice(0, 2).map(tag => (
+                                  <span key={tag} className="text-xs bg-blue-100 text-blue-700 px-1 rounded">
+                                    {tag}
+                                  </span>
+                                ))}
+                                {metric.tags.length > 2 && (
+                                  <span className="text-xs text-gray-400">+{metric.tags.length - 2}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </MetricDragSource>
+                      ))
+                    )}
+                  </div>
+                  
+                  {/* 操作按钮 */}
+                  <div className="flex space-x-1">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 text-xs h-7"
+                      onClick={() => router.push('/metrics')}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      管理指标
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             )}
@@ -224,7 +299,7 @@ function ComponentDragSource({ component, children }: ComponentDragSourceProps) 
 
 // 指标拖拽源
 interface MetricDragSourceProps {
-  metric: { id: string; name: string; category: string; type: string; unit: string }
+  metric: Metric
   children: React.ReactNode
 }
 
@@ -235,7 +310,7 @@ function MetricDragSource({ metric, children }: MetricDragSourceProps) {
       console.log('Starting drag for metric:', metric)
       return { 
         type: 'metric', 
-        id: metric.id, 
+        id: metric._id, 
         data: metric
       }
     },

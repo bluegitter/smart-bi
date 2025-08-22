@@ -1,16 +1,38 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, BarChart3, Brain, Zap, Users } from 'lucide-react'
+import { ArrowRight, BarChart3, Brain, Zap, Users, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function HomePage() {
   const router = useRouter()
+  const { isAuthenticated, isLoading } = useAuth()
+
+  // 自动重定向到dashboards页面
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push('/dashboards')
+    }
+  }, [isAuthenticated, isLoading, router])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+          <p className="text-gray-600">加载中...</p>
+        </div>
+      </div>
+    )
+  }
   
   return (
-    <div className="flex-1 overflow-auto">
+    <ProtectedRoute>
+      <div className="flex-1 overflow-auto">
       {/* 欢迎横幅 */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-8">
         <div className="max-w-4xl mx-auto">
@@ -168,6 +190,7 @@ export default function HomePage() {
           </section>
         </div>
       </div>
-    </div>
+      </div>
+    </ProtectedRoute>
   )
 }

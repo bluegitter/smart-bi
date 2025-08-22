@@ -1,18 +1,23 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DashboardCanvas } from '@/components/dashboard/DashboardCanvas'
-import type { ComponentLayout } from '@/types'
+import { dashboardService } from '@/lib/services/dashboardService'
+import type { ComponentLayout, Dashboard } from '@/types'
 
 export default function DashboardEditorPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   
   // 从 URL 参数获取看板信息
+  const dashboardId = searchParams.get('id') // 现有看板ID
   const dashboardName = searchParams.get('name') || '未命名看板'
   const templateId = searchParams.get('template')
   const isPreview = searchParams.get('preview') === 'true'
+  
+  const [isNewDashboard, setIsNewDashboard] = useState(!dashboardId)
   
   // 根据模板 ID 获取初始组件
   const getInitialComponents = (templateId: string | null): ComponentLayout[] => {
@@ -436,20 +441,54 @@ export default function DashboardEditorPage() {
 
   const initialComponents = getInitialComponents(templateId)
 
-  const handleSave = (components: ComponentLayout[]) => {
-    // TODO: 实现保存看板的逻辑
-    console.log('Saving dashboard:', {
-      name: dashboardName,
-      components
-    })
+  // 处理保存看板 
+  const handleSave = async (dashboard: Dashboard) => {
+    try {
+      if (isNewDashboard || !dashboardId) {
+        // 创建新看板
+        const newDashboard = await dashboardService.createDashboard({
+          name: dashboardName,
+          description: dashboard.description || `使用模板 ${templateId || 'blank'} 创建的看板`,
+          layout: {
+            grid: { columns: 12, rows: 8 },
+            components: dashboard.components || []
+          },
+          globalConfig: {
+            theme: 'light',
+            refreshInterval: 300000,
+            timezone: 'Asia/Shanghai'
+          }
+        })
+        
+        console.log('Dashboard created successfully:', newDashboard)
+        
+        // 跳转到编辑页面，并更新URL
+        router.replace(`/dashboards/editor?id=${newDashboard._id}&name=${encodeURIComponent(newDashboard.name)}`)
+        setIsNewDashboard(false)
+      } else {
+        // 现有看板已经通过useDashboard hook自动保存
+        console.log('Dashboard updated successfully:', dashboard)
+      }
+    } catch (error) {
+      console.error('Failed to save dashboard:', error)
+      alert('保存看板失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
+
+  // 处理看板删除后的跳转
+  const handleDashboardDeleted = () => {
+    router.push('/dashboards')
   }
 
   return (
-    <DashboardCanvas
+    <ProtectedRoute>
+      <DashboardCanvas
+      dashboardId={dashboardId || undefined}
       dashboardName={dashboardName}
       onSave={handleSave}
       initialComponents={initialComponents}
       initialPreviewMode={isPreview}
-    />
+      />
+    </ProtectedRoute>
   )
 }

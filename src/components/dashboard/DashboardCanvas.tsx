@@ -1,34 +1,81 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useDrop } from 'react-dnd'
-import { Plus, Layout, Save, Eye, Settings, Maximize2 } from 'lucide-react'
+import { Plus, Layout, Save, Eye, Settings, Maximize2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { PropertyPanel } from './PropertyPanel'
 import { cn } from '@/lib/utils'
-import type { DragItem, ComponentLayout } from '@/types'
+import { useDashboard } from '@/hooks/useDashboards'
+import { 
+  SimpleLineChart, 
+  SimpleBarChart, 
+  SimplePieChart, 
+  SimpleTable, 
+  SimpleKPICard, 
+  SimpleGauge,
+  generateMockData 
+} from '@/components/charts/ChartComponents'
+import type { DragItem, ComponentLayout, Dashboard } from '@/types'
 
 interface DashboardCanvasProps {
   className?: string
+  dashboardId?: string
   dashboardName?: string
-  onSave?: (components: ComponentLayout[]) => void
+  onSave?: (dashboard: Dashboard) => void
   initialComponents?: ComponentLayout[]
   initialPreviewMode?: boolean
 }
 
 export function DashboardCanvas({ 
   className, 
+  dashboardId,
   dashboardName = '未命名看板',
   onSave,
   initialComponents = [],
   initialPreviewMode = false
 }: DashboardCanvasProps) {
+  const {
+    dashboard,
+    loading,
+    error,
+    saving,
+    saveDashboard,
+    saveLayout,
+    addComponent: addComponentToDb,
+    updateComponent: updateComponentInDb,
+    removeComponent: removeComponentFromDb
+  } = useDashboard(dashboardId || null)
+
   const [components, setComponents] = React.useState<ComponentLayout[]>(initialComponents)
-  
   const [selectedComponent, setSelectedComponent] = React.useState<ComponentLayout | null>(null)
   const [isPropertyPanelOpen, setIsPropertyPanelOpen] = React.useState(false)
   const [isPreviewMode, setIsPreviewMode] = React.useState(initialPreviewMode)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
+
+  // 当看板数据加载时，更新组件状态
+  useEffect(() => {
+    if (dashboard?.layout?.components) {
+      setComponents(dashboard.layout.components)
+      setHasUnsavedChanges(false)
+    }
+  }, [dashboard])
+
+  // 监听组件变化，标记为有未保存的更改
+  useEffect(() => {
+    if (dashboard?.layout?.components) {
+      const currentComponents = JSON.stringify(components)
+      const savedComponents = JSON.stringify(dashboard.layout.components)
+      setHasUnsavedChanges(currentComponents !== savedComponents)
+    } else if (components.length > 0) {
+      // 如果没有现有dashboard但有组件，说明有未保存的更改
+      setHasUnsavedChanges(true)
+    } else {
+      // 如果没有dashboard也没有组件，说明没有更改
+      setHasUnsavedChanges(false)
+    }
+  }, [components, dashboard?.layout?.components])
   
   // Create a ref for the canvas element
   const canvasRef = React.useRef<HTMLDivElement>(null)
@@ -94,12 +141,50 @@ export function DashboardCanvas({
     if (item.type === 'component') {
       // 从侧边栏拖拽组件
       const componentData = item.data as { type: ComponentLayout['type'], name: string }
+      const componentType = componentData.type || 'line-chart'
+      
+      // 根据组件类型设置合适的默认尺寸
+      const getDefaultSize = (type: ComponentLayout['type']) => {
+        switch (type) {
+          case 'kpi-card':
+            return { width: 300, height: 180 }
+          case 'gauge':
+            return { width: 250, height: 200 }
+          case 'pie-chart':
+            return { width: 350, height: 280 }
+          case 'table':
+            return { width: 500, height: 300 }
+          default:
+            return { width: 400, height: 300 }
+        }
+      }
+      
+      // 根据组件类型设置合适的中文标题
+      const getDefaultTitle = (type: ComponentLayout['type']) => {
+        switch (type) {
+          case 'line-chart':
+            return '趋势分析图'
+          case 'bar-chart':
+            return '柱状对比图'
+          case 'pie-chart':
+            return '数据分布图'
+          case 'table':
+            return '数据明细表'
+          case 'kpi-card':
+            return '关键指标'
+          case 'gauge':
+            return '进度仪表盘'
+          default:
+            return '新图表'
+        }
+      }
+      
       const newComponent: ComponentLayout = {
         id: `component-${Date.now()}`,
-        type: componentData.type || 'line-chart',
-        title: componentData.name || '新图表',
+        type: componentType,
+        title: componentData.name || getDefaultTitle(componentType),
         position: { x, y },
-        size: { width: 400, height: 300 },
+        size: getDefaultSize(componentType),
         config: {
           style: {
             colorScheme: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'],
@@ -124,7 +209,7 @@ export function DashboardCanvas({
     } else if (item.type === 'metric') {
       // 从指标面板拖拽指标到画布，自动创建对应的图表组件
       console.log('Creating component from metric drag')
-      const metricData = item.data as { id: string; name: string; category: string; type: string; unit: string }
+      const metricData = item.data as { _id: string; name: string; displayName: string; category: string; type: string; unit?: string }
       console.log('Metric data:', metricData)
       
       // 根据指标类型选择合适的图表类型
@@ -145,9 +230,9 @@ export function DashboardCanvas({
       console.log('Selected chart type:', chartType)
       
       const newComponent: ComponentLayout = {
-        id: `metric-${metricData.id}-${Date.now()}`,
+        id: `metric-${metricData._id}-${Date.now()}`,
         type: chartType,
-        title: `${metricData.name} (${metricData.unit})`,
+        title: metricData.unit ? `${metricData.displayName} (${metricData.unit})` : metricData.displayName,
         position: { x, y },
         size: chartType === 'kpi-card' ? { width: 300, height: 150 } : { width: 400, height: 300 },
         config: {
@@ -162,7 +247,7 @@ export function DashboardCanvas({
         dataConfig: {
           datasourceId: '',
           query: '',
-          metrics: [metricData.name], // 预设该指标
+          metrics: [metricData.name], // 内部使用name，但显示用displayName
           dimensions: [],
           filters: [],
         },
@@ -225,11 +310,29 @@ export function DashboardCanvas({
     }
   }
 
-  const handleSave = () => {
-    if (onSave) {
-      onSave(components)
+  const handleSave = async () => {
+    try {
+      if (dashboardId && dashboard) {
+        // 保存到数据库
+        const updatedLayout = {
+          ...dashboard.layout,
+          components
+        }
+        const savedDashboard = await saveLayout(updatedLayout)
+        
+        if (onSave && savedDashboard) {
+          onSave(savedDashboard)
+        }
+        
+        console.log('Dashboard saved successfully:', savedDashboard)
+      } else if (onSave) {
+        // 如果没有dashboardId，使用传递的onSave回调
+        onSave({ components } as Dashboard)
+      }
+    } catch (error) {
+      console.error('Failed to save dashboard:', error)
+      alert('保存失败: ' + (error instanceof Error ? error.message : '未知错误'))
     }
-    console.log('Saving dashboard:', components)
   }
 
   const handlePreviewToggle = () => {
@@ -240,13 +343,44 @@ export function DashboardCanvas({
     }
   }
 
+  // 显示加载状态
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+          <p className="text-gray-600">加载看板中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 显示错误状态（但允许新看板继续编辑）
+  if (error && !error.includes('Dashboard not found')) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 mb-2">⚠️</div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">加载失败</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            重新加载
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={cn("flex-1 bg-white flex", className)}>
       <div className="flex-1 flex flex-col">
         {/* 工具栏 */}
         <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="font-semibold">{dashboardName}</h1>
+            <h1 className="font-semibold">
+              {dashboard?.name || dashboardName}
+              {hasUnsavedChanges && <span className="text-orange-500">*</span>}
+            </h1>
             <div className="flex items-center gap-1">
               <Button 
                 variant="ghost" 
@@ -289,10 +423,20 @@ export function DashboardCanvas({
             <Button 
               size="sm"
               onClick={handleSave}
+              disabled={saving || !hasUnsavedChanges}
               className="flex items-center gap-1"
             >
-              <Save className="h-3 w-3" />
-              保存
+              {saving ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <Save className="h-3 w-3" />
+                  保存
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -488,35 +632,106 @@ function DraggableComponent({
 
       {/* 组件内容 */}
       <div className={cn(
-        "p-4 flex items-center justify-center text-slate-400",
-        isPreviewMode ? "h-full" : "h-[calc(100%-40px)]"
+        "flex items-center justify-center overflow-hidden",
+        isPreviewMode ? "h-full p-2" : "h-[calc(100%-40px)] p-2"
       )}>
-        <div className="text-center">
-          <div className="text-2xl mb-2">
-            {component.type === 'line-chart' && '📈'}
-            {component.type === 'bar-chart' && '📊'}
-            {component.type === 'pie-chart' && '🥧'}
-            {component.type === 'table' && '📋'}
-            {component.type === 'kpi-card' && '📌'}
-            {component.type === 'gauge' && '⏰'}
-          </div>
-          {isPreviewMode && (
-            <div className="text-lg font-medium text-slate-700 mb-1">
-              {component.title}
+        {component.type === 'line-chart' && (
+          <div className="w-full h-full flex flex-col">
+            {isPreviewMode && (
+              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
+                {component.title}
+              </div>
+            )}
+            <div className="flex-1 flex items-center justify-center">
+              <SimpleLineChart 
+                data={React.useMemo(() => generateMockData.lineChart(), [component.id])} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
+                config={component.config}
+              />
             </div>
-          )}
-          <div className={cn(
-            "text-sm",
-            isPreviewMode ? "text-slate-500" : "text-slate-400"
-          )}>
-            {component.type === 'line-chart' && '折线图'}
-            {component.type === 'bar-chart' && '柱状图'}
-            {component.type === 'pie-chart' && '饼图'}
-            {component.type === 'table' && '数据表'}
-            {component.type === 'kpi-card' && '指标卡片'}
-            {component.type === 'gauge' && '仪表盘'}
           </div>
-        </div>
+        )}
+        
+        {component.type === 'bar-chart' && (
+          <div className="w-full h-full flex flex-col">
+            {isPreviewMode && (
+              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
+                {component.title}
+              </div>
+            )}
+            <div className="flex-1 flex items-center justify-center">
+              <SimpleBarChart 
+                data={React.useMemo(() => generateMockData.barChart(), [component.id])} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
+                config={component.config}
+              />
+            </div>
+          </div>
+        )}
+        
+        {component.type === 'pie-chart' && (
+          <div className="w-full h-full flex flex-col">
+            {isPreviewMode && (
+              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
+                {component.title}
+              </div>
+            )}
+            <div className="flex-1 flex items-center justify-center">
+              <SimplePieChart 
+                data={React.useMemo(() => generateMockData.pieChart(), [component.id])} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
+                config={component.config}
+              />
+            </div>
+          </div>
+        )}
+        
+        {component.type === 'table' && (
+          <div className="w-full h-full flex flex-col">
+            {isPreviewMode && (
+              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
+                {component.title}
+              </div>
+            )}
+            <div className="flex-1 overflow-hidden">
+              <SimpleTable 
+                data={React.useMemo(() => generateMockData.tableData(), [component.id])} 
+                config={component.config}
+              />
+            </div>
+          </div>
+        )}
+        
+        {component.type === 'kpi-card' && (
+          <div className="w-full h-full">
+            <SimpleKPICard 
+              data={React.useMemo(() => generateMockData.kpiData(), [component.id])} 
+              title={!isPreviewMode ? component.title : undefined}
+              config={component.config}
+            />
+          </div>
+        )}
+        
+        {component.type === 'gauge' && (
+          <div className="w-full h-full flex flex-col">
+            {isPreviewMode && (
+              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
+                {component.title}
+              </div>
+            )}
+            <div className="flex-1 flex items-center justify-center">
+              <SimpleGauge 
+                data={React.useMemo(() => generateMockData.gaugeData(), [component.id])} 
+                width={Math.min(component.size.width - 40, 180)}
+                height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 120)}
+                config={component.config}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 调整尺寸手柄 - 只在编辑模式显示 */}
