@@ -186,28 +186,10 @@ export function ContainerComponent({
         minHeight: '120px'
       }}
     >
-      {/* 容器标题区域 */}
-      {!isPreviewMode && (
-        <div className="flex items-center justify-between mb-2 px-2 py-1 bg-slate-50 rounded-md">
-          <div className="flex items-center gap-1">
-            <Box className="h-3 w-3 text-slate-600" />
-            <span className="text-xs font-medium text-slate-700">
-              {component.title}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-slate-500">
-              {component.children?.length || 0} 项
-            </span>
-            <Settings className="h-3 w-3 text-slate-400" />
-          </div>
-        </div>
-      )}
-
       {/* 预览模式标题 */}
       {isPreviewMode && (
         <div className="text-sm font-medium text-slate-700 mb-2 text-center">
-          {component.title}
+          {component.title} 
         </div>
       )}
 

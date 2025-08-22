@@ -24,6 +24,130 @@ const createMetricSchema = z.object({
   isActive: z.boolean().default(true)
 })
 
+// 测试数据库指标定义
+const testDbMetrics = [
+  {
+    _id: 'sales_001',
+    name: 'daily_sales_amount',
+    displayName: '日销售额',
+    description: '每日销售总金额',
+    type: 'sum',
+    formula: 'SELECT DATE(date) as date, SUM(sales_amount) as value FROM sales_data GROUP BY DATE(date) ORDER BY date DESC',
+    datasourceId: 'mysql_test',
+    category: '销售',
+    unit: '元',
+    tags: ['销售', '金额', '趋势'],
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    _id: 'sales_002',
+    name: 'category_sales',
+    displayName: '分类销售额',
+    description: '按产品分类的销售额分布',
+    type: 'sum',
+    formula: 'SELECT category, SUM(sales_amount) as value FROM sales_data GROUP BY category ORDER BY value DESC',
+    datasourceId: 'mysql_test',
+    category: '销售',
+    unit: '元',
+    tags: ['销售', '分类', '分布'],
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    _id: 'sales_003',
+    name: 'region_performance',
+    displayName: '地区销售表现',
+    description: '各地区销售额对比',
+    type: 'sum',
+    formula: 'SELECT region, SUM(sales_amount) as value FROM sales_data GROUP BY region ORDER BY value DESC',
+    datasourceId: 'mysql_test',
+    category: '销售',
+    unit: '元',
+    tags: ['销售', '地区', '对比'],
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    _id: 'sales_004',
+    name: 'top_products',
+    displayName: '热销产品',
+    description: '销售额前10的产品',
+    type: 'sum',
+    formula: 'SELECT product_name, SUM(sales_amount) as value FROM sales_data GROUP BY product_name ORDER BY value DESC LIMIT 10',
+    datasourceId: 'mysql_test',
+    category: '产品',
+    unit: '元',
+    tags: ['产品', '热销', 'TOP10'],
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    _id: 'finance_001',
+    name: 'profit_margin',
+    displayName: '利润率',
+    description: '各部门利润率对比',
+    type: 'ratio',
+    formula: 'SELECT department, ROUND(SUM(profit) / SUM(revenue) * 100, 2) as value FROM financial_data GROUP BY department',
+    datasourceId: 'mysql_test',
+    category: '财务',
+    unit: '%',
+    tags: ['财务', '利润率', '部门'],
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    _id: 'finance_002',
+    name: 'revenue_trend',
+    displayName: '收入趋势',
+    description: '每日收入变化趋势',
+    type: 'sum',
+    formula: 'SELECT DATE(date) as date, SUM(revenue) as value FROM financial_data GROUP BY DATE(date) ORDER BY date',
+    datasourceId: 'mysql_test',
+    category: '财务',
+    unit: '元',
+    tags: ['财务', '收入', '趋势'],
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    _id: 'user_001',
+    name: 'user_device_distribution',
+    displayName: '用户设备分布',
+    description: '用户使用设备类型分布',
+    type: 'count',
+    formula: 'SELECT device_type, COUNT(*) as value FROM user_behavior GROUP BY device_type',
+    datasourceId: 'mysql_test',
+    category: '用户行为',
+    unit: '次',
+    tags: ['用户', '设备', '分布'],
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    _id: 'user_002',
+    name: 'action_analysis',
+    displayName: '用户行为分析',
+    description: '用户行为类型统计',
+    type: 'count',
+    formula: 'SELECT action_type, COUNT(*) as value FROM user_behavior GROUP BY action_type ORDER BY value DESC',
+    datasourceId: 'mysql_test',
+    category: '用户行为',
+    unit: '次',
+    tags: ['用户', '行为', '统计'],
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  }
+]
+
 // Mock data store - keeping for fallback if needed
 let mockMetrics = [
   {
@@ -288,24 +412,66 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('获取指标列表失败:', error)
     
-    // 如果是MongoDB连接超时或其他连接错误，返回空数据
+    // 如果是MongoDB连接超时或其他连接错误，返回测试数据库指标
     if (error instanceof Error && (
       error.message.includes('buffering timed out') || 
       error.message.includes('connection') ||
       error.name === 'MongooseError'
     )) {
-      console.warn('MongoDB连接失败，返回空指标列表')
+      console.warn('MongoDB连接失败，返回测试数据库指标')
+      
+      // 过滤和分页测试指标
+      let filteredMetrics = testDbMetrics
+      
+      if (category) {
+        filteredMetrics = filteredMetrics.filter(m => m.category === category)
+      }
+      if (type) {
+        filteredMetrics = filteredMetrics.filter(m => m.type === type)
+      }
+      if (search) {
+        const searchLower = search.toLowerCase()
+        filteredMetrics = filteredMetrics.filter(m => 
+          m.name.toLowerCase().includes(searchLower) ||
+          m.displayName.toLowerCase().includes(searchLower) ||
+          m.description?.toLowerCase().includes(searchLower)
+        )
+      }
+      if (tags && tags.length > 0) {
+        filteredMetrics = filteredMetrics.filter(m => 
+          tags.some(tag => m.tags.includes(tag))
+        )
+      }
+      
+      const total = filteredMetrics.length
+      const start = (page - 1) * limit
+      const paginatedMetrics = filteredMetrics.slice(start, start + limit)
+      
+      // 统计分类和标签
+      const categories = [...new Set(testDbMetrics.map(m => m.category))]
+        .map(cat => ({
+          name: cat,
+          count: testDbMetrics.filter(m => m.category === cat).length
+        }))
+      
+      const allTags = testDbMetrics.flatMap(m => m.tags)
+      const uniqueTags = [...new Set(allTags)]
+        .map(tag => ({
+          name: tag,
+          count: allTags.filter(t => t === tag).length
+        }))
+      
       return NextResponse.json({
-        metrics: [],
+        metrics: paginatedMetrics,
         pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          pages: 0
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
         },
-        categories: [],
-        tags: [],
-        warning: 'MongoDB连接失败，请检查数据库连接'
+        categories,
+        tags: uniqueTags,
+        warning: 'MongoDB连接失败，当前显示测试数据库指标'
       })
     }
     

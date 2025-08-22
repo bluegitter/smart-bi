@@ -20,6 +20,12 @@ import {
   ContainerComponent,
   generateMockData 
 } from '@/components/charts/ChartComponents'
+import { 
+  RealLineChart, 
+  RealBarChart, 
+  RealPieChart, 
+  RealKPICard 
+} from '@/components/charts/RealDataCharts'
 import type { DragItem, ComponentLayout, Dashboard } from '@/types'
 
 interface DashboardCanvasProps {
@@ -1098,12 +1104,21 @@ function DraggableComponent({
               </div>
             )}
             <div className="flex-1 flex items-center justify-center">
-              <SimpleLineChart 
-                data={React.useMemo(() => generateMockData.lineChart(), [component.id])} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
-                config={component.config}
-              />
+              {component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+                <RealLineChart 
+                  metricId={component.id.split('-')[1]} 
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
+                  config={component.config}
+                />
+              ) : (
+                <SimpleLineChart 
+                  data={React.useMemo(() => generateMockData.lineChart(), [component.id])} 
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
+                  config={component.config}
+                />
+              )}
             </div>
           </div>
         )}
@@ -1116,12 +1131,21 @@ function DraggableComponent({
               </div>
             )}
             <div className="flex-1 flex items-center justify-center">
-              <SimpleBarChart 
-                data={React.useMemo(() => generateMockData.barChart(), [component.id])} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
-                config={component.config}
-              />
+              {component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+                <RealBarChart 
+                  metricId={component.id.split('-')[1]} 
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
+                  config={component.config}
+                />
+              ) : (
+                <SimpleBarChart 
+                  data={React.useMemo(() => generateMockData.barChart(), [component.id])} 
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
+                  config={component.config}
+                />
+              )}
             </div>
           </div>
         )}
@@ -1134,12 +1158,21 @@ function DraggableComponent({
               </div>
             )}
             <div className="flex-1 flex items-center justify-center">
-              <SimplePieChart 
-                data={React.useMemo(() => generateMockData.pieChart(), [component.id])} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
-                config={component.config}
-              />
+              {component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+                <RealPieChart 
+                  metricId={component.id.split('-')[1]} 
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
+                  config={component.config}
+                />
+              ) : (
+                <SimplePieChart 
+                  data={React.useMemo(() => generateMockData.pieChart(), [component.id])} 
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
+                  config={component.config}
+                />
+              )}
             </div>
           </div>
         )}
@@ -1162,11 +1195,19 @@ function DraggableComponent({
         
         {component.type === 'kpi-card' && (
           <div className="w-full h-full">
-            <SimpleKPICard 
-              data={React.useMemo(() => generateMockData.kpiData(), [component.id])} 
-              title={!isPreviewMode ? component.title : undefined}
-              config={component.config}
-            />
+            {component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+              <RealKPICard 
+                metricId={component.id.split('-')[1]} 
+                title={component.title}
+                config={component.config}
+              />
+            ) : (
+              <SimpleKPICard 
+                data={React.useMemo(() => generateMockData.kpiData(), [component.id])} 
+                title={!isPreviewMode ? component.title : undefined}
+                config={component.config}
+              />
+            )}
           </div>
         )}
         
