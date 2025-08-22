@@ -874,10 +874,10 @@ export function DashboardCanvas({
             style={{ 
               width: components.length > 0 
                 ? Math.max(1200, Math.max(...components.map(c => c.position.x + c.size.width)) + 200) + 'px'
-                : '2000px', // 强制宽度测试滚动
+                : '1200px',
               height: components.length > 0 
                 ? Math.max(800, Math.max(...components.map(c => c.position.y + c.size.height)) + 200) + 'px'
-                : '2000px', // 强制高度测试滚动
+                : '800px',
               padding: '24px'
             }}
           >
