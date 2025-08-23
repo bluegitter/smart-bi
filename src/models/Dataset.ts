@@ -394,17 +394,17 @@ DatasetSchema.methods.hasPermission = function(userId: string, requiredRole: 'vi
 
 // 虚拟字段：计算字段数量
 DatasetSchema.virtual('fieldCount').get(function() {
-  return this.fields.length
+  return this.fields ? this.fields.length : 0
 })
 
 // 虚拟字段：计算维度数量
 DatasetSchema.virtual('dimensionCount').get(function() {
-  return this.fields.filter(f => f.fieldType === 'dimension').length
+  return this.fields ? this.fields.filter(f => f && f.fieldType === 'dimension').length : 0
 })
 
 // 虚拟字段：计算度量数量
 DatasetSchema.virtual('measureCount').get(function() {
-  return this.fields.filter(f => f.fieldType === 'measure').length
+  return this.fields ? this.fields.filter(f => f && f.fieldType === 'measure').length : 0
 })
 
 // JSON 序列化时的转换

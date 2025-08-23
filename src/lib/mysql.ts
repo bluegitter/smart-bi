@@ -34,17 +34,68 @@ export async function getConnection() {
   return await pool.getConnection()
 }
 
-// 执行查询
-export async function executeQuery(sql: string, params: any[] = []) {
-  const connection = await getConnection()
+// 执行查询（使用自定义配置或默认配置）
+export async function executeQuery(configOrSql: any, sqlOrParams?: string | any[], params?: any[]) {
+  // 支持两种调用方式：
+  // 1. executeQuery(sql, params) - 使用默认配置
+  // 2. executeQuery(config, sql, params) - 使用自定义配置
+  
+  let sql: string
+  let queryParams: any[] = []
+  let config: any = null
+  
+  if (typeof configOrSql === 'string') {
+    // 方式1：executeQuery(sql, params)
+    sql = configOrSql
+    queryParams = (sqlOrParams as any[]) || []
+  } else {
+    // 方式2：executeQuery(config, sql, params)
+    config = configOrSql
+    sql = sqlOrParams as string
+    queryParams = params || []
+  }
+  
+  let connection: mysql.PoolConnection | null = null
+  let customPool: mysql.Pool | null = null
+  
   try {
-    const [rows] = await connection.execute(sql, params)
-    return rows
+    if (config) {
+      // 使用自定义数据源配置
+      customPool = mysql.createPool({
+        host: config.host,
+        user: config.username || config.user, // 支持两种字段名
+        password: config.password,
+        database: config.database,
+        port: config.port,
+        timezone: '+08:00',
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+      })
+      connection = await customPool.getConnection()
+    } else {
+      // 使用默认配置
+      connection = await getConnection()
+    }
+    
+    const [rows, fields] = await connection.execute(sql, queryParams)
+    
+    // 返回包含列信息的结果
+    return {
+      data: rows,
+      columns: fields,
+      total: Array.isArray(rows) ? rows.length : 0
+    }
   } catch (error) {
     console.error('Database query error:', error)
     throw error
   } finally {
-    connection.release()
+    if (connection) {
+      connection.release()
+    }
+    if (customPool) {
+      await customPool.end()
+    }
   }
 }
 
@@ -123,7 +174,8 @@ export async function getTableSchema(tableName: string) {
     ORDER BY ORDINAL_POSITION
   `
   
-  return await executeQuery(sql, [dbConfig.database, tableName])
+  const result = await executeQuery(sql, [dbConfig.database, tableName])
+  return result.data
 }
 
 // 获取所有表名
@@ -135,5 +187,6 @@ export async function getAllTables() {
     ORDER BY TABLE_NAME
   `
   
-  return await executeQuery(sql, [dbConfig.database])
+  const result = await executeQuery(sql, [dbConfig.database])
+  return result.data
 }

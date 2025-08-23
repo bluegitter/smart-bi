@@ -31,65 +31,64 @@ export async function GET(
       return NextResponse.json(error, { status: error.status })
     }
 
-    // 获取数据源配置
-    const datasource = await DataSource.findById(id)
-    if (!datasource) {
+    // 获取数据源配置，需要显式包含密码字段
+    // 使用lean()并手动处理密码字段
+    const datasourceRaw = await DataSource.findById(id).lean()
+    if (!datasourceRaw) {
       return NextResponse.json(
         { error: '数据源不存在' },
         { status: 404 }
       )
     }
+    
+    // 重新查询包含密码的完整配置
+    const datasourceWithPassword = await DataSource.findById(id).select('+config.password').lean()
+    const datasource = {
+      ...datasourceRaw,
+      config: {
+        ...datasourceRaw.config,
+        password: datasourceWithPassword?.config?.password
+      }
+    } as any
 
     let tables: any[] = []
 
     // 根据数据源类型获取表结构
     if (datasource.type === 'mysql') {
-      // 在开发环境返回模拟数据，避免数据库连接问题
-      if (process.env.NODE_ENV === 'development') {
-        tables = [
-          {
-            name: 'users',
-            schema: datasource.config.database || 'main',
-            columns: [
-              { name: 'id', type: 'int', nullable: false },
-              { name: 'name', type: 'varchar', nullable: false },
-              { name: 'email', type: 'varchar', nullable: true },
-              { name: 'created_at', type: 'datetime', nullable: false }
-            ]
-          },
-          {
-            name: 'orders',
-            schema: datasource.config.database || 'main',
-            columns: [
-              { name: 'id', type: 'int', nullable: false },
-              { name: 'user_id', type: 'int', nullable: false },
-              { name: 'amount', type: 'decimal', nullable: false },
-              { name: 'status', type: 'varchar', nullable: false },
-              { name: 'created_at', type: 'datetime', nullable: false }
-            ]
-          },
-          {
-            name: 'products',
-            schema: datasource.config.database || 'main',
-            columns: [
-              { name: 'id', type: 'int', nullable: false },
-              { name: 'name', type: 'varchar', nullable: false },
-              { name: 'price', type: 'decimal', nullable: false },
-              { name: 'category', type: 'varchar', nullable: true }
-            ]
-          }
-        ]
-      } else {
-        // 生产环境实际查询数据库
-        try {
-          const mysql = await import('mysql2/promise')
-          const connection = await mysql.createConnection({
-            host: datasource.config.host,
-            user: datasource.config.username,
-            password: datasource.config.password,
-            database: datasource.config.database,
-            port: datasource.config.port
-          })
+      // 检查数据源配置完整性
+      if (!datasource.config) {
+        throw new Error('数据源配置为空')
+      }
+
+      const config = datasource.config
+      
+      // 验证密码字段是否正确获取
+      if (!config.password) {
+        console.warn('Password field is missing from datasource config')
+        console.log('Available config keys:', Object.keys(config))
+      }
+
+      // 验证必要的连接信息
+      if (!config.host && !config.hostname) {
+        throw new Error('缺少数据库主机地址配置')
+      }
+      if (!config.username && !config.user) {
+        throw new Error('缺少数据库用户名配置')
+      }
+      if (!config.database) {
+        throw new Error('缺少数据库名称配置')
+      }
+
+      // 实际查询数据库获取表结构
+      try {
+        const mysql = await import('mysql2/promise')
+        const connection = await mysql.createConnection({
+          host: config.host || config.hostname || 'localhost',
+          user: config.username || config.user || 'root',
+          password: config.password || '',
+          database: config.database,
+          port: config.port || 3306
+        })
 
           // 获取所有表名
           const [tablesResult] = await connection.execute(`
@@ -131,11 +130,10 @@ export async function GET(
             })
           }
 
-          await connection.end()
-        } catch (queryError) {
-          console.error('MySQL query failed:', queryError)
-          throw new Error(`数据库查询失败: ${queryError instanceof Error ? queryError.message : '未知错误'}`)
-        }
+        await connection.end()
+      } catch (queryError) {
+        console.error('MySQL query failed:', queryError)
+        throw new Error(`数据库查询失败: ${queryError instanceof Error ? queryError.message : '未知错误'}`)
       }
     }
     

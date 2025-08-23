@@ -36,18 +36,21 @@ import type { DataSource } from '@/types'
 interface DatasetEditorProps {
   datasetId?: string
   mode: 'create' | 'edit' | 'view'
+  initialName?: string
+  initialDisplayName?: string
+  initialType?: DatasetType
 }
 
-export function DatasetEditor({ datasetId, mode }: DatasetEditorProps) {
+export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName, initialType }: DatasetEditorProps) {
   const router = useRouter()
   const { dataSources, loading: dataSourcesLoading } = useDataSources()
   const { dataset, loading, error, save, preview, refresh } = useDataset(datasetId)
   
   // 编辑器状态
-  const [datasetType, setDatasetType] = React.useState<DatasetType>('table')
+  const [datasetType, setDatasetType] = React.useState<DatasetType>(initialType || 'table')
   const [selectedDataSource, setSelectedDataSource] = React.useState<string>('')
-  const [datasetName, setDatasetName] = React.useState('')
-  const [datasetDisplayName, setDatasetDisplayName] = React.useState('')
+  const [datasetName, setDatasetName] = React.useState(initialName || '')
+  const [datasetDisplayName, setDatasetDisplayName] = React.useState(initialDisplayName || '')
   const [datasetDescription, setDatasetDescription] = React.useState('')
   const [datasetCategory, setDatasetCategory] = React.useState('')
   
@@ -76,6 +79,7 @@ export function DatasetEditor({ datasetId, mode }: DatasetEditorProps) {
   // 初始化数据
   React.useEffect(() => {
     if (dataset && mode !== 'create') {
+      console.log('Loading dataset data:', dataset)
       setDatasetType(dataset.type)
       setDatasetName(dataset.name)
       setDatasetDisplayName(dataset.displayName)
@@ -84,15 +88,93 @@ export function DatasetEditor({ datasetId, mode }: DatasetEditorProps) {
       setFields(dataset.fields || [])
       
       if (dataset.tableConfig) {
-        setSelectedDataSource(dataset.tableConfig.datasourceId)
+        const datasourceId = typeof dataset.tableConfig.datasourceId === 'object' 
+          ? dataset.tableConfig.datasourceId._id || dataset.tableConfig.datasourceId.id
+          : dataset.tableConfig.datasourceId
+        setSelectedDataSource(datasourceId.toString())
         setSelectedSchema(dataset.tableConfig.schema || '')
         setSelectedTable(dataset.tableConfig.tableName)
       } else if (dataset.sqlConfig) {
-        setSelectedDataSource(dataset.sqlConfig.datasourceId)
+        const datasourceId = typeof dataset.sqlConfig.datasourceId === 'object'
+          ? dataset.sqlConfig.datasourceId._id || dataset.sqlConfig.datasourceId.id  
+          : dataset.sqlConfig.datasourceId
+        setSelectedDataSource(datasourceId.toString())
         setSqlQuery(dataset.sqlConfig.sql)
       }
     }
   }, [dataset, mode])
+
+  // 处理预览
+  const handlePreview = React.useCallback(async () => {
+    setPreviewLoading(true)
+    setPreviewError('')
+    
+    try {
+      // 如果是编辑模式且有datasetId，获取真实预览数据
+      if (mode === 'edit' && datasetId) {
+        const previewResult = await preview(datasetId)
+        if (previewResult && previewResult.rows && previewResult.rows.length > 0) {
+          setPreviewData(previewResult.rows)
+          setPreviewLoading(false)
+          return
+        }
+      }
+      
+      // 否则生成模拟预览数据
+      if (fields.length > 0) {
+        // 根据字段生成模拟预览数据
+        const sampleData = Array.from({ length: 3 }, (_, i) => {
+          const row: any = {}
+          fields.forEach(field => {
+            if (field.fieldType === 'measure') {
+              row[field.displayName] = (Math.random() * 10000).toFixed(1)
+            } else if (field.type === 'date') {
+              row[field.displayName] = `2024-0${i + 1}-01`
+            } else {
+              row[field.displayName] = `示例${field.displayName}${i + 1}`
+            }
+          })
+          return row
+        })
+        
+        setPreviewData(sampleData)
+      } else {
+        // 使用默认模拟数据
+        setPreviewData([
+          { 月份: '1月', 门店: 'DT广州天河店', 年份: 2024, 实际数: 10000.0, 预算数: 8000.0 },
+          { 月份: '3月', 门店: 'DT广州天河店', 年份: 2024, 实际数: 30000.0, 预算数: 40000.0 },
+          { 月份: '2月', 门店: 'DT玉林容县峰府店', 年份: 2024, 实际数: 20000.0, 预算数: 150000.0 }
+        ])
+      }
+      setPreviewLoading(false)
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : '预览失败')
+      setPreviewLoading(false)
+    }
+  }, [mode, datasetId, preview, fields])
+
+  // 在编辑模式下自动加载预览数据
+  React.useEffect(() => {
+    if (mode === 'edit' && dataset && !loading && fields.length > 0 && previewData.length === 0) {
+      console.log('Auto-loading preview data for edit mode')
+      handlePreview()
+    }
+  }, [mode, dataset, loading, fields.length, previewData.length, handlePreview])
+
+  // 调试信息
+  React.useEffect(() => {
+    if (datasetId && !loading) {
+      console.log('DatasetEditor state:', {
+        datasetId,
+        mode,
+        dataset,
+        loading,
+        error,
+        datasetName,
+        fields: fields.length
+      })
+    }
+  }, [datasetId, dataset, loading, error, mode, datasetName, fields.length])
 
   // 监听变化，标记未保存状态
   React.useEffect(() => {
@@ -212,44 +294,6 @@ export function DatasetEditor({ datasetId, mode }: DatasetEditorProps) {
       analyzeTableFields(selectedDataSource, selectedSchema, selectedTable)
     }
   }, [selectedDataSource, selectedSchema, selectedTable, datasetType])
-
-  // 处理预览
-  const handlePreview = async () => {
-    setPreviewLoading(true)
-    setPreviewError('')
-    
-    try {
-      if (fields.length > 0) {
-        // 根据字段生成模拟预览数据
-        const sampleData = Array.from({ length: 3 }, (_, i) => {
-          const row: any = {}
-          fields.forEach(field => {
-            if (field.fieldType === 'measure') {
-              row[field.displayName] = (Math.random() * 10000).toFixed(1)
-            } else if (field.type === 'date') {
-              row[field.displayName] = `2024-0${i + 1}-01`
-            } else {
-              row[field.displayName] = `示例${field.displayName}${i + 1}`
-            }
-          })
-          return row
-        })
-        
-        setPreviewData(sampleData)
-      } else {
-        // 使用默认模拟数据
-        setPreviewData([
-          { 月份: '1月', 门店: 'DT广州天河店', 年份: 2024, 实际数: 10000.0, 预算数: 8000.0 },
-          { 月份: '3月', 门店: 'DT广州天河店', 年份: 2024, 实际数: 30000.0, 预算数: 40000.0 },
-          { 月份: '2月', 门店: 'DT玉林容县峰府店', 年份: 2024, 实际数: 20000.0, 预算数: 150000.0 }
-        ])
-      }
-      setPreviewLoading(false)
-    } catch (error) {
-      setPreviewError(error instanceof Error ? error.message : '预览失败')
-      setPreviewLoading(false)
-    }
-  }
 
   // 处理保存
   const handleSave = async () => {

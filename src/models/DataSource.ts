@@ -134,27 +134,28 @@ DataSourceSchema.methods.testConnection = async function() {
   return { success: true, message: '连接测试成功' }
 }
 
-// 虚拟字段：隐藏敏感信息的配置
-DataSourceSchema.virtual('safeConfig').get(function() {
-  const config = this.config.toObject()
-  delete config.password
-  return config
-})
 
 // JSON 序列化时的转换
 DataSourceSchema.set('toJSON', {
   transform: function(doc, ret) {
-    // 转换 _id 为 id
-    ret.id = ret._id
-    delete ret._id
-    delete ret.__v
-    
-    // 确保不返回密码
-    if (ret.config && ret.config.password) {
-      delete ret.config.password
+    try {
+      // 转换 _id 为 id
+      if (ret._id) {
+        ret.id = ret._id
+        delete ret._id
+      }
+      delete ret.__v
+      
+      // 确保不返回密码
+      if (ret.config && typeof ret.config === 'object' && ret.config.password) {
+        delete ret.config.password
+      }
+      
+      return ret
+    } catch (error) {
+      console.error('Error in DataSource toJSON transform:', error)
+      return ret || {}
     }
-    
-    return ret
   }
 })
 

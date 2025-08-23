@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/devAuth'
 import { DatasetService } from '@/lib/services/datasetService'
 
 // GET /api/datasets/[id]/preview - 预览数据集数据
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {
@@ -13,7 +13,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '100')
 
-    const preview = await DatasetService.previewDataset(user._id, params.id, limit)
+    const { id } = await params
+    const preview = await DatasetService.previewDataset(user._id, id, limit)
     
     return NextResponse.json({ preview })
   } catch (error) {

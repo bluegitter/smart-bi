@@ -20,13 +20,9 @@ export async function verifyDevAuth(request: NextRequest) {
   
   // 尝试验证token
   if (token) {
-    try {
-      const user = await verifyToken(token)
-      if (user) {
-        return user
-      }
-    } catch (error) {
-      console.warn('Token verification failed:', error?.message || error)
+    const user = await verifyToken(token)
+    if (user) {
+      return user
     }
   }
   

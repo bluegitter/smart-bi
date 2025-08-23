@@ -14,7 +14,6 @@ export async function verifyToken(token: string): Promise<User | null> {
   try {
     // 在开发环境中，如果没有提供token，使用默认用户
     if (!token && process.env.NODE_ENV === 'development') {
-      console.warn('No token provided in development mode, using default user')
       return {
         _id: '507f1f77bcf86cd799439011',
         email: 'dev@example.com',
@@ -38,11 +37,8 @@ export async function verifyToken(token: string): Promise<User | null> {
     
     return user
   } catch (error) {
-    console.error('Token verification failed:', error)
-    
-    // 在开发环境中提供fallback用户
+    // 在开发环境中提供fallback用户，不记录错误日志
     if (process.env.NODE_ENV === 'development') {
-      console.warn('Token verification failed in development, using fallback user')
       return {
         _id: '507f1f77bcf86cd799439011',
         email: 'dev@example.com',
@@ -50,6 +46,7 @@ export async function verifyToken(token: string): Promise<User | null> {
       }
     }
     
+    console.error('Token verification failed:', error)
     return null
   }
 }
