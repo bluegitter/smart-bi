@@ -10,7 +10,7 @@ import { MetricsLibraryPanel } from './MetricsLibraryPanel'
 import { DatasetLibraryPanel } from '@/components/dataset/DatasetLibraryPanel'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/hooks/useDashboards'
-import { useActions, useIsFullscreen } from '@/store/useAppStore'
+import { useActions, useIsFullscreen, useSidebarCollapsed } from '@/store/useAppStore'
 import { 
   SimpleLineChart, 
   SimpleBarChart, 
@@ -77,24 +77,56 @@ export function DashboardCanvas({
   
   // 全屏状态和操作
   const isFullscreen = useIsFullscreen()
+  const sidebarCollapsed = useSidebarCollapsed()
   const { toggleFullscreen } = useActions()
   
   const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
   const [datasetLibraryPosition, setDatasetLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
 
+  // 窗口尺寸状态，用于响应式计算
+  const [windowSize, setWindowSize] = React.useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800
+  })
+
   // 计算面板的最佳高度（通用函数）
   const calculateOptimalHeight = React.useCallback((panelY: number) => {
-    const windowHeight = window.innerHeight
     const panelTop = panelY
     const bottomPadding = 50 // 距离底部的安全距离
     const minHeight = 300
     const maxHeight = 800
     
-    const availableHeight = windowHeight - panelTop - bottomPadding
+    const availableHeight = windowSize.height - panelTop - bottomPadding
     const optimalHeight = Math.max(minHeight, Math.min(maxHeight, availableHeight))
     
     return optimalHeight
+  }, [windowSize.height])
+
+  // 监听窗口尺寸变化
+  React.useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // 计算画布可用宽度（只考虑Sidebar状态）
+  const canvasWidth = React.useMemo(() => {
+    let availableWidth = windowSize.width
+    
+    // 减去侧边栏宽度（仅在非全屏且侧边栏展开时）
+    if (!isFullscreen && !sidebarCollapsed) {
+      availableWidth -= 320 // 侧边栏宽度（w-80 = 320px）
+    }
+    
+    // 确保最小宽度
+    return Math.max(400, availableWidth)
+  }, [windowSize.width, isFullscreen, sidebarCollapsed])
 
   // 当指标面板打开时自动计算高度和调整位置
   React.useEffect(() => {
@@ -824,7 +856,23 @@ export function DashboardCanvas({
   return (
     <div className={cn("flex-1 bg-white flex flex-col", className)} style={{ height: '100vh', overflow: 'hidden' }}>
       {/* 工具栏 - 绝对固定在顶部 */}
-      <div className="h-12 border-b border-slate-200 px-4 flex items-center justify-between flex-shrink-0 bg-white z-50">
+      <div 
+        className="h-12 border-b border-slate-200 pr-4 flex items-center justify-between flex-shrink-0 bg-white z-50"
+        style={{
+          // 计算左边距：根据sidebar状态调整左侧内容位置，保持右侧按钮位置固定
+          paddingLeft: (() => {
+            let padding = 16 // 基础边距
+            
+            // 当sidebar展开时，增加左边距为sidebar腾出空间
+            if (!sidebarCollapsed && !isFullscreen) {
+              padding += 60 // 为sidebar腾出空间
+            }
+            
+            return `${padding}px`
+          })(),
+          transition: 'padding-left 0.3s ease-in-out' // 平滑过渡
+        }}
+      >
         <div className="flex items-center gap-2">
           <h1 className="font-semibold">
             {dashboard?.name || dashboardName}
@@ -881,25 +929,12 @@ export function DashboardCanvas({
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={handlePreviewToggle}
-            className={cn(isPreviewMode && "bg-blue-50 text-blue-700")}
-          >
-            {isPreviewMode ? (
-              <>
-                <Layout className="h-3 w-3 mr-1" />
-                编辑
-              </>
-            ) : (
-              <>
-                <Eye className="h-3 w-3 mr-1" />
-                预览
-              </>
-            )}
-          </Button>
+        <div className={cn(
+          "flex items-center gap-2",
+          // 当sidebar展开且不是全屏时，隐藏文字版本的重复按钮，只保留保存按钮
+          !sidebarCollapsed && !isFullscreen && "hidden sm:flex"
+        )}>
+          {/* 在sidebar展开时，只显示最重要的保存按钮 */}
           <Button 
             size="sm"
             onClick={handleSave}
@@ -918,25 +953,50 @@ export function DashboardCanvas({
               </>
             )}
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={toggleFullscreen}
-            className={cn(isFullscreen && "bg-blue-50 text-blue-700")}
-            title={isFullscreen ? "退出全屏" : "全屏模式"}
-          >
-            {isFullscreen ? (
-              <>
-                <Minimize2 className="h-3 w-3 mr-1" />
-                退出全屏
-              </>
-            ) : (
-              <>
-                <Maximize2 className="h-3 w-3 mr-1" />
-                全屏
-              </>
-            )}
-          </Button>
+          
+          {/* 在sidebar折叠或全屏时显示完整按钮组 */}
+          <div className={cn(
+            "flex items-center gap-2",
+            !sidebarCollapsed || isFullscreen ? "flex" : "hidden sm:flex"
+          )}>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handlePreviewToggle}
+              className={cn(isPreviewMode && "bg-blue-50 text-blue-700")}
+            >
+              {isPreviewMode ? (
+                <>
+                  <Layout className="h-3 w-3 mr-1" />
+                  编辑
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3 w-3 mr-1" />
+                  预览
+                </>
+              )}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={toggleFullscreen}
+              className={cn(isFullscreen && "bg-blue-50 text-blue-700")}
+              title={isFullscreen ? "退出全屏" : "全屏模式"}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="h-3 w-3 mr-1" />
+                  退出全屏
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3 w-3 mr-1" />
+                  全屏
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -955,7 +1015,7 @@ export function DashboardCanvas({
             drop(node)
           }}
           className={cn(
-            "w-full h-full",
+            "h-full",
             isPreviewMode ? "bg-white" : "bg-slate-50",
             !isPreviewMode && "bg-grid-pattern",
             isOver && !isPreviewMode && "bg-blue-50 ring-2 ring-blue-300 ring-inset"
@@ -963,6 +1023,9 @@ export function DashboardCanvas({
           style={{
             overflow: 'auto',
             position: 'relative',
+            // 使用计算的画布宽度，确保滚动条可见
+            width: `${canvasWidth}px`,
+            transition: 'width 0.3s ease-in-out', // 平滑过渡
             ...(!isPreviewMode ? {
               backgroundImage: `radial-gradient(circle, #e2e8f0 1px, transparent 1px)`,
               backgroundSize: '24px 24px',
