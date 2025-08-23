@@ -129,9 +129,7 @@ export function TableSelector({
           <option value="">请选择数据源</option>
           {dataSources.map(ds => (
             <option key={ds._id} value={ds._id}>
-              <div className="flex items-center gap-2">
-                {ds.name} ({ds.type})
-              </div>
+              {ds.name} ({ds.type})
             </option>
           ))}
         </select>

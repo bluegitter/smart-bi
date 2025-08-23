@@ -19,7 +19,9 @@ import {
   ArrowLeft,
   Settings,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  X,
+  Calculator
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -27,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { SQLQueryBuilder } from '@/components/query-builder/SQLQueryBuilder'
 import { TableSelector } from '@/components/dataset/TableSelector'
 import { FieldTypeSelector } from '@/components/dataset/FieldTypeSelector'
+import { FieldEditorDialog } from '@/components/dataset/FieldEditorDialog'
 import { useDataset } from '@/hooks/useDatasets'
 import { useDataSources } from '@/hooks/useDataSources'
 import { cn } from '@/lib/utils'
@@ -58,7 +61,8 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   const [fields, setFields] = React.useState<DatasetField[]>([])
   const [expandedSections, setExpandedSections] = React.useState({
     dimensions: true,
-    measures: true
+    measures: true,
+    calculated: true
   })
   const [hideHiddenFields, setHideHiddenFields] = React.useState(false)
   
@@ -74,7 +78,56 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   // SQL编辑器状态（用于sql类型）
   const [sqlQuery, setSqlQuery] = React.useState('')
   
+  // 字段管理状态
+  const [fieldEditorOpen, setFieldEditorOpen] = React.useState(false)
+  const [editingField, setEditingField] = React.useState<DatasetField | undefined>()
+  const [fieldSearchQuery, setFieldSearchQuery] = React.useState('')
+  const [selectedFields, setSelectedFields] = React.useState<Set<string>>(new Set())
+  
+  // 面板折叠状态
+  const [collapsedSections, setCollapsedSections] = React.useState({
+    basicInfo: true,
+    dataSource: true
+  })
+  
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
+  
+  // 面板宽度调节
+  const [leftPanelWidth, setLeftPanelWidth] = React.useState(400)
+  const [isResizing, setIsResizing] = React.useState(false)
+
+  // 处理面板宽度调节
+  const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
+    setIsResizing(true)
+    e.preventDefault()
+  }, [])
+
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return
+      
+      const newWidth = Math.min(Math.max(320, e.clientX), 600)
+      setLeftPanelWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing])
 
   // 初始化数据
   React.useEffect(() => {
@@ -346,6 +399,96 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
     ))
   }
 
+  // 字段管理函数
+  const handleEditField = (field: DatasetField) => {
+    setEditingField(field)
+    setFieldEditorOpen(true)
+  }
+
+  const handleDuplicateField = (field: DatasetField) => {
+    const newField = {
+      ...field,
+      name: `${field.name}_copy`,
+      displayName: `${field.displayName} (复制)`,
+    }
+    setEditingField(newField)
+    setFieldEditorOpen(true)
+  }
+
+  const handleDeleteField = (fieldName: string) => {
+    if (confirm('确定要删除这个字段吗？')) {
+      setFields(prev => prev.filter(field => field.name !== fieldName))
+      setSelectedFields(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(fieldName)
+        return newSet
+      })
+    }
+  }
+
+  const handleSaveField = (fieldData: Partial<DatasetField>) => {
+    if (editingField) {
+      // 编辑现有字段
+      setFields(prev => prev.map(field => 
+        field.name === editingField.name ? { ...field, ...fieldData } : field
+      ))
+    } else {
+      // 添加新字段
+      const newField: DatasetField = {
+        name: fieldData.name || '',
+        displayName: fieldData.displayName || '',
+        type: fieldData.type || 'string',
+        fieldType: fieldData.fieldType || 'dimension',
+        isNullable: true,
+        sampleValues: [],
+        ...fieldData
+      }
+      setFields(prev => [...prev, newField])
+    }
+    setEditingField(undefined)
+  }
+
+  const handleAddNewField = () => {
+    setEditingField(undefined)
+    setFieldEditorOpen(true)
+  }
+
+  const handleBatchHideFields = () => {
+    const fieldsToHide = Array.from(selectedFields)
+    setFields(prev => prev.map(field => 
+      fieldsToHide.includes(field.name) ? { ...field, hidden: true } : field
+    ))
+    setSelectedFields(new Set())
+  }
+
+  const handleBatchShowFields = () => {
+    const fieldsToShow = Array.from(selectedFields)
+    setFields(prev => prev.map(field => 
+      fieldsToShow.includes(field.name) ? { ...field, hidden: false } : field
+    ))
+    setSelectedFields(new Set())
+  }
+
+  const handleBatchDeleteFields = () => {
+    if (confirm(`确定要删除选中的 ${selectedFields.size} 个字段吗？`)) {
+      const fieldsToDelete = Array.from(selectedFields)
+      setFields(prev => prev.filter(field => !fieldsToDelete.includes(field.name)))
+      setSelectedFields(new Set())
+    }
+  }
+
+  const handleFieldSelect = (fieldName: string, selected: boolean) => {
+    setSelectedFields(prev => {
+      const newSet = new Set(prev)
+      if (selected) {
+        newSet.add(fieldName)
+      } else {
+        newSet.delete(fieldName)
+      }
+      return newSet
+    })
+  }
+
   // 获取字段图标
   const getFieldIcon = (field: DatasetField) => {
     if (field.fieldType === 'measure') {
@@ -358,9 +501,30 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   }
 
   // 过滤字段
-  const visibleFields = hideHiddenFields ? fields.filter(f => !f.hidden) : fields
-  const dimensions = visibleFields.filter(f => f.fieldType === 'dimension')
-  const measures = visibleFields.filter(f => f.fieldType === 'measure')
+  const filteredFields = React.useMemo(() => {
+    let result = fields
+    
+    // 搜索过滤
+    if (fieldSearchQuery) {
+      const query = fieldSearchQuery.toLowerCase()
+      result = result.filter(f => 
+        f.name.toLowerCase().includes(query) ||
+        f.displayName.toLowerCase().includes(query) ||
+        (f.description && f.description.toLowerCase().includes(query))
+      )
+    }
+    
+    // 隐藏字段过滤
+    if (hideHiddenFields) {
+      result = result.filter(f => !f.hidden)
+    }
+    
+    return result
+  }, [fields, fieldSearchQuery, hideHiddenFields])
+
+  const dimensions = filteredFields.filter(f => f.fieldType === 'dimension')
+  const measures = filteredFields.filter(f => f.fieldType === 'measure')
+  const calculatedFields = filteredFields.filter(f => f.fieldType === 'calculated')
 
   if (loading || dataSourcesLoading) {
     return (
@@ -376,32 +540,44 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   return (
     <div className="h-full flex flex-col">
       {/* 顶部工具栏 */}
-      <div className="h-14 bg-white border-b border-gray-200 px-4 flex items-center justify-between">
+      <div className="h-16 bg-gradient-to-r from-white via-blue-50 to-purple-50 border-b border-gray-200 px-6 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.back()}
+            className="hover:bg-white/80 transition-colors"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             返回
           </Button>
           
-          <div className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-blue-600" />
-            <span className="font-medium">
-              {mode === 'create' ? '新建数据集' : dataset?.displayName || '数据集编辑'}
-            </span>
-            {hasUnsavedChanges && <span className="text-orange-500">*</span>}
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Database className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="font-semibold text-gray-900">
+                {mode === 'create' ? '新建数据集' : dataset?.displayName || '数据集编辑'}
+                {hasUnsavedChanges && <span className="text-orange-500 ml-1">*</span>}
+              </h1>
+              {dataset && (
+                <p className="text-xs text-gray-500">
+                  {dataset.type === 'table' ? '数据表' : dataset.type === 'sql' ? 'SQL查询' : '视图'} 
+                  {dataset.category && ` · ${dataset.category}`}
+                </p>
+              )}
+            </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
             variant="outline"
             size="sm"
             onClick={handlePreview}
             disabled={previewLoading}
+            className="bg-white/80 hover:bg-white border-blue-200 text-blue-700 hover:text-blue-800"
           >
             <Play className={cn("h-4 w-4 mr-2", previewLoading && "animate-spin")} />
             预览数据
@@ -412,9 +588,13 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
               size="sm"
               onClick={handleSave}
               disabled={!hasUnsavedChanges}
+              className={cn(
+                "bg-blue-600 hover:bg-blue-700 text-white shadow-md",
+                !hasUnsavedChanges && "opacity-50"
+              )}
             >
               <Save className="h-4 w-4 mr-2" />
-              保存
+              保存更改
             </Button>
           )}
         </div>
@@ -422,233 +602,644 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
 
       <div className="flex-1 flex">
         {/* 左侧配置面板 */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-          {/* 基本信息 */}
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="font-medium mb-3">基本信息</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-600 mb-1 block">数据集名称</label>
-                <Input
-                  value={datasetName}
-                  onChange={(e) => setDatasetName(e.target.value)}
-                  placeholder="输入数据集名称"
-                  disabled={mode === 'view'}
-                />
+        <div 
+          className="bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex flex-col relative"
+          style={{ width: leftPanelWidth }}
+        >
+          {/* 基本信息 - 紧凑折叠设计 */}
+          <div className="border-b border-gray-200 bg-white">
+            <div 
+              className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => setCollapsedSections(prev => ({ ...prev, basicInfo: !prev.basicInfo }))}
+            >
+              <div className="flex items-center gap-2">
+                <ChevronRight className={cn("h-4 w-4 transition-transform", !collapsedSections.basicInfo && "rotate-90")} />
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <h3 className="font-medium text-gray-700 text-sm">基本信息</h3>
               </div>
-              <div>
-                <label className="text-sm text-gray-600 mb-1 block">显示名称</label>
-                <Input
-                  value={datasetDisplayName}
-                  onChange={(e) => setDatasetDisplayName(e.target.value)}
-                  placeholder="输入显示名称"
-                  disabled={mode === 'view'}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 mb-1 block">描述</label>
-                <Input
-                  value={datasetDescription}
-                  onChange={(e) => setDatasetDescription(e.target.value)}
-                  placeholder="输入数据集描述"
-                  disabled={mode === 'view'}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 mb-1 block">分类</label>
-                <Input
-                  value={datasetCategory}
-                  onChange={(e) => setDatasetCategory(e.target.value)}
-                  placeholder="输入分类名称"
-                  disabled={mode === 'view'}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 数据源配置 */}
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="font-medium mb-3">数据源配置</h3>
-            
-            {/* 数据集类型选择 */}
-            <div className="mb-3">
-              <label className="text-sm text-gray-600 mb-2 block">数据集类型</label>
-              <div className="flex gap-2">
-                <Button
-                  variant={datasetType === 'table' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setDatasetType('table')}
-                  disabled={mode === 'view'}
-                >
-                  <Table className="h-3 w-3 mr-1" />
-                  数据表
-                </Button>
-                <Button
-                  variant={datasetType === 'sql' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setDatasetType('sql')}
-                  disabled={mode === 'view'}
-                >
-                  <Database className="h-3 w-3 mr-1" />
-                  SQL
-                </Button>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>{datasetDisplayName || datasetName || '未命名'}</span>
+                {datasetCategory && <span>· {datasetCategory}</span>}
               </div>
             </div>
             
-            {datasetType === 'table' && (
-              <TableSelector
-                dataSources={dataSources}
-                selectedDataSource={selectedDataSource}
-                selectedSchema={selectedSchema}
-                selectedTable={selectedTable}
-                onDataSourceChange={setSelectedDataSource}
-                onSchemaChange={setSelectedSchema}
-                onTableChange={setSelectedTable}
-                disabled={mode === 'view'}
-              />
-            )}
-            
-            {datasetType === 'sql' && (
-              <div className="space-y-3">
+            {!collapsedSections.basicInfo && (
+              <div className="px-3 pb-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">名称</label>
+                    <Input
+                      value={datasetName}
+                      onChange={(e) => setDatasetName(e.target.value)}
+                      placeholder="数据集名称"
+                      disabled={mode === 'view'}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">显示名称</label>
+                    <Input
+                      value={datasetDisplayName}
+                      onChange={(e) => setDatasetDisplayName(e.target.value)}
+                      placeholder="显示名称"
+                      disabled={mode === 'view'}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
                 <div>
-                  <label className="text-sm text-gray-600 mb-1 block">选择数据源</label>
-                  <select
-                    value={selectedDataSource}
-                    onChange={(e) => setSelectedDataSource(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  <label className="text-xs text-gray-500 mb-1 block">描述</label>
+                  <Input
+                    value={datasetDescription}
+                    onChange={(e) => setDatasetDescription(e.target.value)}
+                    placeholder="数据集描述"
                     disabled={mode === 'view'}
-                  >
-                    <option value="">请选择数据源</option>
-                    {dataSources.map(ds => (
-                      <option key={ds._id} value={ds._id}>{ds.name}</option>
-                    ))}
-                  </select>
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">分类</label>
+                  <Input
+                    value={datasetCategory}
+                    onChange={(e) => setDatasetCategory(e.target.value)}
+                    placeholder="分类名称"
+                    disabled={mode === 'view'}
+                    className="h-8 text-sm"
+                  />
                 </div>
               </div>
             )}
           </div>
 
-          {/* 字段管理 */}
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium">字段管理</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setHideHiddenFields(!hideHiddenFields)}
-                >
-                  {hideHiddenFields ? (
-                    <><EyeOff className="h-4 w-4 mr-1" />隐藏</>
-                  ) : (
-                    <><Eye className="h-4 w-4 mr-1" />显示</>
-                  )}
-                </Button>
+          {/* 数据源配置 - 紧凑折叠设计 */}
+          <div className="border-b border-gray-200 bg-white">
+            <div 
+              className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => setCollapsedSections(prev => ({ ...prev, dataSource: !prev.dataSource }))}
+            >
+              <div className="flex items-center gap-2">
+                <ChevronRight className={cn("h-4 w-4 transition-transform", !collapsedSections.dataSource && "rotate-90")} />
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <h3 className="font-medium text-gray-700 text-sm">数据源</h3>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span className={`px-2 py-1 rounded-full text-xs ${
+                  datasetType === 'table' ? 'bg-blue-100 text-blue-700' :
+                  datasetType === 'sql' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {datasetType === 'table' ? '数据表' : datasetType === 'sql' ? 'SQL' : '未选择'}
+                </span>
+                {(selectedTable || selectedDataSource) && (
+                  <span>
+                    {selectedTable || dataSources.find(ds => ds._id === selectedDataSource)?.name || ''}
+                  </span>
+                )}
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto">
-              {/* 维度字段 */}
-              <div className="border-b border-gray-100">
-                <div
-                  className="flex items-center gap-2 p-3 cursor-pointer hover:bg-gray-50"
-                  onClick={() => setExpandedSections(prev => ({ ...prev, dimensions: !prev.dimensions }))}
-                >
-                  {expandedSections.dimensions ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  <Type className="h-4 w-4 text-purple-600" />
-                  <span className="font-medium text-sm">维度</span>
-                  <span className="text-xs text-gray-500">·{dimensions.length}</span>
+            {!collapsedSections.dataSource && (
+              <div className="px-3 pb-3 space-y-3">
+                {/* 数据集类型选择 */}
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">类型</label>
+                  <div className="flex gap-1">
+                    <Button
+                      variant={datasetType === 'table' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setDatasetType('table')}
+                      disabled={mode === 'view'}
+                      className="h-7 text-xs flex-1"
+                    >
+                      <Table className="h-3 w-3 mr-1" />
+                      表
+                    </Button>
+                    <Button
+                      variant={datasetType === 'sql' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setDatasetType('sql')}
+                      disabled={mode === 'view'}
+                      className="h-7 text-xs flex-1"
+                    >
+                      <Database className="h-3 w-3 mr-1" />
+                      SQL
+                    </Button>
+                  </div>
                 </div>
                 
-                {expandedSections.dimensions && (
-                  <div className="space-y-1 pb-2">
-                    {dimensions.map(field => (
-                      <div
-                        key={field.name}
-                        className={cn(
-                          "flex items-center gap-2 px-6 py-2 text-sm",
-                          field.hidden && "opacity-50"
-                        )}
-                      >
-                        <button
-                          className="p-1 hover:bg-gray-100 rounded"
-                          onClick={() => handleFieldVisibilityToggle(field.name)}
-                          disabled={mode === 'view'}
-                        >
-                          {field.hidden ? (
-                            <EyeOff className="h-3 w-3 text-gray-400" />
-                          ) : (
-                            <Eye className="h-3 w-3 text-gray-600" />
-                          )}
-                        </button>
-                        {getFieldIcon(field)}
-                        <span className="flex-1 truncate">{field.displayName}</span>
-                        {mode !== 'view' && (
-                          <FieldTypeSelector
-                            field={field}
-                            onChange={(updates) => handleFieldUpdate(field.name, updates)}
-                          />
-                        )}
-                      </div>
-                    ))}
+                {datasetType === 'table' && (
+                  <TableSelector
+                    dataSources={dataSources}
+                    selectedDataSource={selectedDataSource}
+                    selectedSchema={selectedSchema}
+                    selectedTable={selectedTable}
+                    onDataSourceChange={setSelectedDataSource}
+                    onSchemaChange={setSelectedSchema}
+                    onTableChange={setSelectedTable}
+                    disabled={mode === 'view'}
+                  />
+                )}
+                
+                {datasetType === 'sql' && (
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">数据源</label>
+                    <select
+                      value={selectedDataSource}
+                      onChange={(e) => setSelectedDataSource(e.target.value)}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs h-7"
+                      disabled={mode === 'view'}
+                    >
+                      <option value="">选择数据源</option>
+                      {dataSources.map(ds => (
+                        <option key={ds._id} value={ds._id}>{ds.name}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* 字段管理 - 重点展示区域 */}
+          <div className="flex-1 overflow-hidden flex flex-col bg-white">
+            {/* 字段管理头部 - 优化布局 */}
+            <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-slate-50 to-gray-50">
+              {/* 标题行 */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Type className="h-3 w-3 text-white" />
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-900 flex-shrink-0">字段管理</h3>
+                </div>
+
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAddNewField}
+                    disabled={mode === 'view'}
+                    className="h-8 px-2 text-xs hover:bg-purple-50 text-purple-700"
+                    title="新增字段"
+                  >
+                    <Type className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setHideHiddenFields(!hideHiddenFields)}
+                    className="h-8 px-2 text-xs hover:bg-gray-100"
+                    title={hideHiddenFields ? "显示隐藏字段" : "隐藏已隐藏字段"}
+                  >
+                    {hideHiddenFields ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+                </div>
               </div>
               
-              {/* 度量字段 */}
-              <div>
-                <div
-                  className="flex items-center gap-2 p-3 cursor-pointer hover:bg-gray-50"
-                  onClick={() => setExpandedSections(prev => ({ ...prev, measures: !prev.measures }))}
-                >
-                  {expandedSections.measures ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  <Hash className="h-4 w-4 text-green-600" />
-                  <span className="font-medium text-sm">度量</span>
-                  <span className="text-xs text-gray-500">·{measures.length}</span>
-                </div>
-                
-                {expandedSections.measures && (
-                  <div className="space-y-1 pb-2">
-                    {measures.map(field => (
-                      <div
-                        key={field.name}
-                        className={cn(
-                          "flex items-center gap-2 px-6 py-2 text-sm",
-                          field.hidden && "opacity-50"
-                        )}
-                      >
-                        <button
-                          className="p-1 hover:bg-gray-100 rounded"
-                          onClick={() => handleFieldVisibilityToggle(field.name)}
-                          disabled={mode === 'view'}
-                        >
-                          {field.hidden ? (
-                            <EyeOff className="h-3 w-3 text-gray-400" />
-                          ) : (
-                            <Eye className="h-3 w-3 text-gray-600" />
-                          )}
-                        </button>
-                        {getFieldIcon(field)}
-                        <span className="flex-1 truncate">{field.displayName}</span>
-                        {mode !== 'view' && (
-                          <FieldTypeSelector
-                            field={field}
-                            onChange={(updates) => handleFieldUpdate(field.name, updates)}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
+              {/* 统计徽章行 */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+                  维度 {dimensions.length}
+                </span>
+                <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">
+                  度量 {measures.length}
+                </span>
+                {calculatedFields.length > 0 && (
+                  <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full font-medium">
+                    计算 {calculatedFields.length}
+                  </span>
                 )}
               </div>
+
+              {/* 搜索行 */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Input
+                    placeholder="搜索字段..."
+                    value={fieldSearchQuery}
+                    onChange={(e) => setFieldSearchQuery(e.target.value)}
+                    className="h-8 text-sm bg-white border-gray-200 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+                {fieldSearchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFieldSearchQuery('')}
+                    className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+
+              {/* 批量操作栏 */}
+              {selectedFields.size > 0 && (
+                <div className="mt-3 flex items-center justify-between p-3 bg-white rounded-lg border border-blue-200 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="text-sm text-blue-700 font-medium">
+                      已选择 {selectedFields.size} 个字段
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleBatchShowFields}
+                      className="h-7 px-3 text-xs hover:bg-blue-50 text-blue-600 rounded-md"
+                    >
+                      显示
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleBatchHideFields}
+                      className="h-7 px-3 text-xs hover:bg-orange-50 text-orange-600 rounded-md"
+                    >
+                      隐藏
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleBatchDeleteFields}
+                      className="h-7 px-3 text-xs text-red-600 hover:bg-red-50 rounded-md"
+                    >
+                      删除
+                    </Button>
+                    <div className="w-px h-4 bg-gray-300 mx-1"></div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedFields(new Set())}
+                      className="h-7 w-7 p-0 text-xs hover:bg-gray-50 rounded-md"
+                      title="取消选择"
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex-1 overflow-y-auto bg-gray-50/30">
+              {/* 无字段提示 */}
+              {filteredFields.length === 0 && (
+                <div className="flex items-center justify-center h-full p-12">
+                  <div className="text-center max-w-md">
+                    <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-2xl flex items-center justify-center">
+                      <Type className="h-10 w-10 text-purple-600" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                      {fieldSearchQuery ? '未找到匹配字段' : '暂无字段'}
+                    </h3>
+                    <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+                      {fieldSearchQuery ? '尝试调整搜索条件，或者清空搜索查看所有字段' : '开始添加维度和度量字段来构建您的数据集'}
+                    </p>
+                    {!fieldSearchQuery && mode !== 'view' && (
+                      <Button 
+                        onClick={handleAddNewField}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg"
+                        size="lg"
+                      >
+                        <Type className="h-5 w-5 mr-2" />
+                        创建第一个字段
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 维度字段 */}
+              {dimensions.length > 0 && (
+                <div className="bg-white">
+                  <div
+                    className="flex items-center gap-3 px-6 py-4 cursor-pointer hover:bg-blue-50/50 transition-colors border-b border-gray-100"
+                    onClick={() => setExpandedSections(prev => ({ ...prev, dimensions: !prev.dimensions }))}
+                  >
+                    <ChevronRight className={cn("h-5 w-5 text-gray-400 transition-transform", expandedSections.dimensions && "rotate-90")} />
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                      <Type className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900">维度字段</h4>
+                      <p className="text-xs text-gray-500 mt-0.5">{dimensions.length} 个维度 · 用于分组和筛选</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-blue-600">{dimensions.length}</div>
+                      <div className="text-xs text-gray-400">fields</div>
+                    </div>
+                  </div>
+                  
+                  {expandedSections.dimensions && (
+                    <div className="px-4 py-2 space-y-2">
+                      {dimensions.map(field => (
+                        <div
+                          key={field.name}
+                          className={cn(
+                            "group flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all duration-200",
+                            field.hidden && "opacity-60 bg-gray-50",
+                            selectedFields.has(field.name) && "ring-2 ring-blue-200 border-blue-300"
+                          )}
+                        >
+                          {/* 复选框 */}
+                          <input
+                            type="checkbox"
+                            checked={selectedFields.has(field.name)}
+                            onChange={(e) => handleFieldSelect(field.name, e.target.checked)}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                          />
+
+                          {/* 字段图标 */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                              onClick={() => handleFieldVisibilityToggle(field.name)}
+                              disabled={mode === 'view'}
+                              title={field.hidden ? "显示字段" : "隐藏字段"}
+                            >
+                              {field.hidden ? (
+                                <EyeOff className="h-4 w-4 text-gray-400" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-gray-600" />
+                              )}
+                            </button>
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
+                              {getFieldIcon(field)}
+                            </div>
+                          </div>
+
+                          {/* 字段信息 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h5 className="font-medium text-gray-900 truncate">
+                                {field.displayName}
+                              </h5>
+                              {field.type && (
+                                <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                                  {field.type}
+                                </span>
+                              )}
+                              {field.dimensionLevel && (
+                                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+                                  {field.dimensionLevel === 'categorical' ? '分类' : 
+                                   field.dimensionLevel === 'ordinal' ? '有序' : '时间'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500 font-mono mb-1">
+                              {field.name}
+                            </div>
+                            {field.description && (
+                              <div className="text-xs text-gray-400 leading-relaxed">
+                                {field.description}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 操作按钮 */}
+                          {mode !== 'view' && (
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <FieldTypeSelector
+                                field={field}
+                                onChange={(updates) => handleFieldUpdate(field.name, updates)}
+                                onEdit={() => handleEditField(field)}
+                                onDuplicate={() => handleDuplicateField(field)}
+                                onDelete={() => handleDeleteField(field.name)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+                </div>
+              )}
+              
+              {/* 度量字段 */}
+              {measures.length > 0 && (
+                <div className="bg-white mt-4">
+                  <div
+                    className="flex items-center gap-3 px-6 py-4 cursor-pointer hover:bg-green-50/50 transition-colors border-b border-gray-100"
+                    onClick={() => setExpandedSections(prev => ({ ...prev, measures: !prev.measures }))}
+                  >
+                    <ChevronRight className={cn("h-5 w-5 text-gray-400 transition-transform", expandedSections.measures && "rotate-90")} />
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                      <Hash className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900">度量字段</h4>
+                      <p className="text-xs text-gray-500 mt-0.5">{measures.length} 个度量 · 用于计算和聚合</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-green-600">{measures.length}</div>
+                      <div className="text-xs text-gray-400">metrics</div>
+                    </div>
+                  </div>
+                
+                  {expandedSections.measures && (
+                    <div className="px-4 py-2 space-y-2">
+                      {measures.map(field => (
+                        <div
+                          key={field.name}
+                          className={cn(
+                            "group flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-sm transition-all duration-200",
+                            field.hidden && "opacity-60 bg-gray-50",
+                            selectedFields.has(field.name) && "ring-2 ring-green-200 border-green-300"
+                          )}
+                        >
+                          {/* 复选框 */}
+                          <input
+                            type="checkbox"
+                            checked={selectedFields.has(field.name)}
+                            onChange={(e) => handleFieldSelect(field.name, e.target.checked)}
+                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                          />
+
+                          {/* 字段图标 */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                              onClick={() => handleFieldVisibilityToggle(field.name)}
+                              disabled={mode === 'view'}
+                              title={field.hidden ? "显示字段" : "隐藏字段"}
+                            >
+                              {field.hidden ? (
+                                <EyeOff className="h-4 w-4 text-gray-400" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-gray-600" />
+                              )}
+                            </button>
+                            <div className="w-8 h-8 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg flex items-center justify-center">
+                              {getFieldIcon(field)}
+                            </div>
+                          </div>
+
+                          {/* 字段信息 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h5 className="font-medium text-gray-900 truncate">
+                                {field.displayName}
+                              </h5>
+                              {field.type && (
+                                <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                                  {field.type}
+                                </span>
+                              )}
+                              {field.aggregationType && (
+                                <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">
+                                  {field.aggregationType}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500 font-mono mb-1">
+                              {field.name}
+                            </div>
+                            {field.description && (
+                              <div className="text-xs text-gray-400 leading-relaxed">
+                                {field.description}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 操作按钮 */}
+                          {mode !== 'view' && (
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <FieldTypeSelector
+                                field={field}
+                                onChange={(updates) => handleFieldUpdate(field.name, updates)}
+                                onEdit={() => handleEditField(field)}
+                                onDuplicate={() => handleDuplicateField(field)}
+                                onDelete={() => handleDeleteField(field.name)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+                </div>
+              )}
+
+              {/* 计算字段 */}
+              {calculatedFields.length > 0 && (
+                <div className="bg-white mt-4">
+                  <div
+                    className="flex items-center gap-3 px-6 py-4 cursor-pointer hover:bg-orange-50/50 transition-colors border-b border-gray-100"
+                    onClick={() => setExpandedSections(prev => ({ ...prev, calculated: !prev.calculated }))}
+                  >
+                    <ChevronRight className={cn("h-5 w-5 text-gray-400 transition-transform", expandedSections.calculated && "rotate-90")} />
+                    <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
+                      <Calculator className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900">计算字段</h4>
+                      <p className="text-xs text-gray-500 mt-0.5">{calculatedFields.length} 个计算字段 · 自定义表达式和公式</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-orange-600">{calculatedFields.length}</div>
+                      <div className="text-xs text-gray-400">computed</div>
+                    </div>
+                  </div>
+                  
+                  {expandedSections.calculated && (
+                    <div className="px-4 py-2 space-y-2">
+                      {calculatedFields.map(field => (
+                        <div
+                          key={field.name}
+                          className={cn(
+                            "group flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-orange-200 hover:shadow-sm transition-all duration-200",
+                            field.hidden && "opacity-60 bg-gray-50",
+                            selectedFields.has(field.name) && "ring-2 ring-orange-200 border-orange-300"
+                          )}
+                        >
+                          {/* 复选框 */}
+                          <input
+                            type="checkbox"
+                            checked={selectedFields.has(field.name)}
+                            onChange={(e) => handleFieldSelect(field.name, e.target.checked)}
+                            className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 rounded focus:ring-orange-500"
+                          />
+
+                          {/* 字段图标 */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                              onClick={() => handleFieldVisibilityToggle(field.name)}
+                              disabled={mode === 'view'}
+                              title={field.hidden ? "显示字段" : "隐藏字段"}
+                            >
+                              {field.hidden ? (
+                                <EyeOff className="h-4 w-4 text-gray-400" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-gray-600" />
+                              )}
+                            </button>
+                            <div className="w-8 h-8 bg-gradient-to-br from-orange-100 to-amber-100 rounded-lg flex items-center justify-center">
+                              <Calculator className="h-4 w-4 text-orange-600" />
+                            </div>
+                          </div>
+
+                          {/* 字段信息 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h5 className="font-medium text-gray-900 truncate">
+                                {field.displayName}
+                              </h5>
+                              {field.type && (
+                                <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                                  {field.type}
+                                </span>
+                              )}
+                              <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full font-medium">
+                                计算字段
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-500 font-mono mb-1">
+                              {field.name}
+                            </div>
+                            {field.expression && (
+                              <div className="text-xs text-orange-600 font-mono bg-orange-50 px-3 py-2 rounded-lg mt-2 border-l-2 border-orange-200">
+                                {field.expression}
+                              </div>
+                            )}
+                            {field.description && (
+                              <div className="text-xs text-gray-400 leading-relaxed mt-2">
+                                {field.description}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 操作按钮 */}
+                          {mode !== 'view' && (
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <FieldTypeSelector
+                                field={field}
+                                onChange={(updates) => handleFieldUpdate(field.name, updates)}
+                                onEdit={() => handleEditField(field)}
+                                onDuplicate={() => handleDuplicateField(field)}
+                                onDelete={() => handleDeleteField(field.name)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* 拖拽手柄 */}
+          <div
+            className={cn(
+              "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-10",
+              isResizing && "bg-blue-500"
+            )}
+            onMouseDown={handleMouseDown}
+          >
+            <div className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 w-3 h-8 bg-gray-400 hover:bg-blue-500 rounded-full flex items-center justify-center opacity-60 hover:opacity-100 transition-all">
+              <div className="w-1 h-4 bg-white rounded-full"></div>
             </div>
           </div>
         </div>
@@ -657,83 +1248,137 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
         <div className="flex-1 flex flex-col">
           {/* SQL编辑器（仅SQL类型显示） */}
           {datasetType === 'sql' && (
-            <div className="h-2/5 border-b border-gray-200">
+            <div className="h-2/5 border-b border-gray-200 bg-gray-900">
               <div className="h-full p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium">SQL查询</h3>
-                  <Button size="sm" variant="outline" onClick={handlePreview}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                    <h3 className="font-semibold text-white">SQL查询编辑器</h3>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handlePreview}
+                    className="bg-green-600 text-white border-green-500 hover:bg-green-700"
+                  >
                     <Play className="h-4 w-4 mr-1" />
-                    运行
+                    执行查询
                   </Button>
                 </div>
-                <textarea
-                  value={sqlQuery}
-                  onChange={(e) => setSqlQuery(e.target.value)}
-                  className="w-full h-full resize-none border border-gray-300 rounded-md p-3 font-mono text-sm"
-                  placeholder="输入 SQL 查询语句..."
-                  disabled={mode === 'view'}
-                />
+                <div className="h-full pb-12">
+                  <textarea
+                    value={sqlQuery}
+                    onChange={(e) => setSqlQuery(e.target.value)}
+                    className="w-full h-full resize-none bg-gray-800 text-gray-100 border border-gray-600 rounded-lg p-4 font-mono text-sm leading-relaxed placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="-- 输入 SQL 查询语句
+SELECT column1, column2 
+FROM your_table 
+WHERE condition = 'value';"
+                    disabled={mode === 'view'}
+                  />
+                </div>
               </div>
             </div>
           )}
 
           {/* 数据预览区 */}
           <div className="flex-1 flex flex-col">
-            <div className="border-b border-gray-200 px-4 py-3 bg-gray-50">
+            <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-50 to-purple-50">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">数据预览</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                    <span className="font-semibold text-gray-800">数据预览</span>
+                  </div>
+                  {previewData.length > 0 && (
+                    <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                      {previewData.length} 行数据
+                    </span>
+                  )}
                   {previewError && (
-                    <span className="text-red-600 text-xs">预览失败</span>
+                    <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full">
+                      预览失败
+                    </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-500">
-                    不展示隐藏字段
+                    显示实际数据
                   </span>
-                  <Button size="sm" variant="outline">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={handlePreview}
+                    disabled={previewLoading}
+                    className="hover:bg-blue-50"
+                  >
+                    <RefreshCw className={cn("h-3 w-3 mr-1", previewLoading && "animate-spin")} />
                     刷新
                   </Button>
                 </div>
               </div>
             </div>
             
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto bg-gray-50">
               {previewLoading ? (
                 <div className="h-full flex items-center justify-center">
-                  <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
+                  <div className="text-center">
+                    <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+                    <p className="text-gray-600">正在加载预览数据...</p>
+                  </div>
                 </div>
               ) : previewData.length > 0 ? (
-                <div className="overflow-auto">
-                  <table className="w-full">
-                    <thead className="bg-blue-600 text-white sticky top-0">
-                      <tr>
-                        {Object.keys(previewData[0]).map(col => (
-                          <th key={col} className="px-4 py-2 text-left text-xs font-medium">
-                            {col}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewData.map((row, i) => (
-                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-blue-50'}>
-                          {Object.values(row).map((value: any, j) => (
-                            <td key={j} className="px-4 py-2 text-sm">
-                              {typeof value === 'number' ? value.toLocaleString() : String(value)}
-                            </td>
+                <div className="overflow-auto p-4">
+                  <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white sticky top-0">
+                        <tr>
+                          {Object.keys(previewData[0]).map(col => (
+                            <th key={col} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
+                              {col}
+                            </th>
                           ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {previewData.map((row, i) => (
+                          <tr key={i} className={cn(
+                            "transition-colors hover:bg-blue-50",
+                            i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                          )}>
+                            {Object.values(row).map((value: any, j) => (
+                              <td key={j} className="px-4 py-3 text-sm text-gray-900">
+                                <div className="max-w-xs truncate">
+                                  {typeof value === 'number' ? (
+                                    <span className="font-mono">{value.toLocaleString()}</span>
+                                  ) : (
+                                    String(value)
+                                  )}
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <Table className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>暂无预览数据</p>
-                    <p className="text-sm">点击"预览数据"按钮查看数据</p>
+                  <div className="text-center p-8">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                      <Table className="h-8 w-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">暂无预览数据</h3>
+                    <p className="text-sm text-gray-500 mb-4">数据集配置完成后将自动加载预览</p>
+                    <Button 
+                      onClick={handlePreview}
+                      disabled={previewLoading}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Play className="h-4 w-4 mr-2" />
+                      加载预览数据
+                    </Button>
                   </div>
                 </div>
               )}
@@ -741,6 +1386,18 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
           </div>
         </div>
       </div>
+
+      {/* 字段编辑对话框 */}
+      <FieldEditorDialog
+        isOpen={fieldEditorOpen}
+        field={editingField}
+        onClose={() => {
+          setFieldEditorOpen(false)
+          setEditingField(undefined)
+        }}
+        onSave={handleSaveField}
+        availableFields={fields.filter(f => f.name !== editingField?.name)}
+      />
     </div>
   )
 }
