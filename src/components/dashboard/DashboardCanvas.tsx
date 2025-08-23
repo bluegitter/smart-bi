@@ -73,19 +73,19 @@ export function DashboardCanvas({
   const [isMetricsLibraryOpen, setIsMetricsLibraryOpen] = React.useState(false)
   const [metricsLibraryHeight, setMetricsLibraryHeight] = React.useState(400)
   const [isDatasetLibraryOpen, setIsDatasetLibraryOpen] = React.useState(false)
-  const [datasetLibraryHeight, setDatasetLibraryHeight] = React.useState(500)
+  const [datasetLibraryHeight, setDatasetLibraryHeight] = React.useState(400)
   
   // 全屏状态和操作
   const isFullscreen = useIsFullscreen()
   const { toggleFullscreen } = useActions()
   
   const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
-  const [datasetLibraryPosition, setDatasetLibraryPosition] = React.useState({ x: 340, y: isFullscreen ? 60 : 120 })
+  const [datasetLibraryPosition, setDatasetLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
 
-  // 计算指标面板的最佳高度
-  const calculateOptimalHeight = React.useCallback(() => {
+  // 计算面板的最佳高度（通用函数）
+  const calculateOptimalHeight = React.useCallback((panelY: number) => {
     const windowHeight = window.innerHeight
-    const panelTop = metricsLibraryPosition.y
+    const panelTop = panelY
     const bottomPadding = 50 // 距离底部的安全距离
     const minHeight = 300
     const maxHeight = 800
@@ -94,7 +94,7 @@ export function DashboardCanvas({
     const optimalHeight = Math.max(minHeight, Math.min(maxHeight, availableHeight))
     
     return optimalHeight
-  }, [metricsLibraryPosition.y])
+  }, [])
 
   // 当指标面板打开时自动计算高度和调整位置
   React.useEffect(() => {
@@ -141,22 +141,47 @@ export function DashboardCanvas({
   React.useEffect(() => {
     const handleResize = () => {
       if (isMetricsLibraryOpen) {
-        const optimalHeight = calculateOptimalHeight()
+        const optimalHeight = calculateOptimalHeight(metricsLibraryPosition.y)
         setMetricsLibraryHeight(optimalHeight)
+      }
+      if (isDatasetLibraryOpen) {
+        const optimalHeight = calculateOptimalHeight(datasetLibraryPosition.y)
+        setDatasetLibraryHeight(optimalHeight)
       }
     }
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [isMetricsLibraryOpen, calculateOptimalHeight])
+  }, [isMetricsLibraryOpen, isDatasetLibraryOpen, calculateOptimalHeight, metricsLibraryPosition.y, datasetLibraryPosition.y])
 
-  // 监听全屏模式变化，调整指标面板位置
-  React.useEffect(() => {
-    if (isFullscreen) {
-      setMetricsLibraryPosition(prev => ({ ...prev, y: 60 }))
-    } else {
-      setMetricsLibraryPosition(prev => ({ ...prev, y: 120 }))
+  // 处理数据集面板位置变化，同时重新计算高度
+  const handleDatasetLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
+    // 确保位置在合理范围内
+    const windowWidth = window.innerWidth
+    const windowHeight = window.innerHeight
+    const panelWidth = 320
+    
+    const constrainedPosition = {
+      x: Math.max(0, Math.min(newPosition.x, windowWidth - panelWidth)),
+      y: Math.max(60, Math.min(newPosition.y, windowHeight - 300))
     }
+    
+    setDatasetLibraryPosition(constrainedPosition)
+    
+    // 位置变化后立即重新计算高度
+    if (isDatasetLibraryOpen) {
+      setTimeout(() => {
+        const optimalHeight = calculateOptimalHeight(constrainedPosition.y)
+        setDatasetLibraryHeight(optimalHeight)
+      }, 0)
+    }
+  }, [isDatasetLibraryOpen, calculateOptimalHeight])
+
+  // 监听全屏模式变化，调整面板位置
+  React.useEffect(() => {
+    const newY = isFullscreen ? 60 : 120
+    setMetricsLibraryPosition(prev => ({ ...prev, y: newY }))
+    setDatasetLibraryPosition(prev => ({ ...prev, y: newY }))
   }, [isFullscreen])
 
   // 监听键盘事件
@@ -1034,7 +1059,7 @@ export function DashboardCanvas({
         isOpen={isDatasetLibraryOpen && !isPreviewMode}
         onClose={() => setIsDatasetLibraryOpen(false)}
         position={datasetLibraryPosition}
-        onMove={(pos) => setDatasetLibraryPosition(pos)}
+        onMove={handleDatasetLibraryMove}
         height={datasetLibraryHeight}
         onHeightChange={setDatasetLibraryHeight}
       />

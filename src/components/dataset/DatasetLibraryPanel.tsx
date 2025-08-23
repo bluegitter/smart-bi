@@ -82,7 +82,7 @@ export function DatasetLibraryPanel({
   onClose, 
   position = { x: 50, y: 100 },
   onMove,
-  height = 500,
+  height = 400,
   onHeightChange
 }: DatasetLibraryPanelProps) {
   const { datasets, loading, searchDatasets } = useDatasets()
