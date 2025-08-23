@@ -95,6 +95,12 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   // 面板宽度调节
   const [leftPanelWidth, setLeftPanelWidth] = React.useState(400)
   const [isResizing, setIsResizing] = React.useState(false)
+  
+  // 标记是否刚刚完成保存，避免保存后重新加载覆盖本地状态
+  const [justSaved, setJustSaved] = React.useState(false)
+  
+  // 标记用户是否正在编辑字段，避免异步字段分析覆盖用户更改
+  const [isUserEditing, setIsUserEditing] = React.useState(false)
 
   // 处理面板宽度调节
   const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
@@ -129,16 +135,27 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
     }
   }, [isResizing])
 
-  // 初始化数据
+  // 跟踪数据集ID，只有当ID改变时才重新初始化
+  const [lastDatasetId, setLastDatasetId] = React.useState<string>('')
+  
+  // 初始化数据 - 只有在数据集ID改变或刚保存后才重新初始化
   React.useEffect(() => {
-    if (dataset && mode !== 'create') {
-      console.log('Loading dataset data:', dataset)
+    const currentDatasetId = dataset?.id || dataset?._id || ''
+    const shouldInitialize = dataset && mode !== 'create' && (
+      currentDatasetId !== lastDatasetId || // 数据集ID改变了
+      justSaved // 或者刚保存完毕
+    )
+    
+    if (shouldInitialize) {
+      
       setDatasetType(dataset.type)
       setDatasetName(dataset.name)
       setDatasetDisplayName(dataset.displayName)
       setDatasetDescription(dataset.description || '')
       setDatasetCategory(dataset.category)
       setFields(dataset.fields || [])
+      setLastDatasetId(currentDatasetId)
+      
       
       if (dataset.tableConfig) {
         const datasourceId = typeof dataset.tableConfig.datasourceId === 'object' 
@@ -155,7 +172,12 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
         setSqlQuery(dataset.sqlConfig.sql)
       }
     }
-  }, [dataset, mode])
+    
+    // 如果刚保存完，重置标记
+    if (justSaved) {
+      setJustSaved(false)
+    }
+  }, [dataset, mode, justSaved, lastDatasetId])
 
   // 处理预览
   const handlePreview = React.useCallback(async () => {
@@ -209,25 +231,10 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   // 在编辑模式下自动加载预览数据
   React.useEffect(() => {
     if (mode === 'edit' && dataset && !loading && fields.length > 0 && previewData.length === 0) {
-      console.log('Auto-loading preview data for edit mode')
       handlePreview()
     }
-  }, [mode, dataset, loading, fields.length, previewData.length, handlePreview])
+  }, [mode, dataset?.id, loading, fields.length, previewData.length])
 
-  // 调试信息
-  React.useEffect(() => {
-    if (datasetId && !loading) {
-      console.log('DatasetEditor state:', {
-        datasetId,
-        mode,
-        dataset,
-        loading,
-        error,
-        datasetName,
-        fields: fields.length
-      })
-    }
-  }, [datasetId, dataset, loading, error, mode, datasetName, fields.length])
 
   // 监听变化，标记未保存状态
   React.useEffect(() => {
@@ -341,12 +348,16 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
       .trim()
   }
 
-  // 监听表选择变化，自动分析字段
+  // 监听表选择变化，自动分析字段（仅在创建模式或用户主动更改时）
   React.useEffect(() => {
     if (selectedDataSource && selectedTable && datasetType === 'table') {
-      analyzeTableFields(selectedDataSource, selectedSchema, selectedTable)
+      // 在编辑模式下，只有在已经有字段数据的情况下才避免重新分析（保护用户修改）
+      // 在创建模式下或字段为空时才进行自动分析
+      if (mode === 'create' || fields.length === 0) {
+        analyzeTableFields(selectedDataSource, selectedSchema, selectedTable)
+      }
     }
-  }, [selectedDataSource, selectedSchema, selectedTable, datasetType])
+  }, [selectedDataSource, selectedSchema, selectedTable, datasetType, mode, fields.length])
 
   // 处理保存
   const handleSave = async () => {
@@ -374,6 +385,9 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
         })
       }
       
+      
+      setJustSaved(true) // 设置刚保存标记，防止重新加载覆盖本地状态
+      setIsUserEditing(false) // 保存后重置用户编辑状态
       await save(datasetData)
       setHasUnsavedChanges(false)
       
@@ -387,13 +401,16 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
 
   // 处理字段更新
   const handleFieldUpdate = (fieldName: string, updates: Partial<DatasetField>) => {
+    setIsUserEditing(true)
     setFields(prev => prev.map(field => 
       field.name === fieldName ? { ...field, ...updates } : field
     ))
+    setHasUnsavedChanges(true)
   }
 
   // 处理字段可见性切换
   const handleFieldVisibilityToggle = (fieldName: string) => {
+    setIsUserEditing(true)
     setFields(prev => prev.map(field => 
       field.name === fieldName ? { ...field, hidden: !field.hidden } : field
     ))
@@ -427,10 +444,13 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   }
 
   const handleSaveField = (fieldData: Partial<DatasetField>) => {
+    setIsUserEditing(true)
     if (editingField) {
       // 编辑现有字段
+      const updatedField = { ...editingField, ...fieldData }
+      
       setFields(prev => prev.map(field => 
-        field.name === editingField.name ? { ...field, ...fieldData } : field
+        field.name === editingField.name ? updatedField : field
       ))
     } else {
       // 添加新字段
@@ -503,6 +523,7 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   // 过滤字段
   const filteredFields = React.useMemo(() => {
     let result = fields
+    
     
     // 搜索过滤
     if (fieldSearchQuery) {
@@ -972,7 +993,7 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h5 className="font-medium text-gray-900 truncate">
-                                {field.displayName}
+                                {field.displayName || field.name}
                               </h5>
                               {field.type && (
                                 <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
@@ -1078,7 +1099,7 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h5 className="font-medium text-gray-900 truncate">
-                                {field.displayName}
+                                {field.displayName || field.name}
                               </h5>
                               {field.type && (
                                 <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
@@ -1183,7 +1204,7 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h5 className="font-medium text-gray-900 truncate">
-                                {field.displayName}
+                                {field.displayName || field.name}
                               </h5>
                               {field.type && (
                                 <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">

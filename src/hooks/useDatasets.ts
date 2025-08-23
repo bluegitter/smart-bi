@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { getAuthHeaders } from '@/lib/authUtils'
 import type { Dataset, DatasetSearchParams, DatasetListResponse } from '@/types/dataset'
 
@@ -82,10 +82,24 @@ export function useDataset(datasetId?: string) {
   const [dataset, setDataset] = useState<Dataset | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // 防重复请求
+  const lastFetchedId = useRef<string>('')
+  const lastFetchTime = useRef<number>(0)
 
-  const fetchDataset = useCallback(async (id: string) => {
+  const fetchDataset = useCallback(async (id: string, force: boolean = false) => {
+    // 防止短时间内重复请求同一个数据集
+    const now = Date.now()
+    if (!force && 
+        lastFetchedId.current === id && 
+        now - lastFetchTime.current < 2000) { // 2秒内不重复请求
+      return
+    }
+    
     setLoading(true)
     setError(null)
+    lastFetchedId.current = id
+    lastFetchTime.current = now
 
     try {
       const response = await fetch(`/api/datasets/${id}`, {
@@ -178,15 +192,15 @@ export function useDataset(datasetId?: string) {
 
   const refresh = useCallback(() => {
     if (datasetId) {
-      fetchDataset(datasetId)
+      fetchDataset(datasetId, true) // 强制刷新
     }
-  }, [datasetId, fetchDataset])
+  }, [datasetId])
 
   useEffect(() => {
     if (datasetId) {
       fetchDataset(datasetId)
     }
-  }, [datasetId, fetchDataset])
+  }, [datasetId])
 
   return {
     dataset,

@@ -40,6 +40,7 @@ export interface ComponentLayout {
     datasetId?: ObjectId
     selectedMeasures?: string[] // 选中的度量字段
     selectedDimensions?: string[] // 选中的维度字段
+    fieldDisplayNames?: Record<string, string> // 字段名到显示名称的映射
     // 保留原有的直接绑定方式（向后兼容）
     datasourceId?: ObjectId
     query?: string

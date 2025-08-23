@@ -779,7 +779,7 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                 <div>
                   <label className="block text-sm font-medium mb-2">指标</label>
                   <div className="space-y-2">
-                    {selectedComponent.dataConfig.metrics.length === 0 ? (
+                    {(!selectedComponent.dataConfig?.metrics || selectedComponent.dataConfig.metrics.length === 0) ? (
                       <div className="text-sm text-slate-500 text-center py-4 border-2 border-dashed border-slate-200 rounded">
                         拖拽指标到这里
                       </div>
@@ -803,7 +803,7 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                 <div>
                   <label className="block text-sm font-medium mb-2">维度</label>
                   <div className="space-y-2">
-                    {selectedComponent.dataConfig.dimensions.length === 0 ? (
+                    {(!selectedComponent.dataConfig?.dimensions || selectedComponent.dataConfig.dimensions.length === 0) ? (
                       <div className="text-sm text-slate-500 text-center py-4 border-2 border-dashed border-slate-200 rounded">
                         拖拽维度到这里
                       </div>

@@ -57,13 +57,21 @@ function DraggableField({ field, dataset }: { field: DatasetField; dataset: Data
         "flex items-center gap-2 px-3 py-2 text-sm cursor-move hover:bg-gray-50 rounded transition-all",
         isDragging && "opacity-50 scale-95"
       )}
-      title={field.description || field.displayName}
+      title={field.description || `${field.displayName} (${field.name})`}
     >
       {getFieldIcon()}
-      <span className="flex-1 truncate">{field.displayName}</span>
-      <span className="text-xs text-gray-400">
-        {field.fieldType === 'measure' && field.aggregationType}
-      </span>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium truncate">{field.displayName}</div>
+        <div className="text-xs text-gray-500 truncate font-mono">{field.name}</div>
+      </div>
+      <div className="flex flex-col items-end text-xs text-gray-400">
+        {field.fieldType === 'measure' && field.aggregationType && (
+          <span className="bg-gray-100 px-1 rounded">{field.aggregationType}</span>
+        )}
+        {field.type && (
+          <span className="mt-0.5 opacity-75">{field.type}</span>
+        )}
+      </div>
     </div>
   )
 }

@@ -71,6 +71,7 @@ export class DatasetService {
   static async updateDataset(userId: string, datasetId: string, request: UpdateDatasetRequest): Promise<DatasetType> {
     await connectDB()
     
+    
     const dataset = await Dataset.findOne({ _id: datasetId })
     if (!dataset) {
       throw new Error('数据集不存在')
@@ -79,6 +80,7 @@ export class DatasetService {
     if (!dataset.hasPermission(userId, 'editor')) {
       throw new Error('无权限编辑此数据集')
     }
+    
     
     const updatedDataset = await Dataset.findOneAndUpdate(
       { _id: datasetId },
@@ -89,6 +91,9 @@ export class DatasetService {
     if (!updatedDataset) {
       throw new Error('更新失败')
     }
+    
+    
+    // 注意：更新数据集时不重新触发字段分析，以保留用户自定义设置
     
     return updatedDataset.toJSON()
   }
@@ -390,13 +395,37 @@ export class DatasetService {
       // 分析字段类型
       const analyzedFields = this.analyzeFieldTypes(result.columns, result.data)
       
+      // 保留现有字段的用户自定义属性（如显示名称）
+      const existingFieldsMap = new Map(dataset.fields.map(f => [f.name, f]))
+      
+      const mergedFields = analyzedFields.map(analyzedField => {
+        const existingField = existingFieldsMap.get(analyzedField.name)
+        if (existingField) {
+          // 保留用户设置的属性，但更新分析得出的类型和样本值
+          const merged = {
+            ...analyzedField,
+            displayName: existingField.displayName || analyzedField.displayName, // 保留用户设置的显示名称
+            description: existingField.description || analyzedField.description, // 保留用户设置的描述
+            fieldType: existingField.fieldType || analyzedField.fieldType, // 保留用户设置的字段类型
+            aggregationType: existingField.aggregationType || analyzedField.aggregationType, // 保留用户设置的聚合类型
+            dimensionLevel: existingField.dimensionLevel || analyzedField.dimensionLevel, // 保留用户设置的维度级别
+            expression: existingField.expression, // 保留计算字段的表达式
+            format: existingField.format, // 保留格式设置
+            hidden: existingField.hidden // 保留隐藏状态
+          }
+          return merged
+        }
+        return analyzedField
+      })
+      
+      
       // 计算数据质量
-      const qualityIssues = this.analyzeDataQuality(analyzedFields, result.data)
+      const qualityIssues = this.analyzeDataQuality(mergedFields, result.data)
       const qualityScore = this.calculateQualityScore(qualityIssues)
       
       // 更新数据集
       await Dataset.findByIdAndUpdate(datasetId, {
-        fields: analyzedFields,
+        fields: mergedFields,
         metadata: {
           recordCount: result.total,
           lastRefreshed: new Date(),

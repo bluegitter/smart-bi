@@ -27,6 +27,12 @@ import {
   RealPieChart, 
   RealKPICard 
 } from '@/components/charts/RealDataCharts'
+import {
+  DatasetLineChart,
+  DatasetBarChart,
+  DatasetKPICard,
+  DatasetPieChart
+} from '@/components/charts/DatasetCharts'
 import type { DragItem, ComponentLayout, Dashboard } from '@/types'
 
 interface DashboardCanvasProps {
@@ -499,6 +505,10 @@ export function DashboardCanvas({
           selectedMeasures: fieldData.fieldType === 'measure' ? [fieldData.field.name] : [],
           selectedDimensions: fieldData.fieldType === 'dimension' ? [fieldData.field.name] : [],
           filters: [],
+          // 保存字段的显示名称映射
+          fieldDisplayNames: {
+            [fieldData.field.name]: fieldData.field.displayName
+          },
         },
       }
       
@@ -1193,7 +1203,13 @@ function DraggableComponent({
               </div>
             )}
             <div className="flex-1 flex items-center justify-center">
-              {component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+              {component.dataConfig?.datasetId ? (
+                <DatasetLineChart 
+                  component={component}
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
+                />
+              ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
                 <RealLineChart 
                   metricId={component.id.split('-')[1]} 
                   width={Math.min(component.size.width - 20, 350)}
@@ -1220,7 +1236,13 @@ function DraggableComponent({
               </div>
             )}
             <div className="flex-1 flex items-center justify-center">
-              {component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+              {component.dataConfig?.datasetId ? (
+                <DatasetBarChart 
+                  component={component}
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
+                />
+              ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
                 <RealBarChart 
                   metricId={component.id.split('-')[1]} 
                   width={Math.min(component.size.width - 20, 350)}
@@ -1247,7 +1269,13 @@ function DraggableComponent({
               </div>
             )}
             <div className="flex-1 flex items-center justify-center">
-              {component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+              {component.dataConfig?.datasetId ? (
+                <DatasetPieChart 
+                  component={component}
+                  width={Math.min(component.size.width - 20, 350)}
+                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
+                />
+              ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
                 <RealPieChart 
                   metricId={component.id.split('-')[1]} 
                   width={Math.min(component.size.width - 20, 350)}
@@ -1284,7 +1312,11 @@ function DraggableComponent({
         
         {component.type === 'kpi-card' && (
           <div className="w-full h-full">
-            {component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+            {component.dataConfig?.datasetId ? (
+              <DatasetKPICard 
+                component={component}
+              />
+            ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealKPICard 
                 metricId={component.id.split('-')[1]} 
                 title={component.title}
