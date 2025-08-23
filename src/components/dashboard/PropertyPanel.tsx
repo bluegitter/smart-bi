@@ -1,13 +1,14 @@
 'use client'
 
 import React from 'react'
-import { X, Settings, Palette, Database, Filter, ChevronDown, ChevronRight } from 'lucide-react'
+import { X, Settings, Palette, Database, Filter, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { useDrop } from 'react-dnd'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { cn } from '@/lib/utils'
 import { useSidebarCollapsed, useIsFullscreen } from '@/store/useAppStore'
-import type { ComponentLayout } from '@/types'
+import type { ComponentLayout, DragItem } from '@/types'
 
 interface PropertyPanelProps {
   isOpen: boolean
@@ -36,6 +37,78 @@ const colorSchemes = [
   { name: '暖色系', colors: ['#dc2626', '#ea580c', '#f59e0b', '#eab308', '#84cc16'] }
 ]
 
+// 可拖拽区域组件
+function DropZone({ 
+  type, 
+  items = [], 
+  onDrop, 
+  onRemove,
+  placeholder = "拖拽项目到这里"
+}: {
+  type: 'metrics' | 'dimensions'
+  items: string[]
+  onDrop: (item: DragItem) => void
+  onRemove: (index: number) => void
+  placeholder?: string
+}) {
+  const [{ isOver, canDrop }, drop] = useDrop(() => ({
+    accept: 'dataset-field',
+    drop: (item: DragItem) => {
+      // 检查字段类型是否匹配拖拽区域类型
+      const fieldType = item.data?.field?.fieldType
+      const isValidDrop = (type === 'metrics' && fieldType === 'measure') || 
+                         (type === 'dimensions' && fieldType === 'dimension')
+      
+      if (isValidDrop) {
+        onDrop(item)
+      }
+    },
+    canDrop: (item: DragItem) => {
+      const fieldType = item.data?.field?.fieldType
+      return (type === 'metrics' && fieldType === 'measure') || 
+             (type === 'dimensions' && fieldType === 'dimension')
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+      canDrop: monitor.canDrop()
+    })
+  }))
+
+  return (
+    <div
+      ref={drop}
+      className={cn(
+        "min-h-[60px] p-3 border-2 border-dashed rounded-lg transition-colors",
+        canDrop ? "border-blue-300 bg-blue-50" : "border-slate-200",
+        isOver && canDrop ? "border-blue-400 bg-blue-100" : "",
+        !canDrop && isOver ? "border-red-300 bg-red-50" : ""
+      )}
+    >
+      {items.length === 0 ? (
+        <div className="text-sm text-slate-500 text-center py-2">
+          {placeholder}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((item, index) => (
+            <div key={index} className="flex items-center justify-between p-2 bg-white border border-slate-200 rounded">
+              <span className="text-sm flex-1 truncate">{item}</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                onClick={() => onRemove(index)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComponent, onUpdateChild, parentContainerId }: PropertyPanelProps) {
   const [activeSection, setActiveSection] = React.useState<string>('basic')
   const [expandedSections, setExpandedSections] = React.useState<Record<string, boolean>>({
@@ -44,6 +117,14 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
     data: true,
     advanced: false
   })
+  
+  // 过滤器状态
+  const [filters, setFilters] = React.useState<Array<{
+    field: string
+    operator: string
+    value: string
+    id: string
+  }>>(selectedComponent?.dataConfig?.filters || [])
 
   // 获取sidebar和全屏状态
   const sidebarCollapsed = useSidebarCollapsed()
@@ -147,6 +228,173 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
         ...selectedComponent.containerConfig,
         ...containerUpdates
       }
+    })
+  }
+
+  // 处理数据配置更新
+  const handleDataConfigUpdate = (dataUpdates: any) => {
+    const currentDataConfig = selectedComponent.dataConfig || {}
+    handleUpdate({
+      dataConfig: {
+        ...currentDataConfig,
+        ...dataUpdates
+      }
+    })
+  }
+
+  // 处理指标拖拽
+  const handleMetricDrop = (item: DragItem) => {
+    const field = item.data?.field
+    if (!field) return
+    
+    const currentDataConfig = selectedComponent.dataConfig || {}
+    const currentMetrics = currentDataConfig.metrics || []
+    const currentDimensions = currentDataConfig.dimensions || []
+    const currentFilters = currentDataConfig.filters || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    const fieldDisplayName = field.displayName || field.name
+    
+    // 检查是否已存在
+    if (!currentMetrics.includes(fieldDisplayName)) {
+      const newMetrics = [...currentMetrics, fieldDisplayName]
+      
+      // 完整更新，确保不丢失其他数据
+      handleDataConfigUpdate({
+        metrics: newMetrics,
+        dimensions: currentDimensions, // 保持维度不变
+        filters: currentFilters, // 保持过滤器不变
+        fieldDisplayNames: {
+          ...currentFieldDisplayNames,
+          [field.name]: field.displayName
+        }
+      })
+    }
+  }
+
+  // 处理维度拖拽
+  const handleDimensionDrop = (item: DragItem) => {
+    const field = item.data?.field
+    if (!field) return
+    
+    const currentDataConfig = selectedComponent.dataConfig || {}
+    const currentMetrics = currentDataConfig.metrics || []
+    const currentDimensions = currentDataConfig.dimensions || []
+    const currentFilters = currentDataConfig.filters || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    const fieldDisplayName = field.displayName || field.name
+    
+    // 检查是否已存在
+    if (!currentDimensions.includes(fieldDisplayName)) {
+      const newDimensions = [...currentDimensions, fieldDisplayName]
+      
+      // 完整更新，确保不丢失其他数据
+      handleDataConfigUpdate({
+        metrics: currentMetrics, // 保持指标不变
+        dimensions: newDimensions,
+        filters: currentFilters, // 保持过滤器不变
+        fieldDisplayNames: {
+          ...currentFieldDisplayNames,
+          [field.name]: field.displayName
+        }
+      })
+    }
+  }
+
+  // 移除指标
+  const handleRemoveMetric = (index: number) => {
+    const currentDataConfig = selectedComponent.dataConfig || {}
+    const currentMetrics = currentDataConfig.metrics || []
+    const currentDimensions = currentDataConfig.dimensions || []
+    const currentFilters = currentDataConfig.filters || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    
+    const newMetrics = currentMetrics.filter((_, i) => i !== index)
+    
+    handleDataConfigUpdate({
+      metrics: newMetrics,
+      dimensions: currentDimensions, // 保持维度不变
+      filters: currentFilters, // 保持过滤器不变
+      fieldDisplayNames: currentFieldDisplayNames // 保持显示名称映射不变
+    })
+  }
+
+  // 移除维度
+  const handleRemoveDimension = (index: number) => {
+    const currentDataConfig = selectedComponent.dataConfig || {}
+    const currentMetrics = currentDataConfig.metrics || []
+    const currentDimensions = currentDataConfig.dimensions || []
+    const currentFilters = currentDataConfig.filters || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    
+    const newDimensions = currentDimensions.filter((_, i) => i !== index)
+    
+    handleDataConfigUpdate({
+      metrics: currentMetrics, // 保持指标不变
+      dimensions: newDimensions,
+      filters: currentFilters, // 保持过滤器不变
+      fieldDisplayNames: currentFieldDisplayNames // 保持显示名称映射不变
+    })
+  }
+
+  // 添加过滤器
+  const handleAddFilter = () => {
+    const currentDataConfig = selectedComponent.dataConfig || {}
+    const currentMetrics = currentDataConfig.metrics || []
+    const currentDimensions = currentDataConfig.dimensions || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    
+    const newFilter = {
+      id: `filter-${Date.now()}`,
+      field: '',
+      operator: '=',
+      value: ''
+    }
+    const newFilters = [...filters, newFilter]
+    setFilters(newFilters)
+    
+    handleDataConfigUpdate({
+      metrics: currentMetrics, // 保持指标不变
+      dimensions: currentDimensions, // 保持维度不变
+      filters: newFilters,
+      fieldDisplayNames: currentFieldDisplayNames // 保持显示名称映射不变
+    })
+  }
+
+  // 移除过滤器
+  const handleRemoveFilter = (filterId: string) => {
+    const currentDataConfig = selectedComponent.dataConfig || {}
+    const currentMetrics = currentDataConfig.metrics || []
+    const currentDimensions = currentDataConfig.dimensions || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    
+    const newFilters = filters.filter(f => f.id !== filterId)
+    setFilters(newFilters)
+    
+    handleDataConfigUpdate({
+      metrics: currentMetrics, // 保持指标不变
+      dimensions: currentDimensions, // 保持维度不变
+      filters: newFilters,
+      fieldDisplayNames: currentFieldDisplayNames // 保持显示名称映射不变
+    })
+  }
+
+  // 更新过滤器
+  const handleUpdateFilter = (filterId: string, updates: Partial<typeof filters[0]>) => {
+    const currentDataConfig = selectedComponent.dataConfig || {}
+    const currentMetrics = currentDataConfig.metrics || []
+    const currentDimensions = currentDataConfig.dimensions || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    
+    const newFilters = filters.map(f => 
+      f.id === filterId ? { ...f, ...updates } : f
+    )
+    setFilters(newFilters)
+    
+    handleDataConfigUpdate({
+      metrics: currentMetrics, // 保持指标不变
+      dimensions: currentDimensions, // 保持维度不变
+      filters: newFilters,
+      fieldDisplayNames: currentFieldDisplayNames // 保持显示名称映射不变
     })
   }
 
@@ -764,77 +1012,131 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
             </CardHeader>
             {expandedSections.data && (
               <CardContent className="pt-2 space-y-4">
-                {/* 数据源 */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">数据源</label>
-                  <select className="w-full h-10 px-3 py-2 border border-slate-200 rounded-md text-sm">
-                    <option value="">选择数据源</option>
-                    <option value="mysql-prod">MySQL - 生产环境</option>
-                    <option value="postgres-test">PostgreSQL - 测试环境</option>
-                    <option value="api-sales">销售API接口</option>
-                  </select>
-                </div>
 
                 {/* 指标设置 */}
                 <div>
                   <label className="block text-sm font-medium mb-2">指标</label>
-                  <div className="space-y-2">
-                    {(!selectedComponent.dataConfig?.metrics || selectedComponent.dataConfig.metrics.length === 0) ? (
-                      <div className="text-sm text-slate-500 text-center py-4 border-2 border-dashed border-slate-200 rounded">
-                        拖拽指标到这里
-                      </div>
-                    ) : (
-                      selectedComponent.dataConfig.metrics.map((metric, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded">
-                          <span className="text-sm">{metric}</span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6">
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full mt-2">
-                    添加指标
-                  </Button>
+                  <DropZone 
+                    type="metrics"
+                    items={selectedComponent.dataConfig?.metrics || []}
+                    onDrop={handleMetricDrop}
+                    onRemove={handleRemoveMetric}
+                    placeholder="从数据集面板拖拽度量字段到这里"
+                  />
                 </div>
 
                 {/* 维度设置 */}
                 <div>
                   <label className="block text-sm font-medium mb-2">维度</label>
-                  <div className="space-y-2">
-                    {(!selectedComponent.dataConfig?.dimensions || selectedComponent.dataConfig.dimensions.length === 0) ? (
-                      <div className="text-sm text-slate-500 text-center py-4 border-2 border-dashed border-slate-200 rounded">
-                        拖拽维度到这里
-                      </div>
-                    ) : (
-                      selectedComponent.dataConfig.dimensions.map((dimension, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded">
-                          <span className="text-sm">{dimension}</span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6">
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full mt-2">
-                    添加维度
-                  </Button>
+                  <DropZone 
+                    type="dimensions"
+                    items={selectedComponent.dataConfig?.dimensions || []}
+                    onDrop={handleDimensionDrop}
+                    onRemove={handleRemoveDimension}
+                    placeholder="从数据集面板拖拽维度字段到这里"
+                  />
                 </div>
 
                 {/* 过滤器 */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium">过滤器</label>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs">
-                      <Filter className="h-3 w-3 mr-1" />
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 text-xs"
+                      onClick={handleAddFilter}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
                       添加
                     </Button>
                   </div>
-                  <div className="text-sm text-slate-500 text-center py-2">
-                    暂无过滤器
-                  </div>
+                  
+                  {filters.length === 0 ? (
+                    <div className="text-sm text-slate-500 text-center py-4 border border-dashed border-slate-200 rounded">
+                      暂无过滤器
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filters.map((filter) => (
+                        <div key={filter.id} className="p-3 border border-slate-200 rounded-lg space-y-2">
+                          {/* 字段选择 */}
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">字段</label>
+                            <select 
+                              className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                              value={filter.field}
+                              onChange={(e) => handleUpdateFilter(filter.id, { field: e.target.value })}
+                            >
+                              <option value="">选择字段</option>
+                              {/* 显示所有可用的维度和指标 */}
+                              {selectedComponent.dataConfig?.dimensions?.map((dim) => (
+                                <option key={`dim-${dim}`} value={dim}>{dim} (维度)</option>
+                              ))}
+                              {selectedComponent.dataConfig?.metrics?.map((metric) => (
+                                <option key={`metric-${metric}`} value={metric}>{metric} (指标)</option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          {/* 操作符选择 */}
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <label className="block text-xs text-slate-500 mb-1">条件</label>
+                              <select 
+                                className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                                value={filter.operator}
+                                onChange={(e) => handleUpdateFilter(filter.id, { operator: e.target.value })}
+                              >
+                                <option value="=">等于</option>
+                                <option value="!=">不等于</option>
+                                <option value=">">大于</option>
+                                <option value=">=">大于等于</option>
+                                <option value="<">小于</option>
+                                <option value="<=">小于等于</option>
+                                <option value="like">包含</option>
+                                <option value="not like">不包含</option>
+                                <option value="in">在范围内</option>
+                                <option value="not in">不在范围内</option>
+                              </select>
+                            </div>
+                            
+                            {/* 删除按钮 */}
+                            <div className="flex items-end">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleRemoveFilter(filter.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* 值输入 */}
+                          <div>
+                            <label className="block text-xs text-slate-500 mb-1">值</label>
+                            {filter.operator === 'in' || filter.operator === 'not in' ? (
+                              <Input
+                                placeholder="用逗号分隔多个值，如: 值1,值2,值3"
+                                value={filter.value}
+                                onChange={(e) => handleUpdateFilter(filter.id, { value: e.target.value })}
+                                size="sm"
+                              />
+                            ) : (
+                              <Input
+                                placeholder="输入过滤值"
+                                value={filter.value}
+                                onChange={(e) => handleUpdateFilter(filter.id, { value: e.target.value })}
+                                size="sm"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             )}
