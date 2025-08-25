@@ -6,6 +6,11 @@ import { useDatasetData } from '@/hooks/useDatasetData'
 import { Button } from '@/components/ui/Button'
 import type { ComponentLayout } from '@/types'
 
+// 工具函数：合并类名
+function cn(...classes: (string | undefined)[]): string {
+  return classes.filter(Boolean).join(' ')
+}
+
 // 数据集折线图
 export function DatasetLineChart({ 
   component,
@@ -365,36 +370,79 @@ export function DatasetKPICard({
   const trend = data.length > 1 ? 
     (Number(data[data.length - 1][primaryMeasure]) || 0) - (Number(data[0][primaryMeasure]) || 0) : 0
 
+  // 获取配色方案
+  const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const primaryColor = colors[0] || '#3b82f6'
+  const secondaryColor = colors[1] || '#ef4444'
+
+
+  // 获取背景样式设置
+  const backgroundType = component.config?.kpi?.backgroundType || 'default'
+  const cardStyle = component.config?.kpi?.style || 'modern'
+  
+  // 动态样式计算
+  const getCardStyles = () => {
+    switch (backgroundType) {
+      case 'solid':
+        return {
+          background: primaryColor,
+          color: 'white'
+        }
+      case 'gradient':
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`,
+          color: 'white'
+        }
+      default:
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+          borderColor: primaryColor,
+          borderWidth: '1px',
+          borderStyle: 'solid'
+        }
+    }
+  }
+  
+  const cardStyles = getCardStyles()
+  const isDarkBackground = backgroundType === 'solid' || backgroundType === 'gradient'
+  const textColor = isDarkBackground ? 'text-white' : 'text-gray-900'
+  const subtextColor = isDarkBackground ? 'text-white/80' : 'text-gray-600'
+
   return (
-    <div className="w-full h-full p-4 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg">
-      <div className="flex flex-col h-full">
-        <div className="text-sm font-medium text-gray-600 mb-2">
-          {component.title}
+    <div 
+      className="w-full h-full p-4 transition-all duration-200 rounded-b-lg"
+      style={{
+        ...cardStyles,
+        opacity: component.config?.style?.opacity ?? 1
+      }}
+    >
+      <div className="flex flex-col h-full justify-center">
+        <div className={`text-2xl font-bold mb-1 ${textColor}`}>
+          {totalValue.toLocaleString()}
         </div>
-        <div className="flex-1 flex flex-col justify-center">
-          <div className="text-2xl font-bold text-gray-900 mb-1">
-            {totalValue.toLocaleString()}
-          </div>
-          <div className="text-xs text-gray-500 mb-3">
-            平均: {avgValue.toFixed(1)}
-          </div>
-          <div className="flex items-center gap-1">
-            {trend > 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            ) : trend < 0 ? (
-              <TrendingDown className="h-4 w-4 text-red-500" />
-            ) : (
-              <BarChart3 className="h-4 w-4 text-gray-400" />
-            )}
-            <span className={cn(
-              "text-sm font-medium",
-              trend > 0 ? "text-green-600" : trend < 0 ? "text-red-600" : "text-gray-500"
-            )}>
-              {trend > 0 ? '+' : ''}{trend.toFixed(1)}
-            </span>
-          </div>
+        <div className={`text-xs mb-3 ${subtextColor}`}>
+          平均: {avgValue.toFixed(1)}
         </div>
-        <div className="text-xs text-gray-400">
+        <div className="flex items-center gap-1">
+          {trend > 0 ? (
+            <TrendingUp className={`h-4 w-4 ${isDarkBackground ? 'text-green-300' : 'text-green-500'}`} />
+          ) : trend < 0 ? (
+            <TrendingDown className={`h-4 w-4 ${isDarkBackground ? 'text-red-300' : 'text-red-500'}`} />
+          ) : (
+            <BarChart3 className={`h-4 w-4 ${isDarkBackground ? 'text-white/60' : 'text-gray-400'}`} />
+          )}
+          <span className={cn(
+            "text-sm font-medium",
+            trend > 0 
+              ? (isDarkBackground ? "text-green-300" : "text-green-600")
+              : trend < 0 
+              ? (isDarkBackground ? "text-red-300" : "text-red-600") 
+              : subtextColor
+          )}>
+            {trend > 0 ? '+' : ''}{trend.toFixed(1)}
+          </span>
+        </div>
+        <div className={`text-xs mt-2 ${isDarkBackground ? 'text-white/50' : 'text-gray-400'}`}>
           基于 {data.length} 条数据
         </div>
       </div>
@@ -541,7 +589,3 @@ export function DatasetPieChart({
   )
 }
 
-// 辅助函数
-function cn(...classes: (string | undefined | null | false)[]): string {
-  return classes.filter(Boolean).join(' ')
-}

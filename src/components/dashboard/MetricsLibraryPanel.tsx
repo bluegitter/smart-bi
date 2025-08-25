@@ -78,6 +78,7 @@ export function MetricsLibraryPanel({
 
   // Load metrics from API
   const loadMetrics = React.useCallback(async () => {
+    console.log('Starting to load metrics...')
     setLoading(true)
     try {
       const response = await fetch('/api/metrics?limit=100', {
@@ -85,29 +86,74 @@ export function MetricsLibraryPanel({
       })
       if (response.ok) {
         const data = await response.json()
-        setMetrics(data.metrics || [])
+        const metricsData = data.metrics || []
+        console.log('Loaded metrics:', metricsData.length, 'items')
+        setMetrics(metricsData)
         
-        // Initialize expanded categories
-        const categories = [...new Set((data.metrics || []).map((m: Metric) => m.category))]
+        // Initialize expanded categories - 确保所有分类默认展开
+        const categories = [...new Set(metricsData.map((m: Metric) => m.category))]
+        console.log('Setting categories to expanded:', categories)
         const initialExpanded: Record<string, boolean> = {}
         categories.forEach(cat => {
           initialExpanded[cat] = true
         })
-        setExpandedCategories(initialExpanded)
+        
+        // 使用函数式更新确保状态正确设置
+        setExpandedCategories(prevExpanded => {
+          const newExpanded = {
+            ...prevExpanded,
+            ...initialExpanded
+          }
+          console.log('Updated expanded categories:', newExpanded)
+          return newExpanded
+        })
+      } else {
+        console.error('Failed to load metrics:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Failed to load metrics:', error)
     } finally {
       setLoading(false)
+      console.log('Finished loading metrics')
     }
   }, [])
 
   // Load metrics when component mounts or opens
   React.useEffect(() => {
     if (isOpen) {
-      loadMetrics()
+      console.log('MetricsLibraryPanel opened, metrics count:', metrics.length)
+      
+      // 如果指标为空，立即加载
+      if (metrics.length === 0) {
+        console.log('Loading metrics because metrics array is empty')
+        loadMetrics()
+      } else {
+        // 如果已有指标但分类未展开，重新设置展开状态
+        const categories = [...new Set(metrics.map(m => m.category))]
+        const currentExpanded = Object.keys(expandedCategories)
+        
+        console.log('Available categories:', categories)
+        console.log('Currently expanded categories:', currentExpanded)
+        
+        // 检查是否有新分类需要添加到展开状态
+        const needsUpdate = categories.some(cat => !(cat in expandedCategories))
+        
+        if (needsUpdate || currentExpanded.length === 0) {
+          console.log('Need to update expanded categories')
+          const initialExpanded: Record<string, boolean> = {}
+          categories.forEach(cat => {
+            initialExpanded[cat] = true
+          })
+          setExpandedCategories(prevExpanded => ({
+            ...prevExpanded,
+            ...initialExpanded
+          }))
+        } else {
+          console.log('Categories already properly expanded')
+        }
+      }
     }
-  }, [isOpen, loadMetrics])
+  }, [isOpen, loadMetrics, metrics.length, expandedCategories])
 
   // Compute dynamic categories
   const categories = React.useMemo(() => {
@@ -118,6 +164,9 @@ export function MetricsLibraryPanel({
   // Filter metrics based on search and category
   const filteredMetrics = React.useMemo(() => {
     let filtered = metrics
+    console.log('Filtering metrics - original count:', metrics.length)
+    console.log('Search term:', searchTerm)
+    console.log('Selected category:', selectedCategory)
 
     if (searchTerm) {
       filtered = filtered.filter(metric =>
@@ -125,24 +174,30 @@ export function MetricsLibraryPanel({
         metric.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         metric.description?.toLowerCase().includes(searchTerm.toLowerCase())
       )
+      console.log('After search filter:', filtered.length)
     }
 
     if (selectedCategory !== '全部') {
       filtered = filtered.filter(metric => metric.category === selectedCategory)
+      console.log('After category filter:', filtered.length)
     }
 
+    console.log('Final filtered metrics count:', filtered.length)
     return filtered
-  }, [searchTerm, selectedCategory])
+  }, [searchTerm, selectedCategory, metrics])
 
   // Group metrics by category
   const groupedMetrics = React.useMemo(() => {
     const groups: Record<string, Metric[]> = {}
+    console.log('Grouping metrics:', filteredMetrics.length)
     filteredMetrics.forEach(metric => {
       if (!groups[metric.category]) {
         groups[metric.category] = []
       }
       groups[metric.category].push(metric)
     })
+    console.log('Grouped metrics:', groups)
+    console.log('Group keys:', Object.keys(groups))
     return groups
   }, [filteredMetrics])
 

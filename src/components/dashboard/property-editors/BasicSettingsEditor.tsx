@@ -19,6 +19,7 @@ const chartTypeOptions = [
   { value: 'table', label: '数据表', icon: '📋' },
   { value: 'kpi-card', label: '指标卡片', icon: '📌' },
   { value: 'gauge', label: '仪表盘', icon: '⏰' },
+  { value: 'map', label: '地图', icon: '🗺️' },
   { value: 'container', label: '容器组件', icon: '📦' }
 ]
 

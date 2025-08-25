@@ -13,6 +13,7 @@ import {
   TableStyleEditor,
   KPIStyleEditor,
   GaugeStyleEditor,
+  MapStyleEditor,
   ContainerStyleEditor,
   DataConfigEditor,
   AdvancedSettingsEditor
@@ -128,6 +129,18 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
         gauge: {
           ...selectedComponent.config?.gauge,
           ...gaugeUpdates
+        }
+      }
+    })
+  }
+
+  const handleMapConfigUpdate = (mapUpdates: any) => {
+    handleUpdate({
+      config: {
+        ...selectedComponent.config,
+        map: {
+          ...selectedComponent.config?.map,
+          ...mapUpdates
         }
       }
     })
@@ -261,6 +274,11 @@ export function PropertyPanel({ isOpen, onClose, selectedComponent, onUpdateComp
                 <GaugeStyleEditor
                   selectedComponent={selectedComponent}
                   onGaugeConfigUpdate={handleGaugeConfigUpdate}
+                />
+
+                <MapStyleEditor
+                  selectedComponent={selectedComponent}
+                  onMapConfigUpdate={handleMapConfigUpdate}
                 />
 
                 <ContainerStyleEditor

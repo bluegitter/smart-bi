@@ -32,12 +32,11 @@ export function MainLayout({ children }: MainLayoutProps) {
         {/* Main content area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar - 全屏模式或手动折叠时隐藏 */}
-          <div className={cn(
-            "transition-all duration-300 ease-in-out",
-            (sidebarCollapsed || isFullscreen) ? "w-0" : "w-80"
-          )}>
-            <Sidebar />
-          </div>
+          {!(sidebarCollapsed || isFullscreen) && (
+            <div className="w-80 transition-all duration-300 ease-in-out">
+              <Sidebar />
+            </div>
+          )}
           
           {/* Main content */}
           <main className={cn(

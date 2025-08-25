@@ -2,11 +2,12 @@
 
 import React, { useEffect } from 'react'
 import { useDrop } from 'react-dnd'
-import { Plus, Layout, Save, Eye, Settings, Maximize2, Minimize2, Loader2, Database, BarChart3 } from 'lucide-react'
+import { Plus, Layout, Save, Eye, Settings, Maximize2, Minimize2, Loader2, Database, BarChart3, Grid3x3 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { PropertyPanel } from './PropertyPanel'
 import { MetricsLibraryPanel } from './MetricsLibraryPanel'
+import { ComponentLibraryPanel } from './ComponentLibraryPanel'
 import { DatasetLibraryPanel } from '@/components/dataset/DatasetLibraryPanel'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/hooks/useDashboards'
@@ -21,6 +22,7 @@ import {
   ContainerComponent,
   generateMockData 
 } from '@/components/charts/ChartComponents'
+import { SimpleMapComponent } from '@/components/charts/MapComponent'
 import { 
   RealLineChart, 
   RealBarChart, 
@@ -74,6 +76,8 @@ export function DashboardCanvas({
   const [metricsLibraryHeight, setMetricsLibraryHeight] = React.useState(400)
   const [isDatasetLibraryOpen, setIsDatasetLibraryOpen] = React.useState(false)
   const [datasetLibraryHeight, setDatasetLibraryHeight] = React.useState(400)
+  const [isComponentLibraryOpen, setIsComponentLibraryOpen] = React.useState(false)
+  const [componentLibraryHeight, setComponentLibraryHeight] = React.useState(500)
   
   // 全屏状态和操作
   const isFullscreen = useIsFullscreen()
@@ -82,6 +86,15 @@ export function DashboardCanvas({
   
   const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
   const [datasetLibraryPosition, setDatasetLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
+  // 组件库面板默认位置计算（紧贴左侧）
+  const getComponentLibraryDefaultPosition = React.useCallback(() => {
+    return {
+      x: 10, // 距离左边缘10px
+      y: isFullscreen ? 60 : 120
+    }
+  }, [isFullscreen])
+
+  const [componentLibraryPosition, setComponentLibraryPosition] = React.useState(getComponentLibraryDefaultPosition())
 
   // 窗口尺寸状态，用于响应式计算
   const [windowSize, setWindowSize] = React.useState({
@@ -180,11 +193,15 @@ export function DashboardCanvas({
         const optimalHeight = calculateOptimalHeight(datasetLibraryPosition.y)
         setDatasetLibraryHeight(optimalHeight)
       }
+      if (isComponentLibraryOpen) {
+        const optimalHeight = calculateOptimalHeight(componentLibraryPosition.y)
+        setComponentLibraryHeight(optimalHeight)
+      }
     }
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [isMetricsLibraryOpen, isDatasetLibraryOpen, calculateOptimalHeight, metricsLibraryPosition.y, datasetLibraryPosition.y])
+  }, [isMetricsLibraryOpen, isDatasetLibraryOpen, isComponentLibraryOpen, calculateOptimalHeight, metricsLibraryPosition.y, datasetLibraryPosition.y, componentLibraryPosition.y])
 
   // 处理数据集面板位置变化，同时重新计算高度
   const handleDatasetLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
@@ -209,11 +226,49 @@ export function DashboardCanvas({
     }
   }, [isDatasetLibraryOpen, calculateOptimalHeight])
 
+  // 处理组件库面板位置变化，同时重新计算高度
+  const handleComponentLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
+    // 确保位置在合理范围内
+    const windowWidth = window.innerWidth
+    const windowHeight = window.innerHeight
+    const panelWidth = 360
+    
+    const constrainedPosition = {
+      x: Math.max(0, Math.min(newPosition.x, windowWidth - panelWidth)),
+      y: Math.max(60, Math.min(newPosition.y, windowHeight - 400))
+    }
+    
+    setComponentLibraryPosition(constrainedPosition)
+    
+    // 位置变化后立即重新计算高度
+    if (isComponentLibraryOpen) {
+      setTimeout(() => {
+        const optimalHeight = calculateOptimalHeight(constrainedPosition.y)
+        setComponentLibraryHeight(optimalHeight)
+      }, 0)
+    }
+  }, [isComponentLibraryOpen, calculateOptimalHeight])
+
+  // 当组件库面板打开时，确保它在正确的右侧位置
+  React.useEffect(() => {
+    if (isComponentLibraryOpen) {
+      const optimalPosition = getComponentLibraryDefaultPosition()
+      setComponentLibraryPosition(optimalPosition)
+      
+      // 同时计算高度
+      const optimalHeight = calculateOptimalHeight(optimalPosition.y)
+      setComponentLibraryHeight(optimalHeight)
+    }
+  }, [isComponentLibraryOpen, getComponentLibraryDefaultPosition, calculateOptimalHeight])
+
   // 监听全屏模式变化，调整面板位置
   React.useEffect(() => {
     const newY = isFullscreen ? 60 : 120
     setMetricsLibraryPosition(prev => ({ ...prev, y: newY }))
     setDatasetLibraryPosition(prev => ({ ...prev, y: newY }))
+    
+    // 组件库面板只需要调整Y坐标，X坐标保持在左侧
+    setComponentLibraryPosition(prev => ({ ...prev, y: newY }))
   }, [isFullscreen])
 
   // 监听键盘事件
@@ -238,6 +293,7 @@ export function DashboardCanvas({
         setSelectedComponent(null)
         setIsPropertyPanelOpen(false)
         setIsMetricsLibraryOpen(false)
+        setIsComponentLibraryOpen(false)
       }
     }
 
@@ -392,6 +448,8 @@ export function DashboardCanvas({
             return { width: 350, height: 280 }
           case 'table':
             return { width: 500, height: 300 }
+          case 'map':
+            return { width: 400, height: 300 }
           case 'container':
             return { width: 600, height: 400 }
           default:
@@ -414,6 +472,8 @@ export function DashboardCanvas({
             return '关键指标'
           case 'gauge':
             return '进度仪表盘'
+          case 'map':
+            return '地图组件'
           case 'container':
             return '容器组件'
           default:
@@ -595,6 +655,8 @@ export function DashboardCanvas({
             return { width: 350, height: 280 }
           case 'table':
             return { width: 500, height: 300 }
+          case 'map':
+            return { width: 400, height: 300 }
           default:
             return { width: 400, height: 300 }
         }
@@ -883,6 +945,16 @@ export function DashboardCanvas({
               variant="ghost" 
               size="icon" 
               className="h-8 w-8"
+              onClick={() => setIsComponentLibraryOpen(!isComponentLibraryOpen)}
+              disabled={isPreviewMode}
+              title="组件库"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8"
               onClick={() => setIsMetricsLibraryOpen(!isMetricsLibraryOpen)}
               disabled={isPreviewMode}
               title="指标库"
@@ -1107,6 +1179,16 @@ export function DashboardCanvas({
         />
       </div>
 
+      {/* 组件库面板 */}
+      <ComponentLibraryPanel
+        isOpen={isComponentLibraryOpen && !isPreviewMode}
+        onClose={() => setIsComponentLibraryOpen(false)}
+        position={componentLibraryPosition}
+        onMove={handleComponentLibraryMove}
+        height={componentLibraryHeight}
+        onHeightChange={setComponentLibraryHeight}
+      />
+
       {/* 指标库面板 */}
       <MetricsLibraryPanel
         isOpen={isMetricsLibraryOpen && !isPreviewMode}
@@ -1222,32 +1304,84 @@ function DraggableComponent({
     onSelect(component)
   }
 
+  // 对于KPI卡片，检查是否有自定义背景样式
+  const isKpiWithCustomBackground = component.type === 'kpi-card' && 
+    component.config?.kpi?.backgroundType && 
+    component.config.kpi.backgroundType !== 'default'
+  
+  // 获取KPI卡片的配色方案用于外层容器
+  const getKpiOuterStyles = () => {
+    if (!isKpiWithCustomBackground) return {}
+    
+    const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+    const primaryColor = colors[0] || '#3b82f6'
+    const secondaryColor = colors[1] || '#ef4444'
+    const backgroundType = component.config?.kpi?.backgroundType
+    
+    switch (backgroundType) {
+      case 'solid':
+        return {
+          backgroundColor: primaryColor,
+          borderColor: primaryColor
+        }
+      case 'gradient':
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`,
+          borderColor: primaryColor
+        }
+      default:
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+          borderColor: primaryColor
+        }
+    }
+  }
+
   return (
     <div
       className={cn(
-        "absolute bg-white rounded-lg transition-all",
-        "border border-slate-200", // 预览和编辑模式都显示边框
-        !isPreviewMode && "shadow-sm hover:shadow-md cursor-move",
-        !isPreviewMode && isSelected && "ring-2 ring-blue-500 border-blue-300",
+        "absolute rounded-lg transition-all",
+        // 对于有自定义背景的KPI卡片，不使用默认白色背景和边框
+        isKpiWithCustomBackground ? "bg-transparent" : "bg-white border border-slate-200",
+        // 只有非KPI自定义背景的组件才显示边框
+        !isPreviewMode && "cursor-move",
+        // KPI自定义背景组件不显示阴影，避免视觉冲突
+        !isPreviewMode && !isKpiWithCustomBackground && "shadow-sm hover:shadow-md",
+        !isPreviewMode && isSelected && "ring-2 ring-blue-500",
+        // KPI自定义背景组件选中时不改变边框色
+        !isPreviewMode && isSelected && !isKpiWithCustomBackground && "border-blue-300",
         !isPreviewMode && isDragging && "shadow-lg ring-2 ring-blue-400",
-        isPreviewMode && "shadow-sm" // 预览模式保持轻微阴影
+        // 预览模式只给非KPI自定义背景组件显示阴影
+        isPreviewMode && !isKpiWithCustomBackground && "shadow-sm"
       )}
       style={{
         left: component.position.x,
         top: component.position.y,
         width: component.size.width,
         height: component.size.height,
-        opacity: component.config?.style?.opacity || 1
+        opacity: component.config?.style?.opacity || 1,
+        // 应用KPI卡片的外层样式
+        ...getKpiOuterStyles()
       }}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
       onMouseEnter={() => !isPreviewMode && setIsHovered(true)}
       onMouseLeave={() => !isPreviewMode && setIsHovered(false)}
     >
-      {/* 组件头部 */}
-      {!isPreviewMode && (
-        <div className="h-10 border-b border-slate-100 px-3 flex items-center justify-between">
-          <span className="text-sm font-medium truncate">{component.title}</span>
+      {/* 组件头部 - 预览和编辑模式都显示 */}
+      <div className={cn(
+        "h-10 px-3 flex items-center justify-between border-b",
+        isKpiWithCustomBackground ? "border-white/20 bg-black/10" : "border-slate-100"
+      )}>
+        <span className={cn(
+          "text-sm font-medium truncate",
+          isKpiWithCustomBackground && (component.config?.kpi?.backgroundType === 'solid' || component.config?.kpi?.backgroundType === 'gradient')
+            ? "text-white" 
+            : "text-gray-900"
+        )}>
+          {component.title}
+        </span>
+        {!isPreviewMode && (
           <div className={cn(
             "flex items-center gap-1 transition-opacity",
             (!isHovered && !isSelected) && "opacity-0"
@@ -1255,7 +1389,12 @@ function DraggableComponent({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 text-slate-400 hover:text-blue-500"
+              className={cn(
+                "h-6 w-6",
+                isKpiWithCustomBackground && (component.config?.kpi?.backgroundType === 'solid' || component.config?.kpi?.backgroundType === 'gradient')
+                  ? "text-white/70 hover:text-white" 
+                  : "text-slate-400 hover:text-blue-500"
+              )}
               onClick={(e) => {
                 e.stopPropagation()
                 onSelect(component)
@@ -1266,7 +1405,12 @@ function DraggableComponent({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 text-slate-400 hover:text-red-500"
+              className={cn(
+                "h-6 w-6",
+                isKpiWithCustomBackground && (component.config?.kpi?.backgroundType === 'solid' || component.config?.kpi?.backgroundType === 'gradient')
+                  ? "text-white/70 hover:text-red-300" 
+                  : "text-slate-400 hover:text-red-500"
+              )}
               onClick={(e) => {
                 e.stopPropagation()
                 onDelete(component.id)
@@ -1275,126 +1419,100 @@ function DraggableComponent({
               ×
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
 
       {/* 组件内容 */}
       <div className={cn(
         "flex items-center justify-center overflow-hidden",
-        isPreviewMode ? "h-full p-2" : "h-[calc(100%-40px)] p-2"
+        "h-[calc(100%-40px)]", // 所有组件都有标题栏，统一高度计算
+        !isKpiWithCustomBackground && "p-2" // 只有非KPI组件才加padding
       )}>
         {component.type === 'line-chart' && (
-          <div className="w-full h-full flex flex-col">
-            {isPreviewMode && (
-              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
-                {component.title}
-              </div>
+          <div className="w-full h-full flex items-center justify-center">
+            {component.dataConfig?.datasetId ? (
+              <DatasetLineChart 
+                component={component}
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 250)}
+              />
+            ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+              <RealLineChart 
+                metricId={component.id.split('-')[1]} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 250)}
+                config={component.config}
+              />
+            ) : (
+              <SimpleLineChart 
+                data={mockLineChartData} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 250)}
+                config={component.config}
+              />
             )}
-            <div className="flex-1 flex items-center justify-center">
-              {component.dataConfig?.datasetId ? (
-                <DatasetLineChart 
-                  component={component}
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
-                />
-              ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
-                <RealLineChart 
-                  metricId={component.id.split('-')[1]} 
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
-                  config={component.config}
-                />
-              ) : (
-                <SimpleLineChart 
-                  data={mockLineChartData} 
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
-                  config={component.config}
-                />
-              )}
-            </div>
           </div>
         )}
         
         {component.type === 'bar-chart' && (
-          <div className="w-full h-full flex flex-col">
-            {isPreviewMode && (
-              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
-                {component.title}
-              </div>
+          <div className="w-full h-full flex items-center justify-center">
+            {component.dataConfig?.datasetId ? (
+              <DatasetBarChart 
+                component={component}
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 250)}
+              />
+            ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+              <RealBarChart 
+                metricId={component.id.split('-')[1]} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 250)}
+                config={component.config}
+              />
+            ) : (
+              <SimpleBarChart 
+                data={mockBarChartData} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 250)}
+                config={component.config}
+              />
             )}
-            <div className="flex-1 flex items-center justify-center">
-              {component.dataConfig?.datasetId ? (
-                <DatasetBarChart 
-                  component={component}
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
-                />
-              ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
-                <RealBarChart 
-                  metricId={component.id.split('-')[1]} 
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
-                  config={component.config}
-                />
-              ) : (
-                <SimpleBarChart 
-                  data={mockBarChartData} 
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 250)}
-                  config={component.config}
-                />
-              )}
-            </div>
           </div>
         )}
         
         {component.type === 'pie-chart' && (
-          <div className="w-full h-full flex flex-col">
-            {isPreviewMode && (
-              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
-                {component.title}
-              </div>
+          <div className="w-full h-full flex items-center justify-center">
+            {component.dataConfig?.datasetId ? (
+              <DatasetPieChart 
+                component={component}
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 200)}
+              />
+            ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
+              <RealPieChart 
+                metricId={component.id.split('-')[1]} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 200)}
+                config={component.config}
+              />
+            ) : (
+              <SimplePieChart 
+                data={mockPieChartData} 
+                width={Math.min(component.size.width - 20, 350)}
+                height={Math.min(component.size.height - 80, 200)}
+                config={component.config}
+              />
             )}
-            <div className="flex-1 flex items-center justify-center">
-              {component.dataConfig?.datasetId ? (
-                <DatasetPieChart 
-                  component={component}
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
-                />
-              ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
-                <RealPieChart 
-                  metricId={component.id.split('-')[1]} 
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
-                  config={component.config}
-                />
-              ) : (
-                <SimplePieChart 
-                  data={mockPieChartData} 
-                  width={Math.min(component.size.width - 20, 350)}
-                  height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 200)}
-                  config={component.config}
-                />
-              )}
-            </div>
           </div>
         )}
         
         {component.type === 'table' && (
-          <div className="w-full h-full flex flex-col">
-            {isPreviewMode && (
-              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
-                {component.title}
-              </div>
-            )}
-            <div className="flex-1 overflow-hidden">
-              <SimpleTable 
-                data={mockTableData} 
-                config={component.config}
-              />
-            </div>
+          <div className="w-full h-full overflow-hidden">
+            <SimpleTable 
+              data={mockTableData} 
+              config={component.config}
+            />
           </div>
         )}
         
@@ -1407,13 +1525,14 @@ function DraggableComponent({
             ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealKPICard 
                 metricId={component.id.split('-')[1]} 
-                title={component.title}
+                title={undefined}
                 config={component.config}
               />
             ) : (
               <SimpleKPICard 
+                key={`${component.id}-${JSON.stringify(component.config?.style?.colorScheme)}-${component.config?.kpi?.backgroundType}`}
                 data={mockKpiData} 
-                title={!isPreviewMode ? component.title : undefined}
+                title={undefined}
                 config={component.config}
               />
             )}
@@ -1421,20 +1540,23 @@ function DraggableComponent({
         )}
         
         {component.type === 'gauge' && (
-          <div className="w-full h-full flex flex-col">
-            {isPreviewMode && (
-              <div className="text-sm font-medium text-slate-700 mb-2 text-center">
-                {component.title}
-              </div>
-            )}
-            <div className="flex-1 flex items-center justify-center">
-              <SimpleGauge 
-                data={mockGaugeData} 
-                width={Math.min(component.size.width - 40, 180)}
-                height={Math.min(component.size.height - (isPreviewMode ? 60 : 80), 120)}
-                config={component.config}
-              />
-            </div>
+          <div className="w-full h-full flex items-center justify-center">
+            <SimpleGauge 
+              data={mockGaugeData} 
+              width={Math.min(component.size.width - 40, 180)}
+              height={Math.min(component.size.height - 80, 120)}
+              config={component.config}
+            />
+          </div>
+        )}
+        
+        {component.type === 'map' && (
+          <div className="w-full h-full flex items-center justify-center">
+            <SimpleMapComponent 
+              component={component}
+              width={component.size.width - 20}
+              height={component.size.height - 80}
+            />
           </div>
         )}
 

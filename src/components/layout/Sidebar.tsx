@@ -12,7 +12,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
-import { useSidebarCollapsed } from '@/store/useAppStore'
 
 interface SidebarProps {
   className?: string
@@ -31,12 +30,10 @@ const sidebarItems = [
 export function Sidebar({ className }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const sidebarCollapsed = useSidebarCollapsed()
 
   return (
     <aside className={cn(
-      "w-80 bg-slate-50 border-r border-slate-200 flex flex-col h-full overflow-hidden transition-all duration-300",
-      sidebarCollapsed && "hidden",
+      "w-full bg-slate-50 border-r border-slate-200 flex flex-col h-full overflow-hidden",
       className
     )}>
       {/* 导航菜单 */}

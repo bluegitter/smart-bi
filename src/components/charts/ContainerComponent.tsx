@@ -187,11 +187,6 @@ export function ContainerComponent({
       }}
     >
       {/* 预览模式标题 */}
-      {isPreviewMode && (
-        <div className="text-sm font-medium text-slate-700 mb-2 text-center">
-          {component.title} 
-        </div>
-      )}
 
       {/* 容器内容区域 */}
       {renderChildren()}

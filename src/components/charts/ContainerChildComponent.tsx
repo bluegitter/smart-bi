@@ -176,7 +176,7 @@ export function ContainerChildComponent({
           <SimpleKPICard 
             key={chartKey}
             data={React.useMemo(() => generateMockData.kpiData(), [chartKey])} 
-            title={component.title}
+            title={undefined}
             config={{ ...component.config, kpi: { ...component.config?.kpi, showDescription: false } }}
           />
         )
@@ -214,7 +214,7 @@ export function ContainerChildComponent({
         className
       )}
       style={{
-        minHeight: isPreviewMode ? '120px' : '140px',
+        minHeight: '120px',
         opacity: isDragging ? 0.5 : 1,
         ...style
       }}
@@ -265,15 +265,8 @@ export function ContainerChildComponent({
         </div>
       )}
 
-      {/* 组件标题 */}
-      <div className="px-2 py-1 border-b border-slate-100">
-        <div className="text-xs font-medium text-slate-700 truncate">
-          {component.title}
-        </div>
-      </div>
-
       {/* 图表内容区域 */}
-      <div className="p-2 flex items-center justify-center" style={{ height: 'calc(100% - 28px)' }}>
+      <div className="p-2 flex items-center justify-center h-full">
         {renderChartContent()}
       </div>
 

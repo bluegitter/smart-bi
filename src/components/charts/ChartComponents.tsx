@@ -118,10 +118,13 @@ export function SimpleLineChart({ data, width = 300, height = 200, config }: {
   const showPoints = config?.chart?.showPoints !== false
   const showArea = config?.chart?.showArea || false
   const smooth = config?.chart?.smooth || false
+  const showLegend = config?.chart?.showLegend !== false
   
   const maxValue = Math.max(...safeData.map(d => Math.max(d.value, d.value2 || 0)))
   const minValue = Math.min(...safeData.map(d => Math.min(d.value, d.value2 || 0)))
-  const padding = { top: 20, right: 30, bottom: 40, left: 40 }
+  // 动态调整padding，当不显示图例时增加图表区域
+  const legendWidth = showLegend ? 120 : 0
+  const padding = { top: 20, right: 30 + legendWidth, bottom: 40, left: 40 }
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
 
@@ -278,12 +281,14 @@ export function SimpleLineChart({ data, width = 300, height = 200, config }: {
         })}
         
         {/* 图例 */}
-        <g transform={`translate(${width - 120}, 20)`}>
-          <rect x="0" y="0" width="12" height="2" fill={colors[0]} />
-          <text x="16" y="6" fill="#374151" fontSize="10">主要指标</text>
-          <rect x="0" y="12" width="12" height="2" fill={colors[1]} />
-          <text x="16" y="18" fill="#374151" fontSize="10">次要指标</text>
-        </g>
+        {showLegend && (
+          <g transform={`translate(${width - legendWidth + 10}, 20)`}>
+            <rect x="0" y="0" width="12" height="2" fill={colors[0]} />
+            <text x="16" y="6" fill="#374151" fontSize="10">主要指标</text>
+            <rect x="0" y="12" width="12" height="2" fill={colors[1]} />
+            <text x="16" y="18" fill="#374151" fontSize="10">次要指标</text>
+          </g>
+        )}
       </svg>
     </div>
   )
@@ -301,11 +306,14 @@ export function SimpleBarChart({ data, width = 300, height = 200, config }: {
   const colors = config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
   const showGrid = config?.chart?.showGrid !== false
   const showValues = config?.chart?.showValues || false
+  const showLegend = config?.chart?.showLegend !== false
   const barStyle = config?.chart?.barStyle || 'rounded' // 'rounded' | 'square'
   const orientation = config?.chart?.orientation || 'vertical' // 'vertical' | 'horizontal'
   
   const maxValue = Math.max(...safeData.map(d => d.value))
-  const padding = { top: 20, right: 30, bottom: 50, left: 60 }
+  // 动态调整padding，当不显示图例时增加图表区域
+  const legendHeight = showLegend ? 30 : 0
+  const padding = { top: 20, right: 30, bottom: 50 + legendHeight, left: 60 }
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
 
@@ -404,7 +412,7 @@ export function SimpleBarChart({ data, width = 300, height = 200, config }: {
               <text 
                 key={i}
                 x={x} 
-                y={height - 10} 
+                y={height - legendHeight - 10} 
                 textAnchor="middle" 
                 fill="#64748b" 
                 fontSize="10"
@@ -413,6 +421,20 @@ export function SimpleBarChart({ data, width = 300, height = 200, config }: {
               </text>
             )
           })}
+          
+          {/* 图例 */}
+          {showLegend && (
+            <g transform={`translate(${padding.left}, ${height - 20})`}>
+              {safeData.slice(0, Math.min(5, safeData.length)).map((d, i) => (
+                <g key={i} transform={`translate(${i * 80}, 0)`}>
+                  <rect x="0" y="0" width="12" height="8" rx="2" fill={colors[i % colors.length]} />
+                  <text x="16" y="6" fill="#374151" fontSize="9" className="truncate">
+                    {d.name.length > 8 ? d.name.substring(0, 8) + '...' : d.name}
+                  </text>
+                </g>
+              ))}
+            </g>
+          )}
         </svg>
       </div>
     )
@@ -513,7 +535,7 @@ export function SimpleBarChart({ data, width = 300, height = 200, config }: {
               {/* X轴标签 */}
               <text
                 x={x + barWidth / 2}
-                y={height - 15}
+                y={height - legendHeight - 15}
                 textAnchor="middle"
                 fill="#64748b"
                 fontSize="10"
@@ -523,6 +545,20 @@ export function SimpleBarChart({ data, width = 300, height = 200, config }: {
             </g>
           )
         })}
+        
+        {/* 图例 */}
+        {showLegend && (
+          <g transform={`translate(${padding.left}, ${height - 20})`}>
+            {safeData.slice(0, Math.min(5, safeData.length)).map((d, i) => (
+              <g key={i} transform={`translate(${i * 80}, 0)`}>
+                <rect x="0" y="0" width="12" height="8" rx="2" fill={colors[i % colors.length]} />
+                <text x="16" y="6" fill="#374151" fontSize="9" className="truncate">
+                  {d.name.length > 8 ? d.name.substring(0, 8) + '...' : d.name}
+                </text>
+              </g>
+            ))}
+          </g>
+        )}
       </svg>
     </div>
   )
@@ -832,25 +868,107 @@ export function SimpleTable({ data, config }: { data: any[], config?: any }) {
 
 // KPI卡片组件
 export function SimpleKPICard({ data, title, config }: { data: any, title?: string, config?: any }) {
+  
+  
   // 确保 data 是有效对象
   const safeData = data && typeof data === 'object' ? data : generateMockData.kpiData()
+  
+  // 使用 useMemo 确保颜色配置变化时组件会重新渲染
+  const colors = React.useMemo(() => {
+    return config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  }, [config?.style?.colorScheme])
+  
   const cardStyle = config?.kpi?.style || 'modern' // 'modern' | 'minimal' | 'colorful'
   const showIcon = config?.kpi?.showIcon !== false
   const showTrend = config?.kpi?.showTrend !== false
   const showDescription = config?.kpi?.showDescription !== false
-  const colors = config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
   
-  // 根据样式选择配色
-  const getCardClasses = () => {
-    switch (cardStyle) {
-      case 'minimal':
-        return 'bg-white border border-slate-200 hover:border-slate-300'
-      case 'colorful':
-        return `bg-gradient-to-br from-${colors[0]}/10 to-${colors[0]}/20 border border-${colors[0]}/30`
+  // 获取背景样式设置
+  const backgroundType = config?.kpi?.backgroundType || 'default' // 'default' | 'solid' | 'gradient'
+  const primaryColor = colors[0] || '#3b82f6'
+  const secondaryColor = colors[1] || '#ef4444'
+  
+  
+  
+  
+  // 将十六进制颜色转换为RGB
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 59, g: 130, b: 246 }
+  }
+  
+  // 根据样式和背景类型选择配色
+  const getCardStyles = () => {
+    const baseClasses = 'w-full h-full rounded-xl p-4 shadow-sm transition-all duration-200 hover:shadow-lg group relative'
+    const rgb = hexToRgb(primaryColor)
+    const rgbSecondary = hexToRgb(secondaryColor)
+    
+    // 处理背景类型
+    switch (backgroundType) {
+      case 'solid':
+        return {
+          className: `${baseClasses} border`,
+          style: {
+            backgroundColor: primaryColor,
+            borderColor: primaryColor,
+            color: 'white'
+          }
+        }
+      case 'gradient':
+        return {
+          className: `${baseClasses} border`,
+          style: {
+            background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
+            borderColor: primaryColor,
+            color: 'white'
+          }
+        }
       default:
-        return 'bg-gradient-to-br from-slate-50 to-white border border-slate-200 hover:shadow-md'
+        // 根据卡片样式选择默认背景
+        switch (cardStyle) {
+          case 'minimal':
+            return {
+              className: `${baseClasses} bg-white border border-slate-200 hover:border-slate-300`,
+              style: {}
+            }
+          case 'colorful':
+            return {
+              className: `${baseClasses} border`,
+              style: {
+                background: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`,
+                borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`
+              }
+            }
+          default: // modern 样式
+            console.log('💎 Modern样式计算:', { 
+              primaryColor, 
+              secondaryColor, 
+              background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+              borderColor: primaryColor
+            })
+            return {
+              className: `${baseClasses} border`,
+              style: {
+                background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+                borderColor: primaryColor,
+                borderWidth: '1px',
+                borderStyle: 'solid'
+              }
+            }
+        }
     }
   }
+  
+  // 使用 useMemo 确保样式根据配置变化
+  const cardStyles = React.useMemo(() => getCardStyles(), [primaryColor, secondaryColor, backgroundType, cardStyle])
+  const isLightBackground = backgroundType === 'default' || (backgroundType === 'default' && cardStyle === 'colorful')
+  const isDarkBackground = backgroundType === 'solid' || backgroundType === 'gradient'
+  const textColor = isDarkBackground ? 'text-white' : 'text-slate-900'
+  const subtextColor = isDarkBackground ? 'text-white/80' : 'text-slate-600'
   
   // 图标映射
   const getIcon = () => {
@@ -866,31 +984,38 @@ export function SimpleKPICard({ data, title, config }: { data: any, title?: stri
     return <TrendingUp {...iconProps} />
   }
   
+  const finalStyle = {
+    ...cardStyles.style,
+    // 强制样式优先级，防止被Tailwind覆盖
+    backgroundColor: cardStyles.style?.backgroundColor || cardStyles.style?.background ? cardStyles.style.backgroundColor : undefined,
+    background: cardStyles.style?.background,
+    borderColor: cardStyles.style?.borderColor,
+    // 添加透明度支持
+    opacity: config?.style?.opacity ?? 1
+  }
+
   return (
-    <div className={`w-full h-full ${getCardClasses()} rounded-xl p-4 shadow-sm transition-all duration-200 hover:shadow-lg group`}>
+    <div 
+      className={cardStyles.className} 
+      style={finalStyle}
+    >
       <div className="h-full flex flex-col justify-between">
         {/* 头部：标题和图标 */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
-            {title && (
-              <div className="text-xs font-medium text-slate-600 mb-1 line-clamp-1">
-                {title}
-              </div>
-            )}
-            <div className="text-sm font-semibold text-slate-800 line-clamp-2">
+            <div className={`text-sm font-semibold ${textColor} line-clamp-2`}>
               {safeData.label || '指标名称'}
             </div>
           </div>
           {showIcon && (
             <div className={`
-              flex-shrink-0 ml-2 p-2 rounded-lg
-              ${cardStyle === 'colorful' 
-                ? 'bg-white/80' 
-                : 'bg-slate-100 group-hover:bg-slate-200'
+              flex-shrink-0 ml-2 p-2 rounded-lg transition-colors duration-200
+              ${isDarkBackground 
+                ? 'bg-white/20 group-hover:bg-white/30'
+                : (cardStyle === 'colorful' ? 'bg-white/80' : 'bg-slate-100 group-hover:bg-slate-200')
               }
-              transition-colors duration-200
             `}>
-              <div className="text-slate-600">
+              <div className={isDarkBackground ? 'text-white' : 'text-slate-600'}>
                 {getIcon()}
               </div>
             </div>
@@ -899,16 +1024,16 @@ export function SimpleKPICard({ data, title, config }: { data: any, title?: stri
         
         {/* 主要数值 */}
         <div className="mb-3">
-          <div className="text-2xl font-bold text-slate-900 leading-none mb-1">
+          <div className={`text-2xl font-bold ${textColor} leading-none mb-1`}>
             {safeData.value || '0'}
           </div>
           
           {/* 变化趋势 */}
           {showTrend && safeData.change && (
             <div className={`flex items-center text-sm font-medium ${
-              safeData.trend === 'up' 
-                ? 'text-emerald-600' 
-                : 'text-rose-600'
+              isDarkBackground 
+                ? (safeData.trend === 'up' ? 'text-emerald-300' : 'text-rose-300')
+                : (safeData.trend === 'up' ? 'text-emerald-600' : 'text-rose-600')
             }`}>
               {safeData.trend === 'up' ? (
                 <TrendingUp className="w-3.5 h-3.5 mr-1" />
@@ -917,9 +1042,9 @@ export function SimpleKPICard({ data, title, config }: { data: any, title?: stri
               )}
               <span>{safeData.change}</span>
               {safeData.trend === 'up' ? (
-                <span className="ml-1 text-xs text-slate-500">↗</span>
+                <span className={`ml-1 text-xs ${isDarkBackground ? 'text-white/70' : 'text-slate-500'}`}>↗</span>
               ) : (
-                <span className="ml-1 text-xs text-slate-500">↘</span>
+                <span className={`ml-1 text-xs ${isDarkBackground ? 'text-white/70' : 'text-slate-500'}`}>↘</span>
               )}
             </div>
           )}
@@ -927,8 +1052,8 @@ export function SimpleKPICard({ data, title, config }: { data: any, title?: stri
         
         {/* 底部：描述 */}
         {showDescription && safeData.description && (
-          <div className="border-t border-slate-100 pt-2 mt-auto">
-            <div className="text-xs text-slate-500 leading-relaxed">
+          <div className={`border-t pt-2 mt-auto ${isDarkBackground ? 'border-white/20' : 'border-slate-100'}`}>
+            <div className={`text-xs leading-relaxed ${subtextColor}`}>
               {safeData.description}
             </div>
           </div>
@@ -937,7 +1062,7 @@ export function SimpleKPICard({ data, title, config }: { data: any, title?: stri
         {/* 装饰性元素 */}
         <div className={`
           absolute top-0 right-0 w-16 h-16 opacity-5 pointer-events-none
-          ${cardStyle === 'colorful' ? 'text-white' : 'text-slate-400'}
+          ${isDarkBackground ? 'text-white' : 'text-slate-400'}
         `}>
           <svg viewBox="0 0 100 100" fill="currentColor">
             <circle cx="80" cy="20" r="20"/>
