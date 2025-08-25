@@ -991,6 +991,16 @@ export function DashboardCanvas({
     setAlignmentGuides({ vertical: [], horizontal: [] })
   }
 
+  const handleOpenProperties = (component: ComponentLayout) => {
+    // 确保组件被选中，然后打开属性面板
+    setSelectedComponent(component)
+    setSelectedComponents([component])
+    setSelectedChildParentId(null)
+    setIsPropertyPanelOpen(true)
+    // 清理对齐辅助线
+    setAlignmentGuides({ vertical: [], horizontal: [] })
+  }
+
   const handleComponentSelect = (component: ComponentLayout, isMultiSelect = false) => {
     if (isMultiSelect) {
       // Shift + 点击多选
@@ -1004,11 +1014,11 @@ export function DashboardCanvas({
             setIsPropertyPanelOpen(false)
           } else if (newSelection.length === 1) {
             setSelectedComponent(newSelection[0])
-            setIsPropertyPanelOpen(true)
+            // 不自动打开属性面板
           } else {
             // 多选状态，设置第一个作为主选择
             setSelectedComponent(newSelection[0])
-            setIsPropertyPanelOpen(false) // 多选时不显示属性面板
+            // 多选时不显示属性面板
           }
           return newSelection
         } else {
@@ -1016,11 +1026,11 @@ export function DashboardCanvas({
           const newSelection = [...prev, component]
           if (newSelection.length === 1) {
             setSelectedComponent(component)
-            setIsPropertyPanelOpen(true)
+            // 不自动打开属性面板
           } else {
             // 多选状态，保持第一个作为主选择
             setSelectedComponent(prev.length > 0 ? prev[0] : component)
-            setIsPropertyPanelOpen(false) // 多选时不显示属性面板
+            // 多选时不显示属性面板
           }
           return newSelection
         }
@@ -1030,7 +1040,7 @@ export function DashboardCanvas({
       setSelectedComponent(component)
       setSelectedComponents([component])
       setSelectedChildParentId(null) // 清除子组件父容器ID
-      setIsPropertyPanelOpen(true)
+      // 不自动打开属性面板
     }
     // 清理对齐辅助线
     setAlignmentGuides({ vertical: [], horizontal: [] })
@@ -1516,11 +1526,11 @@ export function DashboardCanvas({
                       setSelectedComponents(selectedComps)
                       if (selectedComps.length === 1) {
                         setSelectedComponent(selectedComps[0])
-                        setIsPropertyPanelOpen(true)
+                        // 不自动打开属性面板
                       } else if (selectedComps.length > 1) {
-                        // 多选时，设置第一个组件为主选择，用于属性面板显示和对齐参考
+                        // 多选时，设置第一个组件为主选择，用于对齐参考
                         setSelectedComponent(selectedComps[0])
-                        setIsPropertyPanelOpen(false) // 多选时不显示属性面板
+                        // 多选时不显示属性面板
                       }
                     }
                   }
@@ -1612,6 +1622,7 @@ export function DashboardCanvas({
                       onResize={handleComponentResizeWithAlignment}
                       onSelect={(comp, isMultiSelect) => handleComponentSelect(comp, isMultiSelect)}
                       isMultiSelected={isMultiSelected}
+                      onOpenProperties={handleOpenProperties}
                       onDelete={handleComponentDelete}
                       onDropToContainer={handleDropToContainer}
                       onSelectChild={handleSelectChild}
@@ -1722,6 +1733,7 @@ interface DraggableComponentProps {
   onMove: (id: string, position: { x: number; y: number }, disableGrid?: boolean) => void
   onResize: (id: string, size: { width: number; height: number }, disableGrid?: boolean) => void
   onSelect: (component: ComponentLayout, isMultiSelect?: boolean) => void
+  onOpenProperties: (component: ComponentLayout) => void
   onDelete: (id: string) => void
   onDropToContainer: (item: DragItem, containerId: string, position?: { x: number; y: number }) => void
   onSelectChild: (childComponent: ComponentLayout) => void
@@ -1740,6 +1752,7 @@ function DraggableComponent({
   onMove, 
   onResize,
   onSelect,
+  onOpenProperties,
   onDelete,
   onDropToContainer,
   onSelectChild,
@@ -1955,7 +1968,7 @@ function DraggableComponent({
               )}
               onClick={(e) => {
                 e.stopPropagation()
-                onSelect(component)
+                onOpenProperties(component)
               }}
             >
               <Settings className="h-4 w-4" />
