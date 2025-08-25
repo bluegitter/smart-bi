@@ -242,10 +242,8 @@ export function TileMapComponent({ component, width, height, className }: TileMa
   return (
     <div 
       ref={mapRef}
-      className={cn("relative overflow-hidden rounded-lg border bg-slate-100", className)}
+      className={cn("relative overflow-hidden bg-slate-100 w-full h-full", className)}
       style={{ 
-        width: width || '100%', 
-        height: height || '100%',
         cursor: isDragging ? 'grabbing' : 'grab'
       }}
       onMouseDown={handleMouseDown}
@@ -329,14 +327,16 @@ export function TileMapComponent({ component, width, height, className }: TileMa
         {mapCenter.lat.toFixed(4)}, {mapCenter.lng.toFixed(4)} | 缩放: {mapZoom}
       </div>
       
-      {/* 地图提供商标识 */}
-      <div className="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white px-2 py-1 rounded text-xs">
-        {config.tileProvider === 'openstreetmap' && 'OpenStreetMap'}
-        {config.tileProvider === 'cartodb' && 'CartoDB'}
-        {config.tileProvider === 'cartodb-dark' && 'CartoDB Dark'}
-        {config.tileProvider === 'stamen-terrain' && 'Stamen Terrain'}
-        {config.tileProvider === 'stamen-watercolor' && 'Stamen Watercolor'}
-        {config.tileProvider === 'gaode' && '高德地图'}
+      {/* 下半部内容区域 - 与容器边框对齐 */}
+      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-300">
+        <div className="px-3 py-2 text-xs text-gray-700">
+          {config.tileProvider === 'openstreetmap' && 'OpenStreetMap'}
+          {config.tileProvider === 'cartodb' && 'CartoDB'}
+          {config.tileProvider === 'cartodb-dark' && 'CartoDB Dark'}
+          {config.tileProvider === 'stamen-terrain' && 'Stamen Terrain'}
+          {config.tileProvider === 'stamen-watercolor' && 'Stamen Watercolor'}
+          {config.tileProvider === 'gaode' && '高德地图'}
+        </div>
       </div>
 
       {/* 加载状态 */}

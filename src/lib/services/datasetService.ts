@@ -71,6 +71,8 @@ export class DatasetService {
   static async updateDataset(userId: string, datasetId: string, request: UpdateDatasetRequest): Promise<DatasetType> {
     await connectDB()
     
+    console.log('DatasetService接收到的更新数据:', JSON.stringify(request, null, 2))
+    console.log('字段单位信息:', request.fields?.map(f => ({ name: f.name, fieldType: f.fieldType, unit: f.unit })))
     
     const dataset = await Dataset.findOne({ _id: datasetId })
     if (!dataset) {
@@ -81,6 +83,7 @@ export class DatasetService {
       throw new Error('无权限编辑此数据集')
     }
     
+    console.log('准备更新的数据:', { ...request })
     
     const updatedDataset = await Dataset.findOneAndUpdate(
       { _id: datasetId },
@@ -92,6 +95,7 @@ export class DatasetService {
       throw new Error('更新失败')
     }
     
+    console.log('更新后的数据集字段:', updatedDataset.fields?.map(f => ({ name: f.name, fieldType: f.fieldType, unit: f.unit })))
     
     // 注意：更新数据集时不重新触发字段分析，以保留用户自定义设置
     

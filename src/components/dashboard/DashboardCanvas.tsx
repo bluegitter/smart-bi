@@ -565,6 +565,10 @@ export function DashboardCanvas({
           metrics: [metricData.name], // 内部使用name，但显示用displayName
           dimensions: [],
           filters: [],
+          // 保存指标的单位映射
+          fieldUnits: metricData.unit ? {
+            [metricData.name]: metricData.unit
+          } : {},
         },
       }
       
@@ -581,6 +585,7 @@ export function DashboardCanvas({
     } else if (item.type === 'dataset-field') {
       // 从数据集库拖拽字段到画布，自动创建对应的图表组件
       console.log('Creating component from dataset field drag')
+      console.log('Item type confirmed:', item.type)
       const fieldData = item.data as { 
         datasetId: string; 
         datasetName: string; 
@@ -626,10 +631,20 @@ export function DashboardCanvas({
           fieldDisplayNames: {
             [fieldData.field.name]: fieldData.field.displayName
           },
+          // 保存字段的单位映射
+          fieldUnits: fieldData.field.unit ? {
+            [fieldData.field.name]: fieldData.field.unit
+          } : {},
+          // 调试用 - 确保这个字段被包含
+          testUnitField: fieldData.field.unit || 'no-unit'
         },
       }
       
       console.log('Creating new component from dataset field:', newComponent)
+      console.log('Field data received:', fieldData)
+      console.log('Field unit:', fieldData.field.unit)
+      console.log('Component dataConfig.fieldUnits:', newComponent.dataConfig?.fieldUnits)
+      console.log('Full dataConfig:', JSON.stringify(newComponent.dataConfig, null, 2))
       setComponents(prev => {
         const updated = [...prev, newComponent]
         console.log('Updated components array:', updated)
@@ -770,6 +785,10 @@ export function DashboardCanvas({
           metrics: [metricData.name],
           dimensions: [],
           filters: [],
+          // 保存指标的单位映射
+          fieldUnits: metricData.unit ? {
+            [metricData.name]: metricData.unit
+          } : {},
         },
       }
       
@@ -1474,9 +1493,9 @@ function DraggableComponent({
 
       {/* 组件内容 */}
       <div className={cn(
-        "flex items-center justify-center overflow-hidden",
+        component.type === 'map' ? "overflow-hidden" : "flex items-center justify-center overflow-hidden",
         "h-[calc(100%-40px)]", // 所有组件都有标题栏，统一高度计算
-        !shouldApplyTitleBackground && "p-2" // 只有没有配色方案的组件才加padding
+        !shouldApplyTitleBackground && component.type !== 'map' && "p-2" // 地图组件不加padding
       )}>
         {component.type === 'line-chart' && (
           <div 
@@ -1501,21 +1520,21 @@ function DraggableComponent({
             {component.dataConfig?.datasetId ? (
               <DatasetLineChart 
                 component={component}
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 250)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
               />
             ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealLineChart 
                 metricId={component.id.split('-')[1]} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 250)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
                 config={component.config}
               />
             ) : (
               <SimpleLineChart 
                 data={mockLineChartData} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 250)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
                 config={component.config}
               />
             )}
@@ -1544,21 +1563,21 @@ function DraggableComponent({
             {component.dataConfig?.datasetId ? (
               <DatasetBarChart 
                 component={component}
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 250)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
               />
             ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealBarChart 
                 metricId={component.id.split('-')[1]} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 250)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
                 config={component.config}
               />
             ) : (
               <SimpleBarChart 
                 data={mockBarChartData} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 250)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
                 config={component.config}
               />
             )}
@@ -1587,21 +1606,21 @@ function DraggableComponent({
             {component.dataConfig?.datasetId ? (
               <DatasetPieChart 
                 component={component}
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 200)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
               />
             ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealPieChart 
                 metricId={component.id.split('-')[1]} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 200)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
                 config={component.config}
               />
             ) : (
               <SimplePieChart 
                 data={mockPieChartData} 
-                width={Math.min(component.size.width - 20, 350)}
-                height={Math.min(component.size.height - 80, 200)}
+                width={component.size.width - 10}
+                height={component.size.height - 50}
                 config={component.config}
               />
             )}
@@ -1645,10 +1664,7 @@ function DraggableComponent({
                 const primaryColor = colors[0] || '#3b82f6'
                 const secondaryColor = colors[1] || '#ef4444'
                 return {
-                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
-                  borderColor: primaryColor,
-                  borderWidth: '1px',
-                  borderStyle: 'solid'
+                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`
                 }
               }
             })() : {}}
@@ -1695,19 +1711,35 @@ function DraggableComponent({
           >
             <SimpleGauge 
               data={mockGaugeData} 
-              width={Math.min(component.size.width - 40, 180)}
-              height={Math.min(component.size.height - 80, 120)}
+              width={component.size.width}
+              height={component.size.height - 40}
               config={component.config}
             />
           </div>
         )}
         
         {component.type === 'map' && (
-          <div className="w-full h-full flex items-center justify-center">
+          <div 
+            className="w-full h-full rounded-b-lg"
+            style={shouldApplyTitleBackground ? (() => {
+              if (isComponentWithCustomBackground) {
+                return getComponentOuterStyles()
+              } else {
+                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const primaryColor = colors[0] || '#3b82f6'
+                const secondaryColor = colors[1] || '#ef4444'
+                return {
+                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+                  borderColor: primaryColor,
+                  borderWidth: '1px',
+                  borderStyle: 'solid'
+                }
+              }
+            })() : { backgroundColor: '#ffffff' }}
+          >
             <SimpleMapComponent 
               component={component}
-              width={component.size.width - 20}
-              height={component.size.height - 80}
+              className="w-full h-full rounded-b-lg"
             />
           </div>
         )}

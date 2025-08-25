@@ -244,23 +244,40 @@ export function FieldEditorDialog({
 
               {/* 聚合类型 */}
               {formData.fieldType === 'measure' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    聚合方式
-                  </label>
-                  <select
-                    value={formData.aggregationType || 'SUM'}
-                    onChange={(e) => setFormData(prev => ({ ...prev, aggregationType: e.target.value as any }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  >
-                    <option value="SUM">求和</option>
-                    <option value="AVG">平均值</option>
-                    <option value="COUNT">计数</option>
-                    <option value="MAX">最大值</option>
-                    <option value="MIN">最小值</option>
-                    <option value="DISTINCT">去重计数</option>
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      聚合方式
+                    </label>
+                    <select
+                      value={formData.aggregationType || 'SUM'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, aggregationType: e.target.value as any }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="SUM">求和</option>
+                      <option value="AVG">平均值</option>
+                      <option value="COUNT">计数</option>
+                      <option value="MAX">最大值</option>
+                      <option value="MIN">最小值</option>
+                      <option value="DISTINCT">去重计数</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      单位
+                    </label>
+                    <Input
+                      value={formData.unit || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
+                      placeholder="如：元、个、%、千米等"
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      设置度量的单位，将在指标卡片中显示
+                    </p>
+                  </div>
+                </>
               )}
 
               {/* 维度级别 */}

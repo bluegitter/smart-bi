@@ -11,6 +11,7 @@ export interface DatasetField {
   fieldType: 'dimension' | 'measure' | 'calculated'
   // 度量相关配置
   aggregationType?: 'SUM' | 'AVG' | 'COUNT' | 'MAX' | 'MIN' | 'DISTINCT'
+  unit?: string // 度量单位（如：元、个、%等）
   // 维度相关配置
   dimensionLevel?: 'categorical' | 'ordinal' | 'temporal'
   // 计算字段配置

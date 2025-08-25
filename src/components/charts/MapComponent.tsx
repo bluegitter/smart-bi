@@ -93,10 +93,8 @@ export function SimpleMapComponent({ component, width, height, className }: MapC
   
   return (
     <div 
-      className={cn("relative overflow-hidden rounded-lg border", className)}
+      className={cn("relative overflow-hidden w-full h-full", className)}
       style={{ 
-        width: width || '100%', 
-        height: height || '100%',
         background: theme.background,
         color: theme.textColor
       }}

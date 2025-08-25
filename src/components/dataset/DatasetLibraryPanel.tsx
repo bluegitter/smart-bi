@@ -68,6 +68,9 @@ function DraggableField({ field, dataset }: { field: DatasetField; dataset: Data
         {field.fieldType === 'measure' && field.aggregationType && (
           <span className="bg-gray-100 px-1 rounded">{field.aggregationType}</span>
         )}
+        {field.unit && (
+          <span className="bg-green-100 text-green-700 px-1 rounded mt-0.5 font-medium">{field.unit}</span>
+        )}
         {field.type && (
           <span className="mt-0.5 opacity-75">{field.type}</span>
         )}

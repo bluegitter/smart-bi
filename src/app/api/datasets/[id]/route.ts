@@ -34,6 +34,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params
     const body: UpdateDatasetRequest = await request.json()
     
+    console.log('API接收到的数据:', JSON.stringify(body, null, 2))
+    console.log('字段数据:', body.fields?.map(f => ({ name: f.name, fieldType: f.fieldType, unit: f.unit })))
+    
     const dataset = await DatasetService.updateDataset(user._id, id, body)
     
     return NextResponse.json({ dataset })

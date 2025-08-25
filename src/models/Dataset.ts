@@ -24,6 +24,7 @@ const DatasetFieldSchema = new Schema({
     type: String,
     enum: ['SUM', 'AVG', 'COUNT', 'MAX', 'MIN', 'DISTINCT']
   },
+  unit: String, // 度量单位（如：元、个、%等）
   dimensionLevel: {
     type: String,
     enum: ['categorical', 'ordinal', 'temporal']

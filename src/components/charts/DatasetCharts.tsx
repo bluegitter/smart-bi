@@ -443,6 +443,42 @@ export function DatasetKPICard({
   const primaryMeasure = measures[0]
   const totalValue = data.reduce((sum, item) => sum + (Number(item[primaryMeasure]) || 0), 0)
   const avgValue = totalValue / data.length
+  
+  // 获取指标单位
+  const getFieldUnit = (fieldName: string) => {
+    console.log('Getting unit for field:', fieldName)
+    console.log('Component dataConfig:', component.dataConfig)
+    console.log('FieldUnits:', component.dataConfig?.fieldUnits)
+    
+    // 从数据集字段配置中获取单位（优先）
+    const fieldConfig = component.dataConfig?.selectedMeasures?.find(measure => measure === fieldName)
+    if (fieldConfig && component.dataConfig?.fieldUnits?.[fieldName]) {
+      const unit = component.dataConfig.fieldUnits[fieldName]
+      console.log('Found unit from fieldUnits:', unit)
+      return unit
+    }
+    
+    // 从组件配置中获取单位（备用）
+    const fieldUnits = component.config?.kpi?.fieldUnits || {}
+    if (fieldUnits[fieldName]) {
+      const unit = fieldUnits[fieldName]
+      console.log('Found unit from config:', unit)
+      return unit
+    }
+    
+    // 从数据中获取单位字段（如果有）
+    const unitKey = `${fieldName}_unit`
+    if (data.length > 0 && data[0].hasOwnProperty(unitKey)) {
+      const unit = data[0][unitKey]
+      console.log('Found unit from data:', unit)
+      return unit
+    }
+    
+    console.log('No unit found for field:', fieldName)
+    return '' // 如果没有设置单位就不显示
+  }
+  
+  const primaryUnit = getFieldUnit(primaryMeasure)
 
   // 模拟趋势（简单比较前后期数据）
   const trend = data.length > 1 ? 
@@ -496,10 +532,10 @@ export function DatasetKPICard({
     >
       <div className="flex flex-col h-full justify-center">
         <div className={`text-2xl font-bold mb-1 ${textColor}`}>
-          {totalValue.toLocaleString()}
+          {totalValue.toLocaleString()}{primaryUnit && ` ${primaryUnit}`}
         </div>
         <div className={`text-xs mb-3 ${subtextColor}`}>
-          平均: {avgValue.toFixed(1)}
+          平均: {avgValue.toFixed(1)}{primaryUnit && ` ${primaryUnit}`}
         </div>
         <div className="flex items-center gap-1">
           {trend > 0 ? (
@@ -517,11 +553,8 @@ export function DatasetKPICard({
               ? (isDarkBackground ? "text-red-300" : "text-red-600") 
               : subtextColor
           )}>
-            {trend > 0 ? '+' : ''}{trend.toFixed(1)}
+            {trend > 0 ? '+' : ''}{trend.toFixed(1)}{primaryUnit && ` ${primaryUnit}`}
           </span>
-        </div>
-        <div className={`text-xs mt-2 ${isDarkBackground ? 'text-white/50' : 'text-gray-400'}`}>
-          基于 {data.length} 条数据
         </div>
       </div>
     </div>
