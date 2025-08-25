@@ -68,7 +68,15 @@ export function DashboardCanvas({
 
   const [components, setComponents] = React.useState<ComponentLayout[]>(initialComponents)
   const [selectedComponent, setSelectedComponent] = React.useState<ComponentLayout | null>(null)
+  const [selectedComponents, setSelectedComponents] = React.useState<ComponentLayout[]>([])
   const [selectedChildParentId, setSelectedChildParentId] = React.useState<string | null>(null) // 跟踪子组件的父容器ID
+  const [isSelecting, setIsSelecting] = React.useState(false)
+  const [selectionBox, setSelectionBox] = React.useState<{
+    startX: number
+    startY: number
+    currentX: number
+    currentY: number
+  } | null>(null)
   const [isPropertyPanelOpen, setIsPropertyPanelOpen] = React.useState(false)
   const [isPreviewMode, setIsPreviewMode] = React.useState(initialPreviewMode)
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
@@ -291,14 +299,25 @@ export function DashboardCanvas({
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Delete键删除选中组件
-      if (e.key === 'Delete' && selectedComponent && !isPreviewMode) {
+      if (e.key === 'Delete' && !isPreviewMode) {
         e.preventDefault()
-        if (selectedChildParentId) {
-          // 删除容器子组件
-          handleDeleteChild(selectedChildParentId, selectedComponent.id)
-        } else {
-          // 删除普通组件
-          handleComponentDelete(selectedComponent.id)
+        
+        if (selectedComponents.length > 1) {
+          // 删除多个选中的组件
+          selectedComponents.forEach(component => {
+            setComponents(prev => prev.filter(comp => comp.id !== component.id))
+          })
+          clearSelection()
+          setIsPropertyPanelOpen(false)
+        } else if (selectedComponent) {
+          // 删除单个组件
+          if (selectedChildParentId) {
+            // 删除容器子组件
+            handleDeleteChild(selectedChildParentId, selectedComponent.id)
+          } else {
+            // 删除普通组件
+            handleComponentDelete(selectedComponent.id)
+          }
         }
       }
       
@@ -390,11 +409,6 @@ export function DashboardCanvas({
   // Create a ref for the canvas element
   const canvasRef = React.useRef<HTMLDivElement>(null)
   
-  // Debug components state changes
-  React.useEffect(() => {
-    console.log('Components state updated:', components.length, components)
-  }, [components])
-
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ['component', 'metric', 'container', 'container-child', 'dataset-field'],
     drop: (item: DragItem, monitor) => {
@@ -591,13 +605,11 @@ export function DashboardCanvas({
       console.log('Creating new component:', newComponent)
       setComponents(prev => {
         const updated = [...prev, newComponent]
-        console.log('Updated components array:', updated)
         return updated
       })
       // 自动选择新创建的组件
       setSelectedComponent(newComponent)
       setIsPropertyPanelOpen(true)
-      console.log('Component creation completed')
     } else if (item.type === 'dataset-field') {
       // 从数据集库拖拽字段到画布，自动创建对应的图表组件
       console.log('Creating component from dataset field drag')
@@ -656,23 +668,15 @@ export function DashboardCanvas({
         },
       }
       
-      console.log('Creating new component from dataset field:', newComponent)
-      console.log('Field data received:', fieldData)
-      console.log('Field unit:', fieldData.field.unit)
-      console.log('Component dataConfig.fieldUnits:', newComponent.dataConfig?.fieldUnits)
-      console.log('Full dataConfig:', JSON.stringify(newComponent.dataConfig, null, 2))
       setComponents(prev => {
         const updated = [...prev, newComponent]
-        console.log('Updated components array:', updated)
         return updated
       })
       // 自动选择新创建的组件
       setSelectedComponent(newComponent)
       setIsPropertyPanelOpen(true)
-      console.log('Dataset field component creation completed')
     } else if (item.type === 'container-child') {
       // 从容器拖拽子组件到画布
-      console.log('Moving container child to canvas')
       const childData = item.data as { component: ComponentLayout, containerId: string, index: number }
       
       // 创建新的独立组件，使用合适的画布尺寸
@@ -828,9 +832,53 @@ export function DashboardCanvas({
     const draggingComponent = components.find(comp => comp.id === id)
     if (!draggingComponent) return
     
+    // 检查是否为多选移动
+    if (selectedComponents.length > 1 && selectedComponents.some(comp => comp.id === id)) {
+      handleMultiComponentMove(id, newPosition, disableGrid)
+      return
+    }
+    
     const { snappedPosition, guides } = calculateAlignmentGuides(draggingComponent, newPosition, disableGrid)
     setAlignmentGuides(guides)
     handleComponentMove(id, snappedPosition)
+  }
+
+  // 多选组件移动
+  const handleMultiComponentMove = (primaryId: string, newPosition: { x: number; y: number }, disableGrid = false) => {
+    // 清除对齐辅助线
+    setAlignmentGuides({ vertical: [], horizontal: [] })
+    
+    // 使用 setComponents 的回调来获取最新的组件状态
+    setComponents(prev => {
+      const primaryComponent = prev.find(comp => comp.id === primaryId)
+      if (!primaryComponent) return prev
+      
+      // 基于最新位置计算位移量
+      const deltaX = newPosition.x - primaryComponent.position.x
+      const deltaY = newPosition.y - primaryComponent.position.y
+      
+      // 移动所有选中的组件，使用统一的位移量
+      return prev.map(comp => {
+        if (selectedComponents.some(selected => selected.id === comp.id)) {
+          return {
+            ...comp,
+            position: {
+              x: Math.max(0, comp.position.x + deltaX),
+              y: Math.max(0, comp.position.y + deltaY)
+            }
+          }
+        }
+        return comp
+      })
+    })
+    
+    // 更新主选择组件的状态
+    if (selectedComponent?.id === primaryId) {
+      setSelectedComponent(prev => prev ? {
+        ...prev,
+        position: newPosition
+      } : null)
+    }
   }
 
   // 智能调整大小功能
@@ -935,12 +983,83 @@ export function DashboardCanvas({
     handleComponentResize(id, snappedSize)
   }
 
-  const handleComponentSelect = (component: ComponentLayout) => {
-    setSelectedComponent(component)
-    setSelectedChildParentId(null) // 清除子组件父容器ID
-    setIsPropertyPanelOpen(true)
+  // 多选相关函数
+  const clearSelection = () => {
+    setSelectedComponent(null)
+    setSelectedComponents([])
+    setSelectedChildParentId(null)
+    setAlignmentGuides({ vertical: [], horizontal: [] })
+  }
+
+  const handleComponentSelect = (component: ComponentLayout, isMultiSelect = false) => {
+    if (isMultiSelect) {
+      // Shift + 点击多选
+      setSelectedComponents(prev => {
+        const isAlreadySelected = prev.some(comp => comp.id === component.id)
+        if (isAlreadySelected) {
+          // 取消选择
+          const newSelection = prev.filter(comp => comp.id !== component.id)
+          if (newSelection.length === 0) {
+            setSelectedComponent(null)
+            setIsPropertyPanelOpen(false)
+          } else if (newSelection.length === 1) {
+            setSelectedComponent(newSelection[0])
+            setIsPropertyPanelOpen(true)
+          } else {
+            // 多选状态，设置第一个作为主选择
+            setSelectedComponent(newSelection[0])
+            setIsPropertyPanelOpen(false) // 多选时不显示属性面板
+          }
+          return newSelection
+        } else {
+          // 添加到选择
+          const newSelection = [...prev, component]
+          if (newSelection.length === 1) {
+            setSelectedComponent(component)
+            setIsPropertyPanelOpen(true)
+          } else {
+            // 多选状态，保持第一个作为主选择
+            setSelectedComponent(prev.length > 0 ? prev[0] : component)
+            setIsPropertyPanelOpen(false) // 多选时不显示属性面板
+          }
+          return newSelection
+        }
+      })
+    } else {
+      // 单选
+      setSelectedComponent(component)
+      setSelectedComponents([component])
+      setSelectedChildParentId(null) // 清除子组件父容器ID
+      setIsPropertyPanelOpen(true)
+    }
     // 清理对齐辅助线
     setAlignmentGuides({ vertical: [], horizontal: [] })
+  }
+
+  // 框选功能
+  const calculateSelectionBox = (startX: number, startY: number, currentX: number, currentY: number) => {
+    return {
+      left: Math.min(startX, currentX),
+      top: Math.min(startY, currentY),
+      width: Math.abs(currentX - startX),
+      height: Math.abs(currentY - startY)
+    }
+  }
+
+  const getComponentsInSelection = (selectionRect: { left: number; top: number; width: number; height: number }) => {
+    return components.filter(component => {
+      const compLeft = component.position.x
+      const compRight = component.position.x + component.size.width
+      const compTop = component.position.y
+      const compBottom = component.position.y + component.size.height
+      
+      const selRight = selectionRect.left + selectionRect.width
+      const selBottom = selectionRect.top + selectionRect.height
+      
+      // 检查组件是否与选择框相交
+      return !(compLeft > selRight || compRight < selectionRect.left || 
+               compTop > selBottom || compBottom < selectionRect.top)
+    })
   }
 
   const handleComponentDelete = (id: string) => {
@@ -1346,11 +1465,80 @@ export function DashboardCanvas({
               backgroundPosition: '0 0, 0 0'
             } : {})
           }}
+          onMouseDown={(e) => {
+            if (isPreviewMode) return
+            
+            // 检查是否点击在组件上
+            const target = e.target as HTMLElement
+            const isClickOnComponent = target.closest('[data-component-id]')
+            
+            if (!isClickOnComponent) {
+              // 开始框选
+              const canvasRect = canvasRef.current?.getBoundingClientRect()
+              if (canvasRect) {
+                const startX = e.clientX - canvasRect.left
+                const startY = e.clientY - canvasRect.top
+                
+                setIsSelecting(true)
+                setSelectionBox({
+                  startX,
+                  startY,
+                  currentX: startX,
+                  currentY: startY
+                })
+                
+                clearSelection()
+                
+                const handleMouseMove = (e: MouseEvent) => {
+                  const currentX = e.clientX - canvasRect.left
+                  const currentY = e.clientY - canvasRect.top
+                  
+                  setSelectionBox(prev => prev ? {
+                    ...prev,
+                    currentX,
+                    currentY
+                  } : null)
+                }
+                
+                const handleMouseUp = () => {
+                  setIsSelecting(false)
+                  
+                  if (selectionBox) {
+                    const selectionRect = calculateSelectionBox(
+                      selectionBox.startX,
+                      selectionBox.startY,
+                      selectionBox.currentX,
+                      selectionBox.currentY
+                    )
+                    
+                    const selectedComps = getComponentsInSelection(selectionRect)
+                    if (selectedComps.length > 0) {
+                      setSelectedComponents(selectedComps)
+                      if (selectedComps.length === 1) {
+                        setSelectedComponent(selectedComps[0])
+                        setIsPropertyPanelOpen(true)
+                      } else if (selectedComps.length > 1) {
+                        // 多选时，设置第一个组件为主选择，用于属性面板显示和对齐参考
+                        setSelectedComponent(selectedComps[0])
+                        setIsPropertyPanelOpen(false) // 多选时不显示属性面板
+                      }
+                    }
+                  }
+                  
+                  setSelectionBox(null)
+                  document.removeEventListener('mousemove', handleMouseMove)
+                  document.removeEventListener('mouseup', handleMouseUp)
+                }
+                
+                document.addEventListener('mousemove', handleMouseMove)
+                document.addEventListener('mouseup', handleMouseUp)
+              }
+            }
+          }}
           onClick={() => {
-            if (!isPreviewMode) {
-              setSelectedComponent(null)
+            if (!isPreviewMode && !isSelecting) {
+              clearSelection()
               setIsPropertyPanelOpen(false)
-              setAlignmentGuides({ vertical: [], horizontal: [] })
             }
           }}
           onDoubleClick={() => {
@@ -1394,8 +1582,10 @@ export function DashboardCanvas({
                 {/* 操作提示 */}
                 {!isPreviewMode && showHelpTip && (
                   <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs px-3 py-2 rounded-lg pointer-events-none z-20 animate-fade-in">
-                    <div className="flex items-center gap-2">
-                      <span>按住 <kbd className="bg-white/20 px-1 rounded">Shift</kbd> 键：像素级精确移动和调整大小</span>
+                    <div className="flex items-center gap-4">
+                      <span>按住 <kbd className="bg-white/20 px-1 rounded">Alt</kbd> 键：像素级精确移动和调整大小</span>
+                      <span>按住 <kbd className="bg-white/20 px-1 rounded">Shift</kbd> 键点击：多选组件</span>
+                      <span>拖拽空白区域：框选多个组件</span>
                       <button 
                         className="text-white/60 hover:text-white pointer-events-auto"
                         onClick={() => setShowHelpTip(false)}
@@ -1407,25 +1597,44 @@ export function DashboardCanvas({
                   </div>
                 )}
                 
-                {components.map((component) => (
-                  <DraggableComponent
-                    key={component.id}
-                    component={component}
-                    isSelected={selectedComponent?.id === component.id}
-                    isPreviewMode={isPreviewMode}
-                    selectedChildId={selectedComponent?.id}
-                    onMove={handleComponentMoveWithAlignment}
-                    onResize={handleComponentResizeWithAlignment}
-                    onSelect={handleComponentSelect}
-                    onDelete={handleComponentDelete}
-                    onDropToContainer={handleDropToContainer}
-                    onSelectChild={handleSelectChild}
-                    onUpdateChild={handleUpdateChild}
-                    onDeleteChild={handleDeleteChild}
-                    onMoveChild={handleMoveChild}
-                    onDragEnd={() => setAlignmentGuides({ vertical: [], horizontal: [] })}
+                {components.map((component) => {
+                  const isSelected = selectedComponent?.id === component.id
+                  const isMultiSelected = selectedComponents.some(comp => comp.id === component.id) && selectedComponent?.id !== component.id
+                  
+                  return (
+                    <DraggableComponent
+                      key={component.id}
+                      component={component}
+                      isSelected={isSelected}
+                      isPreviewMode={isPreviewMode}
+                      selectedChildId={selectedComponent?.id}
+                      onMove={handleComponentMoveWithAlignment}
+                      onResize={handleComponentResizeWithAlignment}
+                      onSelect={(comp, isMultiSelect) => handleComponentSelect(comp, isMultiSelect)}
+                      isMultiSelected={isMultiSelected}
+                      onDelete={handleComponentDelete}
+                      onDropToContainer={handleDropToContainer}
+                      onSelectChild={handleSelectChild}
+                      onUpdateChild={handleUpdateChild}
+                      onDeleteChild={handleDeleteChild}
+                      onMoveChild={handleMoveChild}
+                      onDragEnd={() => setAlignmentGuides({ vertical: [], horizontal: [] })}
+                    />
+                  )
+                })}
+                
+                {/* 框选区域 */}
+                {!isPreviewMode && selectionBox && (
+                  <div
+                    className="absolute border-2 border-blue-500 bg-blue-100/20 pointer-events-none z-30"
+                    style={{
+                      left: Math.min(selectionBox.startX, selectionBox.currentX),
+                      top: Math.min(selectionBox.startY, selectionBox.currentY),
+                      width: Math.abs(selectionBox.currentX - selectionBox.startX),
+                      height: Math.abs(selectionBox.currentY - selectionBox.startY)
+                    }}
                   />
-                ))}
+                )}
                 
                 {/* 对齐辅助线 */}
                 {!isPreviewMode && (alignmentGuides.vertical.length > 0 || alignmentGuides.horizontal.length > 0) && (
@@ -1434,10 +1643,10 @@ export function DashboardCanvas({
                     {alignmentGuides.vertical.map((x, index) => (
                       <div
                         key={`v-${index}`}
-                        className="absolute top-0 bottom-0 w-0.5 bg-blue-500 opacity-80"
+                        className="absolute top-0 bottom-0 w-0.5 opacity-60"
                         style={{
                           left: x,
-                          boxShadow: '0 0 2px rgba(59, 130, 246, 0.5)'
+                          background: 'repeating-linear-gradient(to bottom, #94a3b8 0px, #94a3b8 4px, transparent 4px, transparent 8px)'
                         }}
                       />
                     ))}
@@ -1445,10 +1654,10 @@ export function DashboardCanvas({
                     {alignmentGuides.horizontal.map((y, index) => (
                       <div
                         key={`h-${index}`}
-                        className="absolute left-0 right-0 h-0.5 bg-blue-500 opacity-80"
+                        className="absolute left-0 right-0 h-0.5 opacity-60"
                         style={{
                           top: y,
-                          boxShadow: '0 0 2px rgba(59, 130, 246, 0.5)'
+                          background: 'repeating-linear-gradient(to right, #94a3b8 0px, #94a3b8 4px, transparent 4px, transparent 8px)'
                         }}
                       />
                     ))}
@@ -1507,11 +1716,12 @@ export function DashboardCanvas({
 interface DraggableComponentProps {
   component: ComponentLayout
   isSelected: boolean
+  isMultiSelected?: boolean
   isPreviewMode: boolean
   selectedChildId?: string
   onMove: (id: string, position: { x: number; y: number }, disableGrid?: boolean) => void
   onResize: (id: string, size: { width: number; height: number }, disableGrid?: boolean) => void
-  onSelect: (component: ComponentLayout) => void
+  onSelect: (component: ComponentLayout, isMultiSelect?: boolean) => void
   onDelete: (id: string) => void
   onDropToContainer: (item: DragItem, containerId: string, position?: { x: number; y: number }) => void
   onSelectChild: (childComponent: ComponentLayout) => void
@@ -1524,6 +1734,7 @@ interface DraggableComponentProps {
 function DraggableComponent({ 
   component, 
   isSelected,
+  isMultiSelected = false,
   isPreviewMode,
   selectedChildId,
   onMove, 
@@ -1561,8 +1772,8 @@ function DraggableComponent({
     e.preventDefault()
     e.stopPropagation()
     
-    // 选择组件
-    onSelect(component)
+    // handleClick 已经处理了组件选择逻辑，这里不需要重复处理
+    // 只是确保组件被选中即可（如果还没有被选中的话）
     
     setIsDragging(true)
 
@@ -1573,8 +1784,8 @@ function DraggableComponent({
       const newX = e.clientX - startX
       const newY = e.clientY - startY
       
-      // 检测是否按住Shift键禁用网格对齐
-      const disableGrid = e.shiftKey
+      // 检测是否按住Alt键禁用网格对齐
+      const disableGrid = e.altKey
       
       onMove(component.id, { x: newX, y: newY }, disableGrid)
     }
@@ -1593,7 +1804,10 @@ function DraggableComponent({
   const handleClick = (e: React.MouseEvent) => {
     if (isPreviewMode) return
     e.stopPropagation()
-    onSelect(component)
+    
+    // 检测是否按住 Shift 键进行多选
+    const isMultiSelect = e.shiftKey
+    onSelect(component, isMultiSelect)
   }
 
   // 检查是否有自定义背景样式（支持所有DatasetCharts组件）
@@ -1653,6 +1867,7 @@ function DraggableComponent({
 
   return (
     <div
+      data-component-id={component.id}
       className={cn(
         "absolute rounded-lg transition-all",
         // 对于有配色方案的组件，都使用透明背景，避免影响标题栏显示
@@ -1661,6 +1876,8 @@ function DraggableComponent({
         !isPreviewMode && "cursor-move",
         // 有配色方案组件不显示阴影，避免视觉冲突
         !isPreviewMode && !shouldApplyTitleBackground && "shadow-sm hover:shadow-md",
+        // 多选状态的视觉反馈
+        !isPreviewMode && isMultiSelected && !isSelected && "ring-2 ring-orange-400",
         !isPreviewMode && isSelected && "ring-2 ring-blue-500",
         // 有配色方案组件选中时不改变边框色
         !isPreviewMode && isSelected && !shouldApplyTitleBackground && "border-blue-300",
@@ -2058,8 +2275,8 @@ function DraggableComponent({
               const newWidth = Math.max(100, startWidth + deltaX)
               const newHeight = Math.max(80, startHeight + deltaY)
               
-              // 检测是否按住Shift键禁用网格对齐
-              const disableGrid = e.shiftKey
+              // 检测是否按住Alt键禁用网格对齐
+              const disableGrid = e.altKey
               
               onResize(component.id, { width: newWidth, height: newHeight }, disableGrid)
             }

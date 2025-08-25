@@ -446,15 +446,10 @@ export function DatasetKPICard({
   
   // 获取指标单位
   const getFieldUnit = (fieldName: string) => {
-    console.log('Getting unit for field:', fieldName)
-    console.log('Component dataConfig:', component.dataConfig)
-    console.log('FieldUnits:', component.dataConfig?.fieldUnits)
-    
     // 从数据集字段配置中获取单位（优先）
     const fieldConfig = component.dataConfig?.selectedMeasures?.find(measure => measure === fieldName)
     if (fieldConfig && component.dataConfig?.fieldUnits?.[fieldName]) {
       const unit = component.dataConfig.fieldUnits[fieldName]
-      console.log('Found unit from fieldUnits:', unit)
       return unit
     }
     
@@ -462,7 +457,6 @@ export function DatasetKPICard({
     const fieldUnits = component.config?.kpi?.fieldUnits || {}
     if (fieldUnits[fieldName]) {
       const unit = fieldUnits[fieldName]
-      console.log('Found unit from config:', unit)
       return unit
     }
     
@@ -470,11 +464,9 @@ export function DatasetKPICard({
     const unitKey = `${fieldName}_unit`
     if (data.length > 0 && data[0].hasOwnProperty(unitKey)) {
       const unit = data[0][unitKey]
-      console.log('Found unit from data:', unit)
       return unit
     }
     
-    console.log('No unit found for field:', fieldName)
     return '' // 如果没有设置单位就不显示
   }
   

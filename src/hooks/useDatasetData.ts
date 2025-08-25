@@ -60,7 +60,6 @@ export function useDatasetData({
         const previewResponse = await fetch(`/api/datasets/${datasetId}/preview?limit=50`)
         if (previewResponse.ok) {
           const previewResult = await previewResponse.json()
-          console.log('Using preview data:', previewResult)
           
           if (previewResult.preview && previewResult.preview.rows) {
             setData(previewResult.preview.rows)
