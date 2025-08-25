@@ -1304,21 +1304,42 @@ function DraggableComponent({
     onSelect(component)
   }
 
-  // 对于KPI卡片，检查是否有自定义背景样式
-  const isKpiWithCustomBackground = component.type === 'kpi-card' && 
-    component.config?.kpi?.backgroundType && 
-    component.config.kpi.backgroundType !== 'default'
+  // 检查是否有自定义背景样式（支持所有DatasetCharts组件）
+  const getCustomBackgroundType = () => {
+    switch (component.type) {
+      case 'kpi-card':
+        return component.config?.kpi?.backgroundType
+      case 'line-chart':
+        return component.config?.lineChart?.backgroundType
+      case 'bar-chart':
+        return component.config?.barChart?.backgroundType
+      case 'pie-chart':
+        return component.config?.pieChart?.backgroundType
+      default:
+        return undefined
+    }
+  }
   
-  // 获取KPI卡片的配色方案用于外层容器
-  const getKpiOuterStyles = () => {
-    if (!isKpiWithCustomBackground) return {}
+  const customBackgroundType = getCustomBackgroundType()
+  const isComponentWithCustomBackground = component.dataConfig?.datasetId && 
+    customBackgroundType && 
+    customBackgroundType !== 'default'
+  
+  // 对于有配色方案的组件，也应该应用标题栏样式
+  const hasColorScheme = component.config?.style?.colorScheme && component.config?.style?.colorScheme.length > 0
+  const shouldApplyTitleBackground = isComponentWithCustomBackground || hasColorScheme
+  
+  
+  
+  // 获取组件的配色方案用于外层容器
+  const getComponentOuterStyles = () => {
+    if (!isComponentWithCustomBackground) return {}
     
     const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
     const primaryColor = colors[0] || '#3b82f6'
     const secondaryColor = colors[1] || '#ef4444'
-    const backgroundType = component.config?.kpi?.backgroundType
     
-    switch (backgroundType) {
+    switch (customBackgroundType) {
       case 'solid':
         return {
           backgroundColor: primaryColor,
@@ -1336,32 +1357,32 @@ function DraggableComponent({
         }
     }
   }
+  
 
   return (
     <div
       className={cn(
         "absolute rounded-lg transition-all",
-        // 对于有自定义背景的KPI卡片，不使用默认白色背景和边框
-        isKpiWithCustomBackground ? "bg-transparent" : "bg-white border border-slate-200",
-        // 只有非KPI自定义背景的组件才显示边框
+        // 对于有配色方案的组件，都使用透明背景，避免影响标题栏显示
+        shouldApplyTitleBackground ? "bg-transparent" : "bg-white border border-slate-200",
+        // 只有没有配色方案的组件才显示边框
         !isPreviewMode && "cursor-move",
-        // KPI自定义背景组件不显示阴影，避免视觉冲突
-        !isPreviewMode && !isKpiWithCustomBackground && "shadow-sm hover:shadow-md",
+        // 有配色方案组件不显示阴影，避免视觉冲突
+        !isPreviewMode && !shouldApplyTitleBackground && "shadow-sm hover:shadow-md",
         !isPreviewMode && isSelected && "ring-2 ring-blue-500",
-        // KPI自定义背景组件选中时不改变边框色
-        !isPreviewMode && isSelected && !isKpiWithCustomBackground && "border-blue-300",
+        // 有配色方案组件选中时不改变边框色
+        !isPreviewMode && isSelected && !shouldApplyTitleBackground && "border-blue-300",
         !isPreviewMode && isDragging && "shadow-lg ring-2 ring-blue-400",
-        // 预览模式只给非KPI自定义背景组件显示阴影
-        isPreviewMode && !isKpiWithCustomBackground && "shadow-sm"
+        // 预览模式只给非配色方案组件显示阴影
+        isPreviewMode && !shouldApplyTitleBackground && "shadow-sm"
       )}
       style={{
         left: component.position.x,
         top: component.position.y,
         width: component.size.width,
         height: component.size.height,
-        opacity: component.config?.style?.opacity || 1,
-        // 应用KPI卡片的外层样式
-        ...getKpiOuterStyles()
+        opacity: component.config?.style?.opacity || 1
+        // 移除外层样式应用，避免影响标题栏显示
       }}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
@@ -1369,15 +1390,43 @@ function DraggableComponent({
       onMouseLeave={() => !isPreviewMode && setIsHovered(false)}
     >
       {/* 组件头部 - 预览和编辑模式都显示 */}
-      <div className={cn(
-        "h-10 px-3 flex items-center justify-between border-b",
-        isKpiWithCustomBackground ? "border-white/20 bg-black/10" : "border-slate-100"
-      )}>
+      <div 
+        className={cn(
+          "h-10 px-3 flex items-center justify-between border-b rounded-t-lg",
+          shouldApplyTitleBackground ? "border-white/20" : "border-slate-100"
+        )}
+        style={(() => {
+          if (!shouldApplyTitleBackground) return {}
+          
+          const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+          
+          // 使用配色方案中最深的颜色作为标题栏背景
+          const darkestColor = colors.reduce((darkest, color) => {
+            // 简单的亮度计算，选择最深（最暗）的颜色
+            const hex = color.replace('#', '')
+            const r = parseInt(hex.substr(0, 2), 16)
+            const g = parseInt(hex.substr(2, 2), 16)  
+            const b = parseInt(hex.substr(4, 2), 16)
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000
+            
+            const darkestHex = darkest.replace('#', '')
+            const dr = parseInt(darkestHex.substr(0, 2), 16)
+            const dg = parseInt(darkestHex.substr(2, 2), 16)
+            const db = parseInt(darkestHex.substr(4, 2), 16)
+            const darkestBrightness = (dr * 299 + dg * 587 + db * 114) / 1000
+            
+            return brightness < darkestBrightness ? color : darkest
+          }, colors[0])
+          
+          return {
+            backgroundColor: darkestColor,
+            borderColor: darkestColor
+          }
+        })()}
+      >
         <span className={cn(
           "text-sm font-medium truncate",
-          isKpiWithCustomBackground && (component.config?.kpi?.backgroundType === 'solid' || component.config?.kpi?.backgroundType === 'gradient')
-            ? "text-white" 
-            : "text-gray-900"
+          shouldApplyTitleBackground ? "text-white" : "text-gray-900"
         )}>
           {component.title}
         </span>
@@ -1391,7 +1440,7 @@ function DraggableComponent({
               size="icon"
               className={cn(
                 "h-6 w-6",
-                isKpiWithCustomBackground && (component.config?.kpi?.backgroundType === 'solid' || component.config?.kpi?.backgroundType === 'gradient')
+                shouldApplyTitleBackground 
                   ? "text-white/70 hover:text-white" 
                   : "text-slate-400 hover:text-blue-500"
               )}
@@ -1407,7 +1456,7 @@ function DraggableComponent({
               size="icon"
               className={cn(
                 "h-6 w-6",
-                isKpiWithCustomBackground && (component.config?.kpi?.backgroundType === 'solid' || component.config?.kpi?.backgroundType === 'gradient')
+                shouldApplyTitleBackground 
                   ? "text-white/70 hover:text-red-300" 
                   : "text-slate-400 hover:text-red-500"
               )}
@@ -1427,10 +1476,28 @@ function DraggableComponent({
       <div className={cn(
         "flex items-center justify-center overflow-hidden",
         "h-[calc(100%-40px)]", // 所有组件都有标题栏，统一高度计算
-        !isKpiWithCustomBackground && "p-2" // 只有非KPI组件才加padding
+        !shouldApplyTitleBackground && "p-2" // 只有没有配色方案的组件才加padding
       )}>
         {component.type === 'line-chart' && (
-          <div className="w-full h-full flex items-center justify-center">
+          <div 
+            className="w-full h-full flex items-center justify-center rounded-b-lg"
+            style={shouldApplyTitleBackground ? (() => {
+              if (isComponentWithCustomBackground) {
+                return getComponentOuterStyles()
+              } else {
+                // 为只有配色方案的组件提供默认的淡色背景和边框
+                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const primaryColor = colors[0] || '#3b82f6'
+                const secondaryColor = colors[1] || '#ef4444'
+                return {
+                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+                  borderColor: primaryColor,
+                  borderWidth: '1px',
+                  borderStyle: 'solid'
+                }
+              }
+            })() : {}}
+          >
             {component.dataConfig?.datasetId ? (
               <DatasetLineChart 
                 component={component}
@@ -1456,7 +1523,24 @@ function DraggableComponent({
         )}
         
         {component.type === 'bar-chart' && (
-          <div className="w-full h-full flex items-center justify-center">
+          <div 
+            className="w-full h-full flex items-center justify-center rounded-b-lg"
+            style={shouldApplyTitleBackground ? (() => {
+              if (isComponentWithCustomBackground) {
+                return getComponentOuterStyles()
+              } else {
+                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const primaryColor = colors[0] || '#3b82f6'
+                const secondaryColor = colors[1] || '#ef4444'
+                return {
+                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+                  borderColor: primaryColor,
+                  borderWidth: '1px',
+                  borderStyle: 'solid'
+                }
+              }
+            })() : {}}
+          >
             {component.dataConfig?.datasetId ? (
               <DatasetBarChart 
                 component={component}
@@ -1482,7 +1566,24 @@ function DraggableComponent({
         )}
         
         {component.type === 'pie-chart' && (
-          <div className="w-full h-full flex items-center justify-center">
+          <div 
+            className="w-full h-full flex items-center justify-center rounded-b-lg"
+            style={shouldApplyTitleBackground ? (() => {
+              if (isComponentWithCustomBackground) {
+                return getComponentOuterStyles()
+              } else {
+                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const primaryColor = colors[0] || '#3b82f6'
+                const secondaryColor = colors[1] || '#ef4444'
+                return {
+                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+                  borderColor: primaryColor,
+                  borderWidth: '1px',
+                  borderStyle: 'solid'
+                }
+              }
+            })() : {}}
+          >
             {component.dataConfig?.datasetId ? (
               <DatasetPieChart 
                 component={component}
@@ -1508,7 +1609,24 @@ function DraggableComponent({
         )}
         
         {component.type === 'table' && (
-          <div className="w-full h-full overflow-hidden">
+          <div 
+            className="w-full h-full overflow-hidden rounded-b-lg"
+            style={shouldApplyTitleBackground ? (() => {
+              if (isComponentWithCustomBackground) {
+                return getComponentOuterStyles()
+              } else {
+                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const primaryColor = colors[0] || '#3b82f6'
+                const secondaryColor = colors[1] || '#ef4444'
+                return {
+                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+                  borderColor: primaryColor,
+                  borderWidth: '1px',
+                  borderStyle: 'solid'
+                }
+              }
+            })() : {}}
+          >
             <SimpleTable 
               data={mockTableData} 
               config={component.config}
@@ -1517,7 +1635,24 @@ function DraggableComponent({
         )}
         
         {component.type === 'kpi-card' && (
-          <div className="w-full h-full">
+          <div 
+            className="w-full h-full rounded-b-lg"
+            style={shouldApplyTitleBackground ? (() => {
+              if (isComponentWithCustomBackground) {
+                return getComponentOuterStyles()
+              } else {
+                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const primaryColor = colors[0] || '#3b82f6'
+                const secondaryColor = colors[1] || '#ef4444'
+                return {
+                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+                  borderColor: primaryColor,
+                  borderWidth: '1px',
+                  borderStyle: 'solid'
+                }
+              }
+            })() : {}}
+          >
             {component.dataConfig?.datasetId ? (
               <DatasetKPICard 
                 component={component}
@@ -1540,7 +1675,24 @@ function DraggableComponent({
         )}
         
         {component.type === 'gauge' && (
-          <div className="w-full h-full flex items-center justify-center">
+          <div 
+            className="w-full h-full flex items-center justify-center rounded-b-lg"
+            style={shouldApplyTitleBackground ? (() => {
+              if (isComponentWithCustomBackground) {
+                return getComponentOuterStyles()
+              } else {
+                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const primaryColor = colors[0] || '#3b82f6'
+                const secondaryColor = colors[1] || '#ef4444'
+                return {
+                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+                  borderColor: primaryColor,
+                  borderWidth: '1px',
+                  borderStyle: 'solid'
+                }
+              }
+            })() : {}}
+          >
             <SimpleGauge 
               data={mockGaugeData} 
               width={Math.min(component.size.width - 40, 180)}

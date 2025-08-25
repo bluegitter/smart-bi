@@ -95,8 +95,47 @@ export function DatasetLineChart({
     return Math.max(...measures.map(measure => Number(item[measure]) || 0))
   }))
 
+  // 获取配色方案和背景设置
+  const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const primaryColor = colors[0] || '#3b82f6'
+  const secondaryColor = colors[1] || '#ef4444'
+  const backgroundType = component.config?.lineChart?.backgroundType || 'default'
+  
+  // 动态样式计算
+  const getBackgroundStyles = () => {
+    switch (backgroundType) {
+      case 'solid':
+        return {
+          background: primaryColor,
+          color: 'white'
+        }
+      case 'gradient':
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`,
+          color: 'white'
+        }
+      default:
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+          borderColor: primaryColor,
+          borderWidth: '1px',
+          borderStyle: 'solid'
+        }
+    }
+  }
+  
+  const backgroundStyles = getBackgroundStyles()
+  const isDarkBackground = backgroundType === 'solid' || backgroundType === 'gradient'
+  const textColor = isDarkBackground ? 'text-white' : 'text-gray-600'
+
   return (
-    <div className="w-full h-full p-4">
+    <div 
+      className="w-full h-full p-4 transition-all duration-200 rounded-b-lg"
+      style={{
+        ...backgroundStyles,
+        opacity: component.config?.style?.opacity ?? 1
+      }}
+    >
       <svg width={width - 40} height={height - 40} className="overflow-visible">
         {/* 绘制简单的折线 */}
         {measures.map((measure, measureIndex) => {
@@ -142,7 +181,7 @@ export function DatasetLineChart({
               x={x}
               y={height - 20}
               textAnchor="middle"
-              className="text-xs fill-gray-600"
+              className={`text-xs ${isDarkBackground ? 'fill-white/80' : 'fill-gray-600'}`}
             >
               {label.length > 8 ? label.substring(0, 8) + '...' : label}
             </text>
@@ -159,7 +198,7 @@ export function DatasetLineChart({
                 className="w-3 h-3 rounded-full" 
                 style={{ backgroundColor: component.config?.style?.colorScheme?.[index] || '#3b82f6' }}
               />
-              <span className="text-xs text-gray-600">{getDisplayName(measure)}</span>
+              <span className={`text-xs ${textColor}`}>{getDisplayName(measure)}</span>
             </div>
           ))}
         </div>
@@ -238,8 +277,47 @@ export function DatasetBarChart({
 
   const barWidth = Math.max(20, (width - 80) / data.length - 10)
 
+  // 获取配色方案和背景设置
+  const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const primaryColor = colors[0] || '#3b82f6'
+  const secondaryColor = colors[1] || '#ef4444'
+  const backgroundType = component.config?.barChart?.backgroundType || 'default'
+  
+  // 动态样式计算
+  const getBackgroundStyles = () => {
+    switch (backgroundType) {
+      case 'solid':
+        return {
+          background: primaryColor,
+          color: 'white'
+        }
+      case 'gradient':
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`,
+          color: 'white'
+        }
+      default:
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+          borderColor: primaryColor,
+          borderWidth: '1px',
+          borderStyle: 'solid'
+        }
+    }
+  }
+  
+  const backgroundStyles = getBackgroundStyles()
+  const isDarkBackground = backgroundType === 'solid' || backgroundType === 'gradient'
+  const textColor = isDarkBackground ? 'text-white' : 'text-gray-600'
+
   return (
-    <div className="w-full h-full p-4">
+    <div 
+      className="w-full h-full p-4 transition-all duration-200 rounded-b-lg"
+      style={{
+        ...backgroundStyles,
+        opacity: component.config?.style?.opacity ?? 1
+      }}
+    >
       <svg width={width - 40} height={height - 40} className="overflow-visible">
         {/* 绘制柱状图 */}
         {data.map((item, dataIndex) => {
@@ -273,7 +351,7 @@ export function DatasetBarChart({
               x={x}
               y={height - 20}
               textAnchor="middle"
-              className="text-xs fill-gray-600"
+              className={`text-xs ${isDarkBackground ? 'fill-white/80' : 'fill-gray-600'}`}
             >
               {label.length > 6 ? label.substring(0, 6) + '...' : label}
             </text>
@@ -290,7 +368,7 @@ export function DatasetBarChart({
                 className="w-3 h-3 rounded-full" 
                 style={{ backgroundColor: component.config?.style?.colorScheme?.[index] || '#10b981' }}
               />
-              <span className="text-xs text-gray-600">{getDisplayName(measure)}</span>
+              <span className={`text-xs ${textColor}`}>{getDisplayName(measure)}</span>
             </div>
           ))}
         </div>
@@ -531,8 +609,47 @@ export function DatasetPieChart({
   const centerX = width / 2
   const centerY = height / 2
 
+  // 获取配色方案和背景设置
+  const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const primaryColor = colors[0] || '#3b82f6'
+  const secondaryColor = colors[1] || '#ef4444'
+  const backgroundType = component.config?.pieChart?.backgroundType || 'default'
+  
+  // 动态样式计算
+  const getBackgroundStyles = () => {
+    switch (backgroundType) {
+      case 'solid':
+        return {
+          background: primaryColor,
+          color: 'white'
+        }
+      case 'gradient':
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`,
+          color: 'white'
+        }
+      default:
+        return {
+          background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
+          borderColor: primaryColor,
+          borderWidth: '1px',
+          borderStyle: 'solid'
+        }
+    }
+  }
+  
+  const backgroundStyles = getBackgroundStyles()
+  const isDarkBackground = backgroundType === 'solid' || backgroundType === 'gradient'
+  const textColor = isDarkBackground ? 'text-white' : 'text-gray-600'
+
   return (
-    <div className="w-full h-full p-4">
+    <div 
+      className="w-full h-full p-4 transition-all duration-200 rounded-b-lg"
+      style={{
+        ...backgroundStyles,
+        opacity: component.config?.style?.opacity ?? 1
+      }}
+    >
       <svg width={width - 40} height={height - 40}>
         {data.map((item, index) => {
           const value = Number(item[primaryMeasure]) || 0
@@ -580,7 +697,7 @@ export function DatasetPieChart({
           return (
             <div key={index} className="flex items-center gap-1 text-xs">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-              <span className="text-gray-600">{label} ({percentage}%)</span>
+              <span className={textColor}>{label} ({percentage}%)</span>
             </div>
           )
         })}
