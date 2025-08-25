@@ -72,6 +72,11 @@ export function DashboardCanvas({
   const [isPropertyPanelOpen, setIsPropertyPanelOpen] = React.useState(false)
   const [isPreviewMode, setIsPreviewMode] = React.useState(initialPreviewMode)
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
+  const [alignmentGuides, setAlignmentGuides] = React.useState<{
+    vertical: number[]
+    horizontal: number[]
+  }>({ vertical: [], horizontal: [] })
+  const [showHelpTip, setShowHelpTip] = React.useState(true)
   const [isMetricsLibraryOpen, setIsMetricsLibraryOpen] = React.useState(false)
   const [metricsLibraryHeight, setMetricsLibraryHeight] = React.useState(400)
   const [isDatasetLibraryOpen, setIsDatasetLibraryOpen] = React.useState(false)
@@ -105,7 +110,7 @@ export function DashboardCanvas({
   // 计算面板的最佳高度（通用函数）
   const calculateOptimalHeight = React.useCallback((panelY: number) => {
     const panelTop = panelY
-    const bottomPadding = 50 // 距离底部的安全距离
+    const bottomPadding = 80 // 距离底部的安全距离
     const minHeight = 300
     const maxHeight = 800
     
@@ -174,7 +179,7 @@ export function DashboardCanvas({
       
       // 计算最佳高度
       const panelTop = newY
-      const bottomPadding = 50
+      const bottomPadding = 80
       const availableHeight = windowHeight - panelTop - bottomPadding
       const optimalHeight = Math.max(minHeight, Math.min(800, availableHeight))
       
@@ -271,6 +276,17 @@ export function DashboardCanvas({
     setComponentLibraryPosition(prev => ({ ...prev, y: newY }))
   }, [isFullscreen])
 
+  // 自动隐藏操作提示
+  React.useEffect(() => {
+    if (showHelpTip) {
+      const timer = setTimeout(() => {
+        setShowHelpTip(false)
+      }, 10000) // 10秒后自动隐藏
+      
+      return () => clearTimeout(timer)
+    }
+  }, [showHelpTip])
+
   // 监听键盘事件
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -336,7 +352,7 @@ export function DashboardCanvas({
       setTimeout(() => {
         const windowHeight = window.innerHeight
         const panelTop = constrainedPosition.y
-        const bottomPadding = 50
+        const bottomPadding = 80
         const minHeight = 300
         const maxHeight = 800
         
@@ -697,6 +713,107 @@ export function DashboardCanvas({
     }
   }
 
+  // 智能对齐功能
+  const calculateAlignmentGuides = (draggingComponent: ComponentLayout, newPosition: { x: number; y: number }, disableGrid = false) => {
+    const SNAP_THRESHOLD = 8 // 对齐吸附阈值，像素
+    const FINE_GRID_SIZE = 4 // 精细网格大小（4像素）
+    const guides: { vertical: number[], horizontal: number[] } = { vertical: [], horizontal: [] }
+    const snappedPosition = { ...newPosition }
+    
+    // 根据是否禁用网格来决定是否应用网格对齐
+    if (!disableGrid) {
+      // 应用精细网格对齐（4像素网格）
+      const gridX = Math.round(newPosition.x / FINE_GRID_SIZE) * FINE_GRID_SIZE
+      const gridY = Math.round(newPosition.y / FINE_GRID_SIZE) * FINE_GRID_SIZE
+      snappedPosition.x = Math.max(0, gridX)
+      snappedPosition.y = Math.max(0, gridY)
+    } else {
+      // 禁用网格时，允许像素级移动
+      snappedPosition.x = Math.max(0, newPosition.x)
+      snappedPosition.y = Math.max(0, newPosition.y)
+    }
+    
+    // 当前拖拽组件的边界（基于网格对齐后的位置）
+    const dragLeft = snappedPosition.x
+    const dragRight = snappedPosition.x + draggingComponent.size.width
+    const dragTop = snappedPosition.y
+    const dragBottom = snappedPosition.y + draggingComponent.size.height
+    const dragCenterX = snappedPosition.x + draggingComponent.size.width / 2
+    const dragCenterY = snappedPosition.y + draggingComponent.size.height / 2
+    
+    // 检查与其他组件的对齐
+    components.forEach(comp => {
+      if (comp.id === draggingComponent.id) return
+      
+      const compLeft = comp.position.x
+      const compRight = comp.position.x + comp.size.width
+      const compTop = comp.position.y
+      const compBottom = comp.position.y + comp.size.height
+      const compCenterX = comp.position.x + comp.size.width / 2
+      const compCenterY = comp.position.y + comp.size.height / 2
+      
+      // 垂直对齐检测（X轴方向）
+      // 左边缘对齐
+      if (Math.abs(dragLeft - compLeft) <= SNAP_THRESHOLD) {
+        snappedPosition.x = compLeft
+        guides.vertical.push(compLeft)
+      }
+      // 右边缘对齐
+      if (Math.abs(dragRight - compRight) <= SNAP_THRESHOLD) {
+        snappedPosition.x = compRight - draggingComponent.size.width
+        guides.vertical.push(compRight)
+      }
+      // 左边缘对齐到右边缘
+      if (Math.abs(dragLeft - compRight) <= SNAP_THRESHOLD) {
+        snappedPosition.x = compRight
+        guides.vertical.push(compRight)
+      }
+      // 右边缘对齐到左边缘
+      if (Math.abs(dragRight - compLeft) <= SNAP_THRESHOLD) {
+        snappedPosition.x = compLeft - draggingComponent.size.width
+        guides.vertical.push(compLeft)
+      }
+      // 中心对齐
+      if (Math.abs(dragCenterX - compCenterX) <= SNAP_THRESHOLD) {
+        snappedPosition.x = compCenterX - draggingComponent.size.width / 2
+        guides.vertical.push(compCenterX)
+      }
+      
+      // 水平对齐检测（Y轴方向）
+      // 顶边缘对齐
+      if (Math.abs(dragTop - compTop) <= SNAP_THRESHOLD) {
+        snappedPosition.y = compTop
+        guides.horizontal.push(compTop)
+      }
+      // 底边缘对齐
+      if (Math.abs(dragBottom - compBottom) <= SNAP_THRESHOLD) {
+        snappedPosition.y = compBottom - draggingComponent.size.height
+        guides.horizontal.push(compBottom)
+      }
+      // 顶边缘对齐到底边缘
+      if (Math.abs(dragTop - compBottom) <= SNAP_THRESHOLD) {
+        snappedPosition.y = compBottom
+        guides.horizontal.push(compBottom)
+      }
+      // 底边缘对齐到顶边缘
+      if (Math.abs(dragBottom - compTop) <= SNAP_THRESHOLD) {
+        snappedPosition.y = compTop - draggingComponent.size.height
+        guides.horizontal.push(compTop)
+      }
+      // 中心对齐
+      if (Math.abs(dragCenterY - compCenterY) <= SNAP_THRESHOLD) {
+        snappedPosition.y = compCenterY - draggingComponent.size.height / 2
+        guides.horizontal.push(compCenterY)
+      }
+    })
+    
+    // 去重对齐线
+    guides.vertical = [...new Set(guides.vertical)]
+    guides.horizontal = [...new Set(guides.horizontal)]
+    
+    return { snappedPosition, guides }
+  }
+
   const handleComponentMove = (id: string, newPosition: { x: number; y: number }) => {
     setComponents(prev => prev.map(comp => 
       comp.id === id ? { ...comp, position: newPosition } : comp
@@ -705,6 +822,98 @@ export function DashboardCanvas({
     if (selectedComponent?.id === id) {
       setSelectedComponent(prev => prev ? { ...prev, position: newPosition } : null)
     }
+  }
+
+  const handleComponentMoveWithAlignment = (id: string, newPosition: { x: number; y: number }, disableGrid = false) => {
+    const draggingComponent = components.find(comp => comp.id === id)
+    if (!draggingComponent) return
+    
+    const { snappedPosition, guides } = calculateAlignmentGuides(draggingComponent, newPosition, disableGrid)
+    setAlignmentGuides(guides)
+    handleComponentMove(id, snappedPosition)
+  }
+
+  // 智能调整大小功能
+  const calculateResizeAlignmentGuides = (resizingComponent: ComponentLayout, newSize: { width: number; height: number }, disableGrid = false) => {
+    const SNAP_THRESHOLD = 8 // 对齐吸附阈值，像素
+    const FINE_GRID_SIZE = 4 // 精细网格大小（4像素）
+    const guides: { vertical: number[], horizontal: number[] } = { vertical: [], horizontal: [] }
+    const snappedSize = { ...newSize }
+    
+    // 根据是否禁用网格来决定是否应用网格对齐
+    if (!disableGrid) {
+      // 应用精细网格对齐（4像素网格）
+      const gridWidth = Math.round(newSize.width / FINE_GRID_SIZE) * FINE_GRID_SIZE
+      const gridHeight = Math.round(newSize.height / FINE_GRID_SIZE) * FINE_GRID_SIZE
+      snappedSize.width = Math.max(100, gridWidth) // 最小宽度100px
+      snappedSize.height = Math.max(80, gridHeight) // 最小高度80px
+    } else {
+      // 禁用网格时，允许像素级调整
+      snappedSize.width = Math.max(100, newSize.width)
+      snappedSize.height = Math.max(80, newSize.height)
+    }
+    
+    // 当前调整组件的边界（基于新尺寸）
+    const resizeRight = resizingComponent.position.x + snappedSize.width
+    const resizeBottom = resizingComponent.position.y + snappedSize.height
+    
+    // 检查与其他组件的尺寸对齐
+    components.forEach(comp => {
+      if (comp.id === resizingComponent.id) return
+      
+      const compLeft = comp.position.x
+      const compRight = comp.position.x + comp.size.width
+      const compTop = comp.position.y
+      const compBottom = comp.position.y + comp.size.height
+      
+      // 右边缘对齐到其他组件的左边缘
+      if (Math.abs(resizeRight - compLeft) <= SNAP_THRESHOLD) {
+        const newWidth = compLeft - resizingComponent.position.x
+        if (newWidth >= 100) { // 确保最小宽度
+          snappedSize.width = newWidth
+          guides.vertical.push(compLeft)
+        }
+      }
+      // 右边缘对齐到其他组件的右边缘
+      if (Math.abs(resizeRight - compRight) <= SNAP_THRESHOLD) {
+        snappedSize.width = compRight - resizingComponent.position.x
+        guides.vertical.push(compRight)
+      }
+      
+      // 底边缘对齐到其他组件的顶边缘
+      if (Math.abs(resizeBottom - compTop) <= SNAP_THRESHOLD) {
+        const newHeight = compTop - resizingComponent.position.y
+        if (newHeight >= 80) { // 确保最小高度
+          snappedSize.height = newHeight
+          guides.horizontal.push(compTop)
+        }
+      }
+      // 底边缘对齐到其他组件的底边缘
+      if (Math.abs(resizeBottom - compBottom) <= SNAP_THRESHOLD) {
+        snappedSize.height = compBottom - resizingComponent.position.y
+        guides.horizontal.push(compBottom)
+      }
+      
+      // 宽度对齐到其他组件的宽度
+      if (Math.abs(snappedSize.width - comp.size.width) <= SNAP_THRESHOLD) {
+        snappedSize.width = comp.size.width
+        // 添加宽度对齐的视觉提示线（在组件右边缘）
+        guides.vertical.push(resizingComponent.position.x + comp.size.width)
+      }
+      
+      // 高度对齐到其他组件的高度
+      if (Math.abs(snappedSize.height - comp.size.height) <= SNAP_THRESHOLD) {
+        snappedSize.height = comp.size.height
+        // 添加高度对齐的视觉提示线（在组件底边缘）
+        guides.horizontal.push(resizingComponent.position.y + comp.size.height)
+      }
+    })
+    
+    // 去重对齐线
+    guides.vertical = [...new Set(guides.vertical)]
+    guides.horizontal = [...new Set(guides.horizontal)]
+    
+    return { snappedSize, guides }
   }
 
   const handleComponentResize = (id: string, newSize: { width: number; height: number }) => {
@@ -717,10 +926,21 @@ export function DashboardCanvas({
     }
   }
 
+  const handleComponentResizeWithAlignment = (id: string, newSize: { width: number; height: number }, disableGrid = false) => {
+    const resizingComponent = components.find(comp => comp.id === id)
+    if (!resizingComponent) return
+    
+    const { snappedSize, guides } = calculateResizeAlignmentGuides(resizingComponent, newSize, disableGrid)
+    setAlignmentGuides(guides)
+    handleComponentResize(id, snappedSize)
+  }
+
   const handleComponentSelect = (component: ComponentLayout) => {
     setSelectedComponent(component)
     setSelectedChildParentId(null) // 清除子组件父容器ID
     setIsPropertyPanelOpen(true)
+    // 清理对齐辅助线
+    setAlignmentGuides({ vertical: [], horizontal: [] })
   }
 
   const handleComponentDelete = (id: string) => {
@@ -1118,14 +1338,19 @@ export function DashboardCanvas({
             width: `${canvasWidth}px`,
             transition: 'width 0.3s ease-in-out', // 平滑过渡
             ...(!isPreviewMode ? {
-              backgroundImage: `radial-gradient(circle, #e2e8f0 1px, transparent 1px)`,
-              backgroundSize: '24px 24px',
+              backgroundImage: `
+                radial-gradient(circle, #e2e8f0 0.5px, transparent 0.5px),
+                radial-gradient(circle, #cbd5e1 1px, transparent 1px)
+              `,
+              backgroundSize: '4px 4px, 24px 24px',
+              backgroundPosition: '0 0, 0 0'
             } : {})
           }}
           onClick={() => {
             if (!isPreviewMode) {
               setSelectedComponent(null)
               setIsPropertyPanelOpen(false)
+              setAlignmentGuides({ vertical: [], horizontal: [] })
             }
           }}
           onDoubleClick={() => {
@@ -1165,24 +1390,71 @@ export function DashboardCanvas({
                 </Card>
               </div>
             ) : (
-              components.map((component) => (
-                <DraggableComponent
-                  key={component.id}
-                  component={component}
-                  isSelected={selectedComponent?.id === component.id}
-                  isPreviewMode={isPreviewMode}
-                  selectedChildId={selectedComponent?.id}
-                  onMove={handleComponentMove}
-                  onResize={handleComponentResize}
-                  onSelect={handleComponentSelect}
-                  onDelete={handleComponentDelete}
-                  onDropToContainer={handleDropToContainer}
-                  onSelectChild={handleSelectChild}
-                  onUpdateChild={handleUpdateChild}
-                  onDeleteChild={handleDeleteChild}
-                  onMoveChild={handleMoveChild}
-                />
-              ))
+              <>
+                {/* 操作提示 */}
+                {!isPreviewMode && showHelpTip && (
+                  <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs px-3 py-2 rounded-lg pointer-events-none z-20 animate-fade-in">
+                    <div className="flex items-center gap-2">
+                      <span>按住 <kbd className="bg-white/20 px-1 rounded">Shift</kbd> 键：像素级精确移动和调整大小</span>
+                      <button 
+                        className="text-white/60 hover:text-white pointer-events-auto"
+                        onClick={() => setShowHelpTip(false)}
+                        title="关闭提示"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {components.map((component) => (
+                  <DraggableComponent
+                    key={component.id}
+                    component={component}
+                    isSelected={selectedComponent?.id === component.id}
+                    isPreviewMode={isPreviewMode}
+                    selectedChildId={selectedComponent?.id}
+                    onMove={handleComponentMoveWithAlignment}
+                    onResize={handleComponentResizeWithAlignment}
+                    onSelect={handleComponentSelect}
+                    onDelete={handleComponentDelete}
+                    onDropToContainer={handleDropToContainer}
+                    onSelectChild={handleSelectChild}
+                    onUpdateChild={handleUpdateChild}
+                    onDeleteChild={handleDeleteChild}
+                    onMoveChild={handleMoveChild}
+                    onDragEnd={() => setAlignmentGuides({ vertical: [], horizontal: [] })}
+                  />
+                ))}
+                
+                {/* 对齐辅助线 */}
+                {!isPreviewMode && (alignmentGuides.vertical.length > 0 || alignmentGuides.horizontal.length > 0) && (
+                  <div className="absolute inset-0 pointer-events-none z-10">
+                    {/* 垂直对齐线 */}
+                    {alignmentGuides.vertical.map((x, index) => (
+                      <div
+                        key={`v-${index}`}
+                        className="absolute top-0 bottom-0 w-0.5 bg-blue-500 opacity-80"
+                        style={{
+                          left: x,
+                          boxShadow: '0 0 2px rgba(59, 130, 246, 0.5)'
+                        }}
+                      />
+                    ))}
+                    {/* 水平对齐线 */}
+                    {alignmentGuides.horizontal.map((y, index) => (
+                      <div
+                        key={`h-${index}`}
+                        className="absolute left-0 right-0 h-0.5 bg-blue-500 opacity-80"
+                        style={{
+                          top: y,
+                          boxShadow: '0 0 2px rgba(59, 130, 246, 0.5)'
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -1237,8 +1509,8 @@ interface DraggableComponentProps {
   isSelected: boolean
   isPreviewMode: boolean
   selectedChildId?: string
-  onMove: (id: string, position: { x: number; y: number }) => void
-  onResize: (id: string, size: { width: number; height: number }) => void
+  onMove: (id: string, position: { x: number; y: number }, disableGrid?: boolean) => void
+  onResize: (id: string, size: { width: number; height: number }, disableGrid?: boolean) => void
   onSelect: (component: ComponentLayout) => void
   onDelete: (id: string) => void
   onDropToContainer: (item: DragItem, containerId: string, position?: { x: number; y: number }) => void
@@ -1246,6 +1518,7 @@ interface DraggableComponentProps {
   onUpdateChild: (containerId: string, childId: string, updates: Partial<ComponentLayout>) => void
   onDeleteChild: (containerId: string, childId: string) => void
   onMoveChild: (containerId: string, dragIndex: number, hoverIndex: number) => void
+  onDragEnd?: () => void
 }
 
 function DraggableComponent({ 
@@ -1261,7 +1534,8 @@ function DraggableComponent({
   onSelectChild,
   onUpdateChild,
   onDeleteChild,
-  onMoveChild
+  onMoveChild,
+  onDragEnd
 }: DraggableComponentProps) {
   const [isDragging, setIsDragging] = React.useState(false)
   const [isHovered, setIsHovered] = React.useState(false)
@@ -1299,16 +1573,15 @@ function DraggableComponent({
       const newX = e.clientX - startX
       const newY = e.clientY - startY
       
-      // 网格对齐
-      const gridSize = 24
-      const alignedX = Math.max(0, Math.round(newX / gridSize) * gridSize)
-      const alignedY = Math.max(0, Math.round(newY / gridSize) * gridSize)
+      // 检测是否按住Shift键禁用网格对齐
+      const disableGrid = e.shiftKey
       
-      onMove(component.id, { x: alignedX, y: alignedY })
+      onMove(component.id, { x: newX, y: newY }, disableGrid)
     }
 
     const handleMouseUp = () => {
       setIsDragging(false)
+      onDragEnd?.() // 清理对齐辅助线
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
@@ -1782,14 +2055,17 @@ function DraggableComponent({
               const deltaX = e.clientX - startX
               const deltaY = e.clientY - startY
               
-              const gridSize = 24
-              const newWidth = Math.max(200, Math.round((startWidth + deltaX) / gridSize) * gridSize)
-              const newHeight = Math.max(150, Math.round((startHeight + deltaY) / gridSize) * gridSize)
+              const newWidth = Math.max(100, startWidth + deltaX)
+              const newHeight = Math.max(80, startHeight + deltaY)
               
-              onResize(component.id, { width: newWidth, height: newHeight })
+              // 检测是否按住Shift键禁用网格对齐
+              const disableGrid = e.shiftKey
+              
+              onResize(component.id, { width: newWidth, height: newHeight }, disableGrid)
             }
 
             const handleMouseUp = () => {
+              onDragEnd?.() // 清理对齐辅助线
               document.removeEventListener('mousemove', handleMouseMove)
               document.removeEventListener('mouseup', handleMouseUp)
             }

@@ -170,7 +170,7 @@ export function DatasetLibraryPanel({
       
       const windowHeight = window.innerHeight
       const panelTop = position.y
-      const bottomPadding = 20
+      const bottomPadding = 60
       const maxAvailableHeight = windowHeight - panelTop - bottomPadding
       
       newHeight = Math.max(400, Math.min(Math.min(800, maxAvailableHeight), newHeight))
