@@ -66,7 +66,7 @@ export function RealLineChart({
     )
   }
 
-  const colors = config?.style?.colorScheme || ['#3b82f6', '#ef4444']
+  const colors = config?.style?.colorScheme || ['#1e40af', '#3b82f6']
   const padding = { top: 20, right: 40, bottom: 40, left: 50 }
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom

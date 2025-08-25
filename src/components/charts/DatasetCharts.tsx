@@ -96,7 +96,7 @@ export function DatasetLineChart({
   }))
 
   // 获取配色方案和背景设置
-  const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   const primaryColor = colors[0] || '#3b82f6'
   const secondaryColor = colors[1] || '#ef4444'
   const backgroundType = component.config?.lineChart?.backgroundType || 'default'
@@ -278,7 +278,7 @@ export function DatasetBarChart({
   const barWidth = Math.max(20, (width - 80) / data.length - 10)
 
   // 获取配色方案和背景设置
-  const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   const primaryColor = colors[0] || '#3b82f6'
   const secondaryColor = colors[1] || '#ef4444'
   const backgroundType = component.config?.barChart?.backgroundType || 'default'
@@ -485,7 +485,7 @@ export function DatasetKPICard({
     (Number(data[data.length - 1][primaryMeasure]) || 0) - (Number(data[0][primaryMeasure]) || 0) : 0
 
   // 获取配色方案
-  const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   const primaryColor = colors[0] || '#3b82f6'
   const secondaryColor = colors[1] || '#ef4444'
 
@@ -643,7 +643,7 @@ export function DatasetPieChart({
   const centerY = height / 2
 
   // 获取配色方案和背景设置
-  const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   const primaryColor = colors[0] || '#3b82f6'
   const secondaryColor = colors[1] || '#ef4444'
   const backgroundType = component.config?.pieChart?.backgroundType || 'default'

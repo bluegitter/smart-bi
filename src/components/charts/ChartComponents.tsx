@@ -113,7 +113,7 @@ export function SimpleLineChart({ data, width = 300, height = 200, config }: {
 }) {
   // 确保 data 是数组且不为空
   const safeData = Array.isArray(data) && data.length > 0 ? data : generateMockData.lineChart()
-  const colors = config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const colors = config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   const showGrid = config?.chart?.showGrid !== false
   const showPoints = config?.chart?.showPoints !== false
   const showArea = config?.chart?.showArea || false
@@ -303,7 +303,7 @@ export function SimpleBarChart({ data, width = 300, height = 200, config }: {
 }) {
   // 确保 data 是数组且不为空
   const safeData = Array.isArray(data) && data.length > 0 ? data : generateMockData.barChart()
-  const colors = config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const colors = config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   const showGrid = config?.chart?.showGrid !== false
   const showValues = config?.chart?.showValues || false
   const showLegend = config?.chart?.showLegend !== false
@@ -573,7 +573,7 @@ export function SimplePieChart({ data, width = 300, height = 200, config }: {
 }) {
   // 确保 data 是数组且不为空
   const safeData = Array.isArray(data) && data.length > 0 ? data : generateMockData.pieChart()
-  const colors = config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const colors = config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   const showLabels = config?.chart?.showLabels !== false
   const showLegend = config?.chart?.showLegend !== false
   const innerRadius = config?.chart?.innerRadius || 0 // 环形图
@@ -875,7 +875,7 @@ export function SimpleKPICard({ data, title, config }: { data: any, title?: stri
   
   // 使用 useMemo 确保颜色配置变化时组件会重新渲染
   const colors = React.useMemo(() => {
-    return config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+    return config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   }, [config?.style?.colorScheme])
   
   const cardStyle = config?.kpi?.style || 'modern' // 'modern' | 'minimal' | 'colorful'
@@ -1084,7 +1084,7 @@ export function SimpleGauge({ data, width = 180, height = 120, config }: {
 }) {
   // 确保 data 是有效对象
   const safeData = data && typeof data === 'object' ? data : generateMockData.gaugeData()
-  const colors = config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+  const colors = config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
   const showLabels = config?.gauge?.showLabels !== false
   const showThresholds = config?.gauge?.showThresholds !== false
   const gaugeStyle = config?.gauge?.style || 'modern' // 'modern' | 'classic' | 'minimal'

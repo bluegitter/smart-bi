@@ -489,7 +489,7 @@ export function DashboardCanvas({
         size: getDefaultSize(componentType),
         config: {
           style: {
-            colorScheme: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'],
+            colorScheme: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'],
             showBackground: true,
             showBorder: true,
             showShadow: false,
@@ -552,7 +552,7 @@ export function DashboardCanvas({
         size: chartType === 'kpi-card' ? { width: 300, height: 150 } : { width: 400, height: 300 },
         config: {
           style: {
-            colorScheme: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'],
+            colorScheme: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'],
             showBackground: true,
             showBorder: true,
             showShadow: false,
@@ -614,7 +614,7 @@ export function DashboardCanvas({
         size: chartType === 'kpi-card' ? { width: 300, height: 150 } : { width: 400, height: 300 },
         config: {
           style: {
-            colorScheme: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'],
+            colorScheme: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'],
             showBackground: true,
             showBorder: true,
             showShadow: false,
@@ -772,7 +772,7 @@ export function DashboardCanvas({
         size: chartType === 'kpi-card' ? { width: 200, height: 120 } : { width: 300, height: 200 },
         config: {
           style: {
-            colorScheme: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'],
+            colorScheme: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'],
             showBackground: true,
             showBorder: true,
             showShadow: false,
@@ -1354,7 +1354,7 @@ function DraggableComponent({
   const getComponentOuterStyles = () => {
     if (!isComponentWithCustomBackground) return {}
     
-    const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+    const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
     const primaryColor = colors[0] || '#3b82f6'
     const secondaryColor = colors[1] || '#ef4444'
     
@@ -1417,7 +1417,7 @@ function DraggableComponent({
         style={(() => {
           if (!shouldApplyTitleBackground) return {}
           
-          const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+          const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
           
           // 使用配色方案中最深的颜色作为标题栏背景
           const darkestColor = colors.reduce((darkest, color) => {
@@ -1505,7 +1505,7 @@ function DraggableComponent({
                 return getComponentOuterStyles()
               } else {
                 // 为只有配色方案的组件提供默认的淡色背景和边框
-                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
                 const primaryColor = colors[0] || '#3b82f6'
                 const secondaryColor = colors[1] || '#ef4444'
                 return {
@@ -1548,7 +1548,7 @@ function DraggableComponent({
               if (isComponentWithCustomBackground) {
                 return getComponentOuterStyles()
               } else {
-                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
                 const primaryColor = colors[0] || '#3b82f6'
                 const secondaryColor = colors[1] || '#ef4444'
                 return {
@@ -1591,7 +1591,7 @@ function DraggableComponent({
               if (isComponentWithCustomBackground) {
                 return getComponentOuterStyles()
               } else {
-                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
                 const primaryColor = colors[0] || '#3b82f6'
                 const secondaryColor = colors[1] || '#ef4444'
                 return {
@@ -1634,7 +1634,7 @@ function DraggableComponent({
               if (isComponentWithCustomBackground) {
                 return getComponentOuterStyles()
               } else {
-                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
                 const primaryColor = colors[0] || '#3b82f6'
                 const secondaryColor = colors[1] || '#ef4444'
                 return {
@@ -1660,7 +1660,7 @@ function DraggableComponent({
               if (isComponentWithCustomBackground) {
                 return getComponentOuterStyles()
               } else {
-                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
                 const primaryColor = colors[0] || '#3b82f6'
                 const secondaryColor = colors[1] || '#ef4444'
                 return {
@@ -1697,7 +1697,7 @@ function DraggableComponent({
               if (isComponentWithCustomBackground) {
                 return getComponentOuterStyles()
               } else {
-                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
                 const primaryColor = colors[0] || '#3b82f6'
                 const secondaryColor = colors[1] || '#ef4444'
                 return {
@@ -1725,7 +1725,7 @@ function DraggableComponent({
               if (isComponentWithCustomBackground) {
                 return getComponentOuterStyles()
               } else {
-                const colors = component.config?.style?.colorScheme || ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
                 const primaryColor = colors[0] || '#3b82f6'
                 const secondaryColor = colors[1] || '#ef4444'
                 return {
