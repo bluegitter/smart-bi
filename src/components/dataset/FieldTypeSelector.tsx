@@ -18,19 +18,48 @@ export function FieldTypeSelector({ field, onChange, onEdit, onDuplicate, onDele
   const menuRef = React.useRef<HTMLDivElement>(null)
 
   // 计算菜单位置，防止超出窗口
-  const [menuPosition, setMenuPosition] = React.useState<'right' | 'left'>('right')
+  const [menuPosition, setMenuPosition] = React.useState<{
+    horizontal: 'right' | 'left'
+    vertical: 'down' | 'up'
+  }>({ horizontal: 'right', vertical: 'down' })
   
   React.useEffect(() => {
     if (showMenu && menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect()
-      const viewportWidth = window.innerWidth
+      // 延迟计算，确保菜单已经渲染完成
+      const timeoutId = setTimeout(() => {
+        if (menuRef.current) {
+          const menuRect = menuRef.current.getBoundingClientRect()
+          const buttonRect = menuRef.current.parentElement?.getBoundingClientRect()
+          const viewportWidth = window.innerWidth
+          const viewportHeight = window.innerHeight
+          const padding = 20 // 距离视窗边缘的安全距离
+          
+          let horizontal: 'right' | 'left' = 'right'
+          let vertical: 'down' | 'up' = 'down'
+          
+          if (buttonRect) {
+            // 计算水平位置
+            const menuWidth = Math.max(200, menuRect.width) // 使用实际宽度或最小宽度
+            if (buttonRect.right + menuWidth > viewportWidth - padding) {
+              horizontal = 'left'
+            }
+            
+            // 计算垂直位置
+            const menuHeight = menuRect.height
+            const spaceBelow = viewportHeight - buttonRect.bottom - 28 // 减去top-7的间距
+            const spaceAbove = buttonRect.top - 28 // 减去bottom-7的间距
+            
+            // 如果下方空间不够且上方空间更充裕，则向上展开
+            if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+              vertical = 'up'
+            }
+          }
+          
+          setMenuPosition({ horizontal, vertical })
+        }
+      }, 0)
       
-      // 如果菜单右边缘超出视窗，则改为左对齐
-      if (rect.right > viewportWidth - 20) {
-        setMenuPosition('left')
-      } else {
-        setMenuPosition('right')
-      }
+      return () => clearTimeout(timeoutId)
     }
   }, [showMenu])
 
@@ -90,7 +119,11 @@ export function FieldTypeSelector({ field, onChange, onEdit, onDuplicate, onDele
           />
           <div 
             ref={menuRef}
-            className={`absolute ${menuPosition === 'right' ? 'right-0' : 'left-0'} top-7 z-20 bg-white border border-gray-200 rounded-lg shadow-xl py-2 min-w-[200px] max-h-96 overflow-y-auto`}
+            className={`absolute ${
+              menuPosition.horizontal === 'right' ? 'right-0' : 'left-0'
+            } ${
+              menuPosition.vertical === 'down' ? 'top-7' : 'bottom-7'
+            } z-20 bg-white border border-gray-200 rounded-lg shadow-xl py-2 min-w-[200px] max-h-96 overflow-y-auto`}
           >
             {/* 字段操作 */}
             <div className="px-3 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100 mb-2">
