@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react'
 import { useDrop } from 'react-dnd'
-import { Plus, Layout, Save, Eye, Settings, Maximize2, Minimize2, Loader2, Database } from 'lucide-react'
+import { Plus, Layout, Save, Eye, Settings, Maximize2, Minimize2, Loader2, Database, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { PropertyPanel } from './PropertyPanel'
@@ -882,50 +882,50 @@ export function DashboardCanvas({
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6"
+              className="h-8 w-8"
               onClick={() => setIsMetricsLibraryOpen(!isMetricsLibraryOpen)}
               disabled={isPreviewMode}
               title="指标库"
             >
-              <Database className="h-3 w-3" />
+              <BarChart3 className="h-4 w-4" />
             </Button>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6"
+              className="h-8 w-8"
               onClick={() => setIsDatasetLibraryOpen(!isDatasetLibraryOpen)}
               disabled={isPreviewMode}
               title="数据集库"
             >
-              <Database className="h-3 w-3" />
+              <Database className="h-4 w-4" />
             </Button>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6"
+              className="h-8 w-8"
               onClick={() => setIsPropertyPanelOpen(!isPropertyPanelOpen)}
               disabled={!selectedComponent}
               title="属性设置"
             >
-              <Settings className="h-3 w-3" />
+              <Settings className="h-4 w-4" />
             </Button>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6"
+              className="h-8 w-8"
               onClick={handlePreviewToggle}
               title={isPreviewMode ? "编辑模式" : "预览模式"}
             >
-              {isPreviewMode ? <Layout className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              {isPreviewMode ? <Layout className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6"
+              className="h-8 w-8"
               onClick={toggleFullscreen}
               title={isFullscreen ? "退出全屏" : "全屏模式"}
             >
-              {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </Button>
           </div>
         </div>
@@ -943,12 +943,12 @@ export function DashboardCanvas({
           >
             {saving ? (
               <>
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 保存中...
               </>
             ) : (
               <>
-                <Save className="h-3 w-3" />
+                <Save className="h-4 w-4" />
                 保存
               </>
             )}
@@ -967,12 +967,12 @@ export function DashboardCanvas({
             >
               {isPreviewMode ? (
                 <>
-                  <Layout className="h-3 w-3 mr-1" />
+                  <Layout className="h-4 w-4 mr-1" />
                   编辑
                 </>
               ) : (
                 <>
-                  <Eye className="h-3 w-3 mr-1" />
+                  <Eye className="h-4 w-4 mr-1" />
                   预览
                 </>
               )}
@@ -986,12 +986,12 @@ export function DashboardCanvas({
             >
               {isFullscreen ? (
                 <>
-                  <Minimize2 className="h-3 w-3 mr-1" />
+                  <Minimize2 className="h-4 w-4 mr-1" />
                   退出全屏
                 </>
               ) : (
                 <>
-                  <Maximize2 className="h-3 w-3 mr-1" />
+                  <Maximize2 className="h-4 w-4 mr-1" />
                   全屏
                 </>
               )}
@@ -1261,7 +1261,7 @@ function DraggableComponent({
                 onSelect(component)
               }}
             >
-              <Settings className="h-3 w-3" />
+              <Settings className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
