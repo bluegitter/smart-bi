@@ -173,7 +173,13 @@ export function useDashboardEvents({
             showBorder: true,
             showShadow: false,
             opacity: 1
-          }
+          },
+          // 如果是KPI卡片，从字段单位初始化KPI配置的单位
+          ...(chartType === 'kpi-card' && fieldData.field.unit && {
+            kpi: {
+              unit: fieldData.field.unit
+            }
+          })
         },
         dataConfig: {
           // 新的数据集绑定方式

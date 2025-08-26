@@ -462,14 +462,19 @@ export function DatasetKPICard({
   
   // 获取指标单位
   const getFieldUnit = (fieldName: string) => {
-    // 从数据集字段配置中获取单位（优先）
+    // 优先从KPI配置中获取单位（用户手动设置的单位）
+    if (component.config?.kpi?.unit) {
+      return component.config.kpi.unit
+    }
+    
+    // 从数据集字段配置中获取单位（次优先）
     const fieldConfig = component.dataConfig?.selectedMeasures?.find(measure => measure === fieldName)
     if (fieldConfig && component.dataConfig?.fieldUnits?.[fieldName]) {
       const unit = component.dataConfig.fieldUnits[fieldName]
       return unit
     }
     
-    // 从组件配置中获取单位（备用）
+    // 从组件配置中获取单位（备用，兼容旧版本）
     const fieldUnits = (component.config as any)?.kpi?.fieldUnits || {}
     if (fieldUnits[fieldName]) {
       const unit = fieldUnits[fieldName]

@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { IconSelector } from '@/components/ui/IconSelector'
+import { Input } from '@/components/ui/Input'
 import type { ComponentLayout } from '@/types'
 
 interface KPIStyleEditorProps {
@@ -73,6 +74,17 @@ export function KPIStyleEditor({ selectedComponent, onKPIConfigUpdate }: KPIStyl
             onChange={(e) => onKPIConfigUpdate({ showDescription: e.target.checked })}
           />
           <label htmlFor="showDescription" className="text-sm">显示描述</label>
+        </div>
+
+        {/* 指标单位设置 */}
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">指标单位</label>
+          <Input
+            placeholder="例如：万元、%、人次等"
+            value={selectedComponent.config?.kpi?.unit || ''}
+            onChange={(e) => onKPIConfigUpdate({ unit: e.target.value })}
+            size="sm"
+          />
         </div>
         
         {/* 内容区图标设置 */}

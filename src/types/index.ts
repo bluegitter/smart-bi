@@ -46,6 +46,7 @@ export interface ComponentLayout {
       contentIcon?: string // KPI内容区图标
       contentIconPosition?: 'left' | 'right' | 'top' // KPI内容区图标位置
       contentIconSize?: 'small' | 'medium' | 'large' // KPI内容区图标大小
+      unit?: string // KPI指标单位
     }
   }
   dataConfig: {
