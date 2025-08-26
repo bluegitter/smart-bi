@@ -25,7 +25,8 @@ import {
   DatasetLineChart,
   DatasetBarChart,
   DatasetKPICard,
-  DatasetPieChart
+  DatasetPieChart,
+  DatasetTable
 } from '@/components/charts/DatasetCharts'
 import type { ComponentLayout, DragItem } from '@/types'
 
@@ -214,7 +215,11 @@ export function DraggableComponent({
         return (
           <div className="w-full h-full flex items-center justify-center rounded-b-lg" style={contentStyle}>
             {component.dataConfig?.datasetId ? (
-              <DatasetLineChart component={component} {...commonProps} />
+              <DatasetLineChart 
+                key={`${component.id}-${JSON.stringify(component.config?.style?.colorScheme)}-${component.config?.lineChart?.backgroundType}-${JSON.stringify(component.config?.chart)}`}
+                component={component} 
+                {...commonProps} 
+              />
             ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealLineChart metricId={component.id.split('-')[1]} {...commonProps} />
             ) : (
@@ -227,7 +232,11 @@ export function DraggableComponent({
         return (
           <div className="w-full h-full flex items-center justify-center rounded-b-lg" style={contentStyle}>
             {component.dataConfig?.datasetId ? (
-              <DatasetBarChart component={component} {...commonProps} />
+              <DatasetBarChart 
+                key={`${component.id}-${JSON.stringify(component.config?.style?.colorScheme)}-${component.config?.barChart?.backgroundType}-${JSON.stringify(component.config?.chart)}`}
+                component={component} 
+                {...commonProps} 
+              />
             ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealBarChart metricId={component.id.split('-')[1]} {...commonProps} />
             ) : (
@@ -240,7 +249,11 @@ export function DraggableComponent({
         return (
           <div className="w-full h-full flex items-center justify-center rounded-b-lg" style={contentStyle}>
             {component.dataConfig?.datasetId ? (
-              <DatasetPieChart component={component} {...commonProps} />
+              <DatasetPieChart 
+                key={`${component.id}-${JSON.stringify(component.config?.style?.colorScheme)}-${component.config?.pieChart?.backgroundType}-${JSON.stringify(component.config?.chart)}`}
+                component={component} 
+                {...commonProps} 
+              />
             ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealPieChart metricId={component.id.split('-')[1]} {...commonProps} />
             ) : (
@@ -252,7 +265,14 @@ export function DraggableComponent({
       case 'table':
         return (
           <div className="w-full h-full overflow-hidden rounded-b-lg" style={contentStyle}>
-            <SimpleTable data={mockTableData} config={component.config} />
+            {component.dataConfig?.datasetId ? (
+              <DatasetTable 
+                key={`${component.id}-${JSON.stringify(component.config?.style?.colorScheme)}-${JSON.stringify(component.dataConfig?.selectedMeasures)}-${JSON.stringify(component.dataConfig?.selectedDimensions)}-${JSON.stringify(component.config?.table)}`}
+                component={component} 
+              />
+            ) : (
+              <SimpleTable data={mockTableData} config={component.config} />
+            )}
           </div>
         )
       
@@ -260,7 +280,10 @@ export function DraggableComponent({
         return (
           <div className="w-full h-full rounded-b-lg" style={shouldApplyTitleBackground ? contentStyle : {}}>
             {component.dataConfig?.datasetId ? (
-              <DatasetKPICard component={component} />
+              <DatasetKPICard 
+                key={`${component.id}-${JSON.stringify(component.config?.style?.colorScheme)}-${component.config?.kpi?.backgroundType}-${component.config?.kpi?.unit}-${JSON.stringify(component.config?.chart)}`}
+                component={component} 
+              />
             ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
               <RealKPICard metricId={component.id.split('-')[1]} title={undefined} config={component.config} />
             ) : (
@@ -278,6 +301,7 @@ export function DraggableComponent({
         return (
           <div className="w-full h-full flex items-center justify-center rounded-b-lg" style={contentStyle}>
             <SimpleGauge 
+              key={`${component.id}-${JSON.stringify(component.config?.style?.colorScheme)}-${component.config?.gauge?.backgroundType}-${JSON.stringify(component.config?.gauge)}`}
               data={mockGaugeData} 
               width={component.size.width}
               height={component.size.height - 40}

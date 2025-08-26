@@ -65,6 +65,41 @@ export function ChartStyleEditor({ selectedComponent, onChartConfigUpdate }: Cha
             />
             <label htmlFor="showLegend" className="text-sm">显示图例</label>
           </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">标签方向</label>
+            <select 
+              className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+              value={selectedComponent.config?.chart?.labelRotation || 'horizontal'}
+              onChange={(e) => onChartConfigUpdate({ labelRotation: e.target.value })}
+            >
+              <option value="horizontal">水平</option>
+              <option value="vertical">垂直</option>
+              <option value="diagonal">45°倾斜</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">数值方向</label>
+            <select 
+              className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+              value={selectedComponent.config?.chart?.valueRotation || 'horizontal'}
+              onChange={(e) => onChartConfigUpdate({ valueRotation: e.target.value })}
+            >
+              <option value="horizontal">水平</option>
+              <option value="vertical">垂直</option>
+              <option value="diagonal">45°倾斜</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">最大行数</label>
+            <input
+              type="number"
+              min="10"
+              max="1000"
+              value={selectedComponent.config?.chart?.maxRows || 100}
+              className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+              onChange={(e) => onChartConfigUpdate({ maxRows: Number(e.target.value) })}
+            />
+          </div>
         </div>
       </div>
     )
@@ -79,22 +114,22 @@ export function ChartStyleEditor({ selectedComponent, onChartConfigUpdate }: Cha
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
-              id="showValues"
+              id="bar-showValues"
               className="rounded"
               checked={selectedComponent.config?.chart?.showValues || false}
               onChange={(e) => onChartConfigUpdate({ showValues: e.target.checked })}
             />
-            <label htmlFor="showValues" className="text-sm">显示数值</label>
+            <label htmlFor="bar-showValues" className="text-sm">显示数值</label>
           </div>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
-              id="showLegend"
+              id="bar-showLegend"
               className="rounded"
               checked={selectedComponent.config?.chart?.showLegend !== false}
               onChange={(e) => onChartConfigUpdate({ showLegend: e.target.checked })}
             />
-            <label htmlFor="showLegend" className="text-sm">显示图例</label>
+            <label htmlFor="bar-showLegend" className="text-sm">显示图例</label>
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">柱子样式</label>
@@ -117,6 +152,41 @@ export function ChartStyleEditor({ selectedComponent, onChartConfigUpdate }: Cha
               <option value="vertical">垂直</option>
               <option value="horizontal">水平</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">标签方向</label>
+            <select 
+              className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+              value={selectedComponent.config?.chart?.labelRotation || 'horizontal'}
+              onChange={(e) => onChartConfigUpdate({ labelRotation: e.target.value })}
+            >
+              <option value="horizontal">水平</option>
+              <option value="vertical">垂直</option>
+              <option value="diagonal">45°倾斜</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">数值方向</label>
+            <select 
+              className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+              value={selectedComponent.config?.chart?.valueRotation || 'horizontal'}
+              onChange={(e) => onChartConfigUpdate({ valueRotation: e.target.value })}
+            >
+              <option value="horizontal">水平</option>
+              <option value="vertical">垂直</option>
+              <option value="diagonal">45°倾斜</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">最大行数</label>
+            <input
+              type="number"
+              min="10"
+              max="1000"
+              value={selectedComponent.config?.chart?.maxRows || 100}
+              className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+              onChange={(e) => onChartConfigUpdate({ maxRows: Number(e.target.value) })}
+            />
           </div>
         </div>
       </div>

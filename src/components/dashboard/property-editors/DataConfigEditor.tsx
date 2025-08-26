@@ -108,23 +108,29 @@ export function DataConfigEditor({
     if (!field) return
     
     const currentDataConfig = selectedComponent.dataConfig || {}
-    const currentMetrics = currentDataConfig.metrics || []
-    const currentDimensions = currentDataConfig.dimensions || []
-    const currentFilters = currentDataConfig.filters || []
-    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
-    const fieldDisplayName = field.displayName || field.name
     
-    if (!currentMetrics.includes(fieldDisplayName)) {
-      const newMetrics = [...currentMetrics, fieldDisplayName]
+    // 优先使用新的数据集配置方式
+    const currentSelectedMeasures = currentDataConfig.selectedMeasures || []
+    const currentSelectedDimensions = currentDataConfig.selectedDimensions || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    const currentFieldUnits = currentDataConfig.fieldUnits || {}
+    
+    // 检查是否已存在该字段
+    if (!currentSelectedMeasures.includes(field.name)) {
+      const newSelectedMeasures = [...currentSelectedMeasures, field.name]
       
       onDataConfigUpdate({
-        metrics: newMetrics,
-        dimensions: currentDimensions,
-        filters: currentFilters,
+        ...currentDataConfig,
+        selectedMeasures: newSelectedMeasures,
+        selectedDimensions: currentSelectedDimensions,
         fieldDisplayNames: {
           ...currentFieldDisplayNames,
-          [field.name]: field.displayName
-        }
+          [field.name]: field.displayName || field.name
+        },
+        fieldUnits: field.unit ? {
+          ...currentFieldUnits,
+          [field.name]: field.unit
+        } : currentFieldUnits
       })
     }
   }
@@ -135,23 +141,29 @@ export function DataConfigEditor({
     if (!field) return
     
     const currentDataConfig = selectedComponent.dataConfig || {}
-    const currentMetrics = currentDataConfig.metrics || []
-    const currentDimensions = currentDataConfig.dimensions || []
-    const currentFilters = currentDataConfig.filters || []
-    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
-    const fieldDisplayName = field.displayName || field.name
     
-    if (!currentDimensions.includes(fieldDisplayName)) {
-      const newDimensions = [...currentDimensions, fieldDisplayName]
+    // 优先使用新的数据集配置方式
+    const currentSelectedMeasures = currentDataConfig.selectedMeasures || []
+    const currentSelectedDimensions = currentDataConfig.selectedDimensions || []
+    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+    const currentFieldUnits = currentDataConfig.fieldUnits || {}
+    
+    // 检查是否已存在该字段
+    if (!currentSelectedDimensions.includes(field.name)) {
+      const newSelectedDimensions = [...currentSelectedDimensions, field.name]
       
       onDataConfigUpdate({
-        metrics: currentMetrics,
-        dimensions: newDimensions,
-        filters: currentFilters,
+        ...currentDataConfig,
+        selectedMeasures: currentSelectedMeasures,
+        selectedDimensions: newSelectedDimensions,
         fieldDisplayNames: {
           ...currentFieldDisplayNames,
-          [field.name]: field.displayName
-        }
+          [field.name]: field.displayName || field.name
+        },
+        fieldUnits: field.unit ? {
+          ...currentFieldUnits,
+          [field.name]: field.unit
+        } : currentFieldUnits
       })
     }
   }
@@ -159,45 +171,68 @@ export function DataConfigEditor({
   // 移除指标
   const handleRemoveMetric = (index: number) => {
     const currentDataConfig = selectedComponent.dataConfig || {}
-    const currentMetrics = currentDataConfig.metrics || []
-    const currentDimensions = currentDataConfig.dimensions || []
-    const currentFilters = currentDataConfig.filters || []
-    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
     
-    const newMetrics = currentMetrics.filter((_, i) => i !== index)
-    
-    onDataConfigUpdate({
-      metrics: newMetrics,
-      dimensions: currentDimensions,
-      filters: currentFilters,
-      fieldDisplayNames: currentFieldDisplayNames
-    })
+    // 优先使用新的数据集配置方式
+    if (currentDataConfig.selectedMeasures) {
+      const currentSelectedMeasures = currentDataConfig.selectedMeasures || []
+      const newSelectedMeasures = currentSelectedMeasures.filter((_, i) => i !== index)
+      
+      onDataConfigUpdate({
+        ...currentDataConfig,
+        selectedMeasures: newSelectedMeasures
+      })
+    } else {
+      // 兼容旧版本
+      const currentMetrics = currentDataConfig.metrics || []
+      const currentDimensions = currentDataConfig.dimensions || []
+      const currentFilters = currentDataConfig.filters || []
+      const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+      
+      const newMetrics = currentMetrics.filter((_, i) => i !== index)
+      
+      onDataConfigUpdate({
+        metrics: newMetrics,
+        dimensions: currentDimensions,
+        filters: currentFilters,
+        fieldDisplayNames: currentFieldDisplayNames
+      })
+    }
   }
 
   // 移除维度
   const handleRemoveDimension = (index: number) => {
     const currentDataConfig = selectedComponent.dataConfig || {}
-    const currentMetrics = currentDataConfig.metrics || []
-    const currentDimensions = currentDataConfig.dimensions || []
-    const currentFilters = currentDataConfig.filters || []
-    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
     
-    const newDimensions = currentDimensions.filter((_, i) => i !== index)
-    
-    onDataConfigUpdate({
-      metrics: currentMetrics,
-      dimensions: newDimensions,
-      filters: currentFilters,
-      fieldDisplayNames: currentFieldDisplayNames
-    })
+    // 优先使用新的数据集配置方式
+    if (currentDataConfig.selectedDimensions) {
+      const currentSelectedDimensions = currentDataConfig.selectedDimensions || []
+      const newSelectedDimensions = currentSelectedDimensions.filter((_, i) => i !== index)
+      
+      onDataConfigUpdate({
+        ...currentDataConfig,
+        selectedDimensions: newSelectedDimensions
+      })
+    } else {
+      // 兼容旧版本
+      const currentMetrics = currentDataConfig.metrics || []
+      const currentDimensions = currentDataConfig.dimensions || []
+      const currentFilters = currentDataConfig.filters || []
+      const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
+      
+      const newDimensions = currentDimensions.filter((_, i) => i !== index)
+      
+      onDataConfigUpdate({
+        metrics: currentMetrics,
+        dimensions: newDimensions,
+        filters: currentFilters,
+        fieldDisplayNames: currentFieldDisplayNames
+      })
+    }
   }
 
   // 添加过滤器
   const handleAddFilter = () => {
     const currentDataConfig = selectedComponent.dataConfig || {}
-    const currentMetrics = currentDataConfig.metrics || []
-    const currentDimensions = currentDataConfig.dimensions || []
-    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
     
     const newFilter = {
       id: `filter-${Date.now()}`,
@@ -209,37 +244,27 @@ export function DataConfigEditor({
     setFilters(newFilters)
     
     onDataConfigUpdate({
-      metrics: currentMetrics,
-      dimensions: currentDimensions,
-      filters: newFilters,
-      fieldDisplayNames: currentFieldDisplayNames
+      ...currentDataConfig,
+      filters: newFilters
     })
   }
 
   // 移除过滤器
   const handleRemoveFilter = (filterId: string) => {
     const currentDataConfig = selectedComponent.dataConfig || {}
-    const currentMetrics = currentDataConfig.metrics || []
-    const currentDimensions = currentDataConfig.dimensions || []
-    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
     
     const newFilters = filters.filter(f => f.id !== filterId)
     setFilters(newFilters)
     
     onDataConfigUpdate({
-      metrics: currentMetrics,
-      dimensions: currentDimensions,
-      filters: newFilters,
-      fieldDisplayNames: currentFieldDisplayNames
+      ...currentDataConfig,
+      filters: newFilters
     })
   }
 
   // 更新过滤器
   const handleUpdateFilter = (filterId: string, updates: Partial<typeof filters[0]>) => {
     const currentDataConfig = selectedComponent.dataConfig || {}
-    const currentMetrics = currentDataConfig.metrics || []
-    const currentDimensions = currentDataConfig.dimensions || []
-    const currentFieldDisplayNames = currentDataConfig.fieldDisplayNames || {}
     
     const newFilters = filters.map(f => 
       f.id === filterId ? { ...f, ...updates } : f
@@ -247,10 +272,8 @@ export function DataConfigEditor({
     setFilters(newFilters)
     
     onDataConfigUpdate({
-      metrics: currentMetrics,
-      dimensions: currentDimensions,
-      filters: newFilters,
-      fieldDisplayNames: currentFieldDisplayNames
+      ...currentDataConfig,
+      filters: newFilters
     })
   }
 
@@ -261,7 +284,18 @@ export function DataConfigEditor({
         <label className="block text-sm font-medium mb-2">指标</label>
         <DropZone 
           type="metrics"
-          items={selectedComponent.dataConfig?.metrics || []}
+          items={(() => {
+            // 优先使用新的数据集绑定方式的度量字段
+            if (selectedComponent.dataConfig?.selectedMeasures) {
+              return selectedComponent.dataConfig.selectedMeasures.map(measure => {
+                // 尝试获取显示名称，如果没有则使用字段名
+                const displayName = selectedComponent.dataConfig?.fieldDisplayNames?.[measure] || measure
+                return displayName
+              })
+            }
+            // 兼容旧的配置方式
+            return selectedComponent.dataConfig?.metrics || []
+          })()}
           onDrop={handleMetricDrop}
           onRemove={handleRemoveMetric}
           placeholder="从数据集面板拖拽度量字段到这里"
@@ -273,7 +307,18 @@ export function DataConfigEditor({
         <label className="block text-sm font-medium mb-2">维度</label>
         <DropZone 
           type="dimensions"
-          items={selectedComponent.dataConfig?.dimensions || []}
+          items={(() => {
+            // 优先使用新的数据集绑定方式的维度字段
+            if (selectedComponent.dataConfig?.selectedDimensions) {
+              return selectedComponent.dataConfig.selectedDimensions.map(dimension => {
+                // 尝试获取显示名称，如果没有则使用字段名
+                const displayName = selectedComponent.dataConfig?.fieldDisplayNames?.[dimension] || dimension
+                return displayName
+              })
+            }
+            // 兼容旧的配置方式
+            return selectedComponent.dataConfig?.dimensions || []
+          })()}
           onDrop={handleDimensionDrop}
           onRemove={handleRemoveDimension}
           placeholder="从数据集面板拖拽维度字段到这里"
@@ -312,11 +357,25 @@ export function DataConfigEditor({
                     onChange={(e) => handleUpdateFilter(filter.id, { field: e.target.value })}
                   >
                     <option value="">选择字段</option>
-                    {selectedComponent.dataConfig?.dimensions?.map((dim) => (
-                      <option key={`dim-${dim}`} value={dim}>{dim} (维度)</option>
+                    {/* 优先使用新的数据集配置方式 */}
+                    {selectedComponent.dataConfig?.selectedDimensions?.map((dim) => {
+                      const displayName = selectedComponent.dataConfig?.fieldDisplayNames?.[dim] || dim
+                      return (
+                        <option key={`dim-${dim}`} value={dim}>{displayName} (维度)</option>
+                      )
+                    })}
+                    {selectedComponent.dataConfig?.selectedMeasures?.map((measure) => {
+                      const displayName = selectedComponent.dataConfig?.fieldDisplayNames?.[measure] || measure
+                      return (
+                        <option key={`measure-${measure}`} value={measure}>{displayName} (度量)</option>
+                      )
+                    })}
+                    {/* 兼容旧的配置方式 */}
+                    {!selectedComponent.dataConfig?.selectedDimensions && selectedComponent.dataConfig?.dimensions?.map((dim) => (
+                      <option key={`old-dim-${dim}`} value={dim}>{dim} (维度)</option>
                     ))}
-                    {selectedComponent.dataConfig?.metrics?.map((metric) => (
-                      <option key={`metric-${metric}`} value={metric}>{metric} (指标)</option>
+                    {!selectedComponent.dataConfig?.selectedMeasures && selectedComponent.dataConfig?.metrics?.map((metric) => (
+                      <option key={`old-metric-${metric}`} value={metric}>{metric} (指标)</option>
                     ))}
                   </select>
                 </div>

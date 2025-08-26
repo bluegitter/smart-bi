@@ -159,32 +159,32 @@ export function GeneralStyleEditor({ selectedComponent, onStyleUpdate }: General
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
-              id="showBackground"
+              id="general-showBackground"
               className="rounded"
               defaultChecked={true}
               onChange={(e) => onStyleUpdate({ showBackground: e.target.checked })}
             />
-            <label htmlFor="showBackground" className="text-sm">显示背景</label>
+            <label htmlFor="general-showBackground" className="text-sm">显示背景</label>
           </div>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
-              id="showBorder"
+              id="general-showBorder"
               className="rounded"
               defaultChecked={true}
               onChange={(e) => onStyleUpdate({ showBorder: e.target.checked })}
             />
-            <label htmlFor="showBorder" className="text-sm">显示边框</label>
+            <label htmlFor="general-showBorder" className="text-sm">显示边框</label>
           </div>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
-              id="showShadow"
+              id="general-showShadow"
               className="rounded"
               defaultChecked={false}
               onChange={(e) => onStyleUpdate({ showShadow: e.target.checked })}
             />
-            <label htmlFor="showShadow" className="text-sm">显示阴影</label>
+            <label htmlFor="general-showShadow" className="text-sm">显示阴影</label>
           </div>
         </div>
       </div>

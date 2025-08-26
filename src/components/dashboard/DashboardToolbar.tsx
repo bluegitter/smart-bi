@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { 
-  Plus, 
   Layout, 
   Save, 
   Eye, 
@@ -11,7 +10,6 @@ import {
   Minimize2, 
   Loader2, 
   Database, 
-  BarChart3, 
   Grid3x3 
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -26,7 +24,6 @@ interface DashboardToolbarProps {
   sidebarCollapsed: boolean
   selectedComponent: any
   onComponentLibraryToggle: () => void
-  onMetricsLibraryToggle: () => void
   onDatasetLibraryToggle: () => void
   onPropertyPanelToggle: () => void
   onPreviewToggle: () => void
@@ -43,7 +40,6 @@ export function DashboardToolbar({
   sidebarCollapsed,
   selectedComponent,
   onComponentLibraryToggle,
-  onMetricsLibraryToggle,
   onDatasetLibraryToggle,
   onPropertyPanelToggle,
   onPreviewToggle,
@@ -79,16 +75,6 @@ export function DashboardToolbar({
             title="组件库"
           >
             <Grid3x3 className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8"
-            onClick={onMetricsLibraryToggle}
-            disabled={isPreviewMode}
-            title="指标库"
-          >
-            <BarChart3 className="h-4 w-4" />
           </Button>
           <Button 
             variant="ghost" 

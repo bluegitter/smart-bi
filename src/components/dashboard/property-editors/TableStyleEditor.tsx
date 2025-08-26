@@ -18,50 +18,50 @@ export function TableStyleEditor({ selectedComponent, onTableConfigUpdate }: Tab
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
-            id="showHeader"
+            id="table-showHeader"
             className="rounded"
-            defaultChecked={true}
+            checked={selectedComponent.config?.table?.showHeader !== false}
             onChange={(e) => onTableConfigUpdate({ showHeader: e.target.checked })}
           />
-          <label htmlFor="showHeader" className="text-sm">显示表头</label>
+          <label htmlFor="table-showHeader" className="text-sm">显示表头</label>
         </div>
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
-            id="showBorder"
+            id="table-showBorder"
             className="rounded"
-            defaultChecked={false}
+            checked={selectedComponent.config?.table?.showBorder !== false}
             onChange={(e) => onTableConfigUpdate({ showBorder: e.target.checked })}
           />
-          <label htmlFor="showBorder" className="text-sm">显示边框</label>
+          <label htmlFor="table-showBorder" className="text-sm">显示边框</label>
         </div>
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
-            id="showStripes"
+            id="table-striped"
             className="rounded"
-            defaultChecked={false}
-            onChange={(e) => onTableConfigUpdate({ showStripes: e.target.checked })}
+            checked={selectedComponent.config?.table?.striped !== false}
+            onChange={(e) => onTableConfigUpdate({ striped: e.target.checked })}
           />
-          <label htmlFor="showStripes" className="text-sm">斑马纹</label>
+          <label htmlFor="table-striped" className="text-sm">斑马纹</label>
         </div>
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
-            id="compact"
+            id="table-compact"
             className="rounded"
-            defaultChecked={false}
+            checked={selectedComponent.config?.table?.compact || false}
             onChange={(e) => onTableConfigUpdate({ compact: e.target.checked })}
           />
-          <label htmlFor="compact" className="text-sm">紧凑模式</label>
+          <label htmlFor="table-compact" className="text-sm">紧凑模式</label>
         </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">最大行数</label>
           <input
             type="number"
-            min="3"
-            max="20"
-            defaultValue="6"
+            min="1"
+            max="1000"
+            value={selectedComponent.config?.table?.maxRows || 100}
             className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
             onChange={(e) => onTableConfigUpdate({ maxRows: Number(e.target.value) })}
           />
