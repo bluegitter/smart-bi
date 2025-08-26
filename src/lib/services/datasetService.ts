@@ -689,6 +689,160 @@ export class DatasetService {
     throw new Error('无法构建视图查询')
   }
   
+  // 查询数据集数据（支持度量、维度和筛选器）
+  static async queryDataset(userId: string, datasetId: string, options: {
+    measures: string[]
+    dimensions: string[]
+    filters: any[]
+    limit: number
+  }) {
+    const dataset = await this.getDataset(userId, datasetId)
+    const startTime = Date.now()
+    
+    try {
+      let query = ''
+      let params: any[] = []
+      
+      // 构建SELECT子句
+      const selectFields = []
+      
+      // 添加维度字段
+      options.dimensions.forEach(dim => {
+        selectFields.push(dim)
+      })
+      
+      // 添加度量字段（带聚合函数）
+      options.measures.forEach(measure => {
+        const field = dataset.fields.find(f => f.name === measure)
+        const aggType = field?.aggregationType || 'SUM'
+        selectFields.push(`${aggType}(${measure}) as ${measure}`)
+      })
+      
+      // 如果没有指定字段，选择所有字段
+      if (selectFields.length === 0) {
+        selectFields.push('*')
+      }
+      
+      const selectClause = selectFields.join(', ')
+      
+      // 构建FROM子句
+      let fromClause = ''
+      if (dataset.type === 'table' && dataset.tableConfig) {
+        fromClause = dataset.tableConfig.schema 
+          ? `${dataset.tableConfig.schema}.${dataset.tableConfig.tableName}`
+          : dataset.tableConfig.tableName
+      } else if (dataset.type === 'sql' && dataset.sqlConfig) {
+        fromClause = `(${dataset.sqlConfig.sql}) AS subquery`
+      } else if (dataset.type === 'view' && dataset.viewConfig) {
+        const baseDataset = await this.getDataset(userId, dataset.viewConfig.baseDatasetId)
+        fromClause = `(${this.buildViewQuery(baseDataset, dataset.viewConfig)}) AS view_query`
+      } else {
+        throw new Error('不支持的数据集类型')
+      }
+      
+      // 构建WHERE子句（处理筛选器）
+      const whereConditions = []
+      options.filters.forEach((filter, index) => {
+        if (filter.field && filter.operator && filter.value !== undefined) {
+          switch (filter.operator) {
+            case 'equals':
+              whereConditions.push(`${filter.field} = ?`)
+              params.push(filter.value)
+              break
+            case 'not_equals':
+              whereConditions.push(`${filter.field} != ?`)
+              params.push(filter.value)
+              break
+            case 'greater_than':
+              whereConditions.push(`${filter.field} > ?`)
+              params.push(filter.value)
+              break
+            case 'less_than':
+              whereConditions.push(`${filter.field} < ?`)
+              params.push(filter.value)
+              break
+            case 'contains':
+              whereConditions.push(`${filter.field} LIKE ?`)
+              params.push(`%${filter.value}%`)
+              break
+            case 'in':
+              if (Array.isArray(filter.value) && filter.value.length > 0) {
+                const placeholders = filter.value.map(() => '?').join(', ')
+                whereConditions.push(`${filter.field} IN (${placeholders})`)
+                params.push(...filter.value)
+              }
+              break
+          }
+        }
+      })
+      
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
+      
+      // 构建GROUP BY子句（如果有维度字段）
+      const groupByClause = options.dimensions.length > 0 ? `GROUP BY ${options.dimensions.join(', ')}` : ''
+      
+      // 构建ORDER BY子句
+      let orderByClause = ''
+      if (options.measures.length > 0) {
+        orderByClause = `ORDER BY ${options.measures[0]} DESC`
+      } else if (options.dimensions.length > 0) {
+        orderByClause = `ORDER BY ${options.dimensions[0]}`
+      }
+      
+      // 构建完整查询
+      query = [
+        `SELECT ${selectClause}`,
+        `FROM ${fromClause}`,
+        whereClause,
+        groupByClause,
+        orderByClause,
+        `LIMIT ?`
+      ].filter(Boolean).join(' ')
+      
+      params.push(options.limit)
+      
+      // 获取数据源连接信息
+      const datasourceId = dataset.tableConfig?.datasourceId || dataset.sqlConfig?.datasourceId
+      if (!datasourceId) {
+        throw new Error('缺少数据源配置')
+      }
+      
+      // 获取包含密码的数据源配置
+      const datasourceRaw = await DataSource.findById(datasourceId).lean()
+      if (!datasourceRaw) {
+        throw new Error('数据源不存在')
+      }
+      
+      const datasourceWithPassword = await DataSource.findById(datasourceId).select('+config.password').lean()
+      const datasource = {
+        ...datasourceRaw,
+        config: {
+          ...datasourceRaw.config,
+          password: datasourceWithPassword?.config?.password
+        }
+      } as any
+      
+      // 执行查询
+      const result = await executeQuery(datasource.config, query, params)
+      
+      return {
+        data: result.data,
+        columns: result.columns || dataset.fields,
+        total: result.total || result.data?.length || 0,
+        executionTime: Date.now() - startTime
+      }
+    } catch (error) {
+      console.error('数据集查询失败:', error)
+      return {
+        data: [],
+        columns: dataset.fields,
+        total: 0,
+        executionTime: Date.now() - startTime,
+        error: error instanceof Error ? error.message : '查询失败'
+      }
+    }
+  }
+
   // 删除数据集
   static async deleteDataset(userId: string, datasetId: string): Promise<void> {
     await connectDB()

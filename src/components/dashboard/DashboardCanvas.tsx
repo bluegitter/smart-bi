@@ -126,7 +126,8 @@ export function DashboardCanvas({
     setIsMetricsLibraryOpen,
     setIsComponentLibraryOpen,
     setIsPreviewMode,
-    handleBoxSelection: selectionHook.handleBoxSelection
+    handleBoxSelection: selectionHook.handleBoxSelection,
+    setSelectedComponent: selectionHook.setSelectedComponent
   })
 
   // 拖拽处理
@@ -445,6 +446,14 @@ export function DashboardCanvas({
       return () => clearTimeout(timer)
     }
   }, [showHelpTip])
+
+  // 监听窗口大小和全屏状态变化，自动调整数据集面板高度
+  useEffect(() => {
+    if (isDatasetLibraryOpen) {
+      const newHeight = calculateDatasetPanelHeight()
+      setDatasetLibraryHeight(newHeight)
+    }
+  }, [windowSize.height, isFullscreen, isDatasetLibraryOpen, calculateDatasetPanelHeight])
 
   // 面板位置处理函数（简化版）
   const handleMetricsLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
