@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { generateToken } from '@/lib/auth'
 import type { User } from '@/types'
 
 // Mock用户数据
 const mockUsers: User[] = [
   {
-    _id: 'user1',
+    _id: '507f1f77bcf86cd799439011',
     email: 'admin@smartbi.com',
     name: '管理员',
     role: 'admin',
@@ -18,7 +19,7 @@ const mockUsers: User[] = [
     updatedAt: new Date()
   },
   {
-    _id: 'user2',
+    _id: '507f1f77bcf86cd799439012',
     email: 'user@smartbi.com',
     name: '普通用户',
     role: 'user',
@@ -32,7 +33,7 @@ const mockUsers: User[] = [
     updatedAt: new Date()
   },
   {
-    _id: 'user3',
+    _id: '507f1f77bcf86cd799439013',
     email: 'viewer@smartbi.com',
     name: '观察者',
     role: 'viewer',
@@ -83,12 +84,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 生成简单的JWT令牌（实际应用中应该使用真正的JWT库）
-    const token = Buffer.from(JSON.stringify({ 
-      userId: user._id, 
-      email: user.email, 
-      exp: Date.now() + (24 * 60 * 60 * 1000) // 24小时过期
-    })).toString('base64')
+    // 生成JWT令牌
+    const token = generateToken({
+      _id: user._id,
+      email: user.email,
+      name: user.name
+    })
 
     // 设置Cookie
     const response = NextResponse.json({

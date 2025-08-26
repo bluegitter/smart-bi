@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { getAuthHeaders } from '@/lib/authUtils'
 
 interface UseDatasetDataOptions {
   datasetId?: string
@@ -53,11 +54,15 @@ export function useDatasetData({
         filters
       })
 
-      const response = await fetch(`/api/datasets/${datasetId}/query?${queryParams.toString()}`)
+      const response = await fetch(`/api/datasets/${datasetId}/query?${queryParams.toString()}`, {
+        headers: getAuthHeaders()
+      })
       
       if (!response.ok) {
         // 如果查询API不存在，尝试使用预览API
-        const previewResponse = await fetch(`/api/datasets/${datasetId}/preview?limit=50`)
+        const previewResponse = await fetch(`/api/datasets/${datasetId}/preview?limit=50`, {
+          headers: getAuthHeaders()
+        })
         if (previewResponse.ok) {
           const previewResult = await previewResponse.json()
           

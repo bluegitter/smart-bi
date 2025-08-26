@@ -1,10 +1,10 @@
 'use client'
 
-import React from 'react'
+import React, { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DatasetEditor } from '@/components/dataset/DatasetEditor'
 
-export default function DatasetEditorPage() {
+function DatasetEditorContent() {
   const searchParams = useSearchParams()
   const datasetId = searchParams.get('id')
   const mode = searchParams.get('mode') || 'create' // create | edit | view
@@ -28,5 +28,20 @@ export default function DatasetEditorPage() {
         initialTable={initialTable}
       />
     </div>
+  )
+}
+
+export default function DatasetEditorPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-2 text-gray-500">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+          <span>加载数据集编辑器...</span>
+        </div>
+      </div>
+    }>
+      <DatasetEditorContent />
+    </Suspense>
   )
 }

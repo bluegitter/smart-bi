@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { DataSource } from '@/models/DataSource'
 import { executeQuery } from '@/lib/mysql'
 import { verifyToken } from '@/lib/auth'
-import { requireAuth } from '@/lib/devAuth'
+import { requireAuth } from '@/lib/middleware/auth'
 import { connectDB } from '@/lib/mongodb'
 
 /**

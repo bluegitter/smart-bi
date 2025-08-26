@@ -12,15 +12,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 export async function verifyToken(token: string): Promise<User | null> {
   try {
-    // 在开发环境中，如果没有提供token，使用默认用户
-    if (!token && process.env.NODE_ENV === 'development') {
-      return {
-        _id: '507f1f77bcf86cd799439011',
-        email: 'dev@example.com',
-        name: 'Development User'
-      }
-    }
-
     if (!token) {
       throw new Error('No token provided')
     }
@@ -37,15 +28,6 @@ export async function verifyToken(token: string): Promise<User | null> {
     
     return user
   } catch (error) {
-    // 在开发环境中提供fallback用户，不记录错误日志
-    if (process.env.NODE_ENV === 'development') {
-      return {
-        _id: '507f1f77bcf86cd799439011',
-        email: 'dev@example.com',
-        name: 'Development User'
-      }
-    }
-    
     console.error('Token verification failed:', error)
     return null
   }
@@ -80,17 +62,3 @@ export function extractUserFromToken(token: string): User | null {
 }
 
 
-// 开发环境专用：生成测试token
-export function generateDevToken(): string {
-  if (process.env.NODE_ENV !== 'development') {
-    throw new Error('This function is only available in development mode')
-  }
-  
-  const devUser: User = {
-    _id: '507f1f77bcf86cd799439011',
-    email: 'dev@example.com', 
-    name: 'Development User'
-  }
-  
-  return generateToken(devUser)
-}

@@ -13,13 +13,21 @@ export default function DevToolsPage() {
   const handleGetToken = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/dev/token')
+      // 使用标准登录API获取token
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'admin@smartbi.com',
+          password: 'admin123'
+        })
+      })
       const data = await response.json()
       
       if (data.token) {
         localStorage.setItem('token', data.token)
         setToken(data.token)
-        setMessage('开发token已生成并保存到localStorage')
+        setMessage('Token已通过标准登录获取并保存到localStorage')
       } else {
         setMessage('获取token失败: ' + data.error)
       }

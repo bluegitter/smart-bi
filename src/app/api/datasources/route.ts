@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import { DataSource } from '@/models/DataSource'
-import { verifyToken } from '@/lib/auth'
-import { requireAuth } from '@/lib/devAuth'
+import { requireAuth } from '@/lib/middleware/auth'
 import { z } from 'zod'
 
 // 数据源创建验证模式

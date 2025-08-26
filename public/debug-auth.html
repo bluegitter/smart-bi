@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart-BI 前端认证测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .button { 
+            background: #007bff; color: white; border: none; 
+            padding: 10px 20px; margin: 5px; cursor: pointer; border-radius: 4px;
+        }
+        .button:hover { background: #0056b3; }
+        .result { 
+            background: #f8f9fa; border: 1px solid #dee2e6; 
+            padding: 15px; margin: 10px 0; border-radius: 4px;
+            white-space: pre-wrap; font-family: monospace;
+        }
+        .success { border-color: #d4edda; background-color: #d4edda; }
+        .error { border-color: #f5c6cb; background-color: #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Smart-BI 前端认证调试</h1>
+        
+        <h2>1. Token状态</h2>
+        <button class="button" onclick="checkToken()">检查Token</button>
+        <div id="tokenResult" class="result"></div>
+        
+        <h2>2. 登录</h2>
+        <button class="button" onclick="testLogin()">登录获取Token</button>
+        <div id="loginResult" class="result"></div>
+        
+        <h2>3. API测试</h2>
+        <button class="button" onclick="testDatasets()">测试 Datasets API</button>
+        <button class="button" onclick="testDatasources()">测试 Datasources API</button>
+        <div id="apiResult" class="result"></div>
+        
+        <h2>4. 修复工具</h2>
+        <button class="button" onclick="clearToken()">清除Token</button>
+        <button class="button" onclick="forceLogin()">重新登录</button>
+    </div>
+
+    <script>
+        // 使用相对路径，避免CORS问题
+        
+        function checkToken() {
+            const token = localStorage.getItem('token');
+            const result = document.getElementById('tokenResult');
+            
+            if (!token) {
+                result.className = 'result error';
+                result.textContent = '❌ localStorage中没有token';
+                return;
+            }
+            
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    result.className = 'result error';
+                    result.textContent = `❌ Token格式错误，应该有3部分，实际有${parts.length}部分`;
+                    return;
+                }
+                
+                const payload = JSON.parse(atob(parts[1]));
+                const now = Math.floor(Date.now() / 1000);
+                
+                result.className = payload.exp > now ? 'result success' : 'result error';
+                result.textContent = `${payload.exp > now ? '✅ Token有效' : '❌ Token已过期'}
+用户ID: ${payload.userId}
+邮箱: ${payload.email}
+姓名: ${payload.name}
+过期时间: ${new Date(payload.exp * 1000).toLocaleString()}`;
+                
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ Token解析失败: ${error.message}`;
+            }
+        }
+        
+        async function testLogin() {
+            const result = document.getElementById('loginResult');
+            result.textContent = '🔄 正在登录...';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@smartbi.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    localStorage.setItem('token', data.token);
+                    result.className = 'result success';
+                    result.textContent = `✅ 登录成功!
+用户: ${data.user.name} (${data.user.email})
+Token长度: ${data.token.length}
+Token前缀: ${data.token.substring(0, 50)}...`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ 登录失败: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ 登录请求失败: ${error.message}`;
+            }
+        }
+        
+        async function testAPI(endpoint, name) {
+            const result = document.getElementById('apiResult');
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                result.className = 'result error';
+                result.textContent = '❌ 没有token，请先登录';
+                return;
+            }
+            
+            result.textContent = `🔄 正在测试 ${name} API...`;
+            
+            try {
+                const headers = {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                };
+                
+                console.log(`📤 发送请求到 ${endpoint}`, headers);
+                
+                const response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: headers
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.className = 'result success';
+                    result.textContent = `✅ ${name} API调用成功!
+状态码: ${response.status}
+数据条数: ${Array.isArray(data.data) ? data.data.length : '未知'}
+响应示例: ${JSON.stringify(data, null, 2).substring(0, 200)}...`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ ${name} API调用失败!
+状态码: ${response.status}
+错误详情: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ ${name} API请求异常: ${error.message}`;
+            }
+        }
+        
+        async function testDatasets() {
+            await testAPI('/api/datasets', 'Datasets');
+        }
+        
+        async function testDatasources() {
+            await testAPI('/api/datasources', 'Datasources');
+        }
+        
+        function clearToken() {
+            localStorage.removeItem('token');
+            document.getElementById('tokenResult').textContent = '🗑️ Token已清除';
+            document.getElementById('tokenResult').className = 'result';
+        }
+        
+        async function forceLogin() {
+            clearToken();
+            await testLogin();
+            checkToken();
+        }
+        
+        // 页面加载时自动检查
+        window.onload = function() {
+            checkToken();
+        }
+    </script>
+</body>
+</html>

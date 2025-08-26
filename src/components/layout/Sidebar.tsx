@@ -22,7 +22,6 @@ const sidebarItems = [
   { icon: BarChart3, label: '看板', href: '/dashboards' },
   { icon: Database, label: '数据源', href: '/datasources' },
   { icon: Table, label: '数据集', href: '/datasets' },
-  { icon: TrendingUp, label: '指标库', href: '/metrics' },
   { icon: Settings, label: '设置', href: '/settings' },
 ]
 

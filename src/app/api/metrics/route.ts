@@ -3,7 +3,7 @@ import { connectDB } from '@/lib/mongodb'
 import { Metric } from '@/models/Metric'
 import { DataSource } from '@/models/DataSource'
 import { verifyToken } from '@/lib/auth'
-import { requireAuth } from '@/lib/devAuth'
+import { requireAuth } from '@/lib/middleware/auth'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
 

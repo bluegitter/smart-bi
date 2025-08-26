@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MetricQueryService } from '@/lib/services/metricQueryService'
 import { verifyToken } from '@/lib/auth'
-import { requireAuth } from '@/lib/devAuth'
+import { requireAuth } from '@/lib/middleware/auth'
 import { connectDB } from '@/lib/mongodb'
 import type { SQLQueryConfig } from '@/types'
 

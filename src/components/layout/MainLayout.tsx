@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { usePathname } from 'next/navigation'
@@ -14,6 +14,25 @@ interface MainLayoutProps {
   children: React.ReactNode
 }
 
+// DndProvider wrapper to avoid SSR issues
+function DndWrapper({ children }: { children: React.ReactNode }) {
+  const [isClient, setIsClient] = useState(false)
+  
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+  
+  if (!isClient) {
+    return <>{children}</>
+  }
+  
+  return (
+    <DndProvider backend={HTML5Backend}>
+      {children}
+    </DndProvider>
+  )
+}
+
 export function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname()
   const sidebarCollapsed = useSidebarCollapsed()
@@ -24,7 +43,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isDashboardPage = pathname?.includes('/dashboard')
   
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndWrapper>
       <div className="h-screen flex flex-col bg-slate-50">
         {/* Header - 可隐藏 */}
         {!headerHidden && <Header />}
@@ -55,6 +74,6 @@ export function MainLayout({ children }: MainLayoutProps) {
         {/* Status bar - 全屏模式时隐藏 */}
         {!isFullscreen && <StatusBar />}
       </div>
-    </DndProvider>
+    </DndWrapper>
   )
 }

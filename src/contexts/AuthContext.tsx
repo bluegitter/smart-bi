@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@/types'
+import { setAuthToken, removeAuthToken } from '@/lib/authUtils'
 
 interface AuthContextType {
   user: User | null
@@ -44,10 +45,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(data.user)
       } else {
         setUser(null)
+        removeAuthToken()
       }
     } catch (error) {
       console.error('Failed to refresh user:', error)
       setUser(null)
+      removeAuthToken()
     } finally {
       setIsLoading(false)
     }
@@ -72,6 +75,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const data = await response.json()
       setUser(data.user)
+      
+      // Save token to localStorage for subsequent API calls
+      if (data.token) {
+        setAuthToken(data.token)
+      }
     } catch (error) {
       throw error
     }
@@ -88,6 +96,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Logout error:', error)
     } finally {
       setUser(null)
+      removeAuthToken()
     }
   }
 

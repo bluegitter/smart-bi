@@ -1,13 +1,29 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { DashboardCanvas } from '@/components/dashboard/DashboardCanvas'
+import dynamic from 'next/dynamic'
+import { Loader2 } from 'lucide-react'
+
+const DashboardCanvas = dynamic(
+  () => import('@/components/dashboard/DashboardCanvas').then(mod => ({ default: mod.DashboardCanvas })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-2 text-gray-500">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>加载看板编辑器...</span>
+        </div>
+      </div>
+    )
+  }
+)
 import { dashboardService } from '@/lib/services/dashboardService'
 import type { ComponentLayout, Dashboard } from '@/types'
 
-export default function DashboardEditorPage() {
+function DashboardEditorContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   
@@ -490,5 +506,20 @@ export default function DashboardEditorPage() {
       initialPreviewMode={isPreview}
       />
     </ProtectedRoute>
+  )
+}
+
+export default function DashboardEditorPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-2 text-gray-500">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>加载看板编辑器...</span>
+        </div>
+      </div>
+    }>
+      <DashboardEditorContent />
+    </Suspense>
   )
 }

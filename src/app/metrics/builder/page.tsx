@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/Input'
 import { SQLQueryBuilder } from '@/components/query-builder/SQLQueryBuilder'
 import { Save, ArrowLeft, Play, Database, Settings, TestTube } from 'lucide-react'
 import type { SQLQueryConfig, Metric, DataSource, MetricParameter } from '@/types'
-import { getAuthHeaders, initDevAuth } from '@/lib/authUtils'
+import { getAuthHeaders } from '@/lib/authUtils'
 
-export default function MetricBuilderPage() {
+function MetricBuilderContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const metricId = searchParams.get('id')
@@ -54,18 +54,10 @@ export default function MetricBuilderPage() {
   const [activeTab, setActiveTab] = useState<'basic' | 'query' | 'params' | 'preview'>('basic')
 
   useEffect(() => {
-    // 确保开发环境有token
-    initDevAuth()
-    
-    // 延迟一点加载数据源，确保token已设置
-    const timer = setTimeout(() => {
-      loadDataSources()
-      if (isEdit) {
-        loadMetric()
-      }
-    }, 100)
-    
-    return () => clearTimeout(timer)
+    loadDataSources()
+    if (isEdit) {
+      loadMetric()
+    }
   }, [isEdit, metricId])
 
   const loadDataSources = async () => {
@@ -555,5 +547,20 @@ export default function MetricBuilderPage() {
         {activeTab === 'preview' && renderPreviewTab()}
       </div>
     </div>
+  )
+}
+
+export default function MetricBuilderPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-2 text-gray-500">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+          <span>加载指标构建器...</span>
+        </div>
+      </div>
+    }>
+      <MetricBuilderContent />
+    </Suspense>
   )
 }

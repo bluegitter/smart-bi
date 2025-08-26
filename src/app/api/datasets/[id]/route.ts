@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/devAuth'
+import { requireAuth } from '@/lib/middleware/auth'
 import { DatasetService } from '@/lib/services/datasetService'
 import type { UpdateDatasetRequest } from '@/types/dataset'
 

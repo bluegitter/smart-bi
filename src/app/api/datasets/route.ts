@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/devAuth'
+import { requireAuth } from '@/lib/middleware/auth'
 import { DatasetService } from '@/lib/services/datasetService'
 import type { CreateDatasetRequest, DatasetSearchParams } from '@/types/dataset'
 
@@ -31,17 +31,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('获取数据集列表失败:', error)
     
-    // 在开发环境提供更详细的错误信息
-    if (process.env.NODE_ENV === 'development') {
-      return NextResponse.json({ 
-        error: error instanceof Error ? error.message : '获取数据集列表失败',
-        details: error instanceof Error ? error.stack : undefined,
-        type: error?.constructor?.name
-      }, { status: 500 })
-    }
-    
+    // 临时在生产环境也提供详细错误信息用于调试
     return NextResponse.json({ 
-      error: '获取数据集列表失败'
+      error: error instanceof Error ? error.message : '获取数据集列表失败',
+      details: error instanceof Error ? error.stack : undefined,
+      type: error?.constructor?.name,
+      env: process.env.NODE_ENV
     }, { status: 500 })
   }
 }

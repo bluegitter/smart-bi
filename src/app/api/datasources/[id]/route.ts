@@ -25,7 +25,7 @@ const updateDataSourceSchema = z.object({
 // GET - 获取单个数据源
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB()
@@ -40,7 +40,7 @@ export async function GET(
       return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     if (!ObjectId.isValid(id)) {
       return NextResponse.json({ error: '无效的数据源ID' }, { status: 400 })
@@ -68,7 +68,7 @@ export async function GET(
 // PUT - 更新数据源
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB()
@@ -83,7 +83,7 @@ export async function PUT(
       return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     if (!ObjectId.isValid(id)) {
       return NextResponse.json({ error: '无效的数据源ID' }, { status: 400 })
@@ -154,7 +154,7 @@ export async function PUT(
 // DELETE - 删除数据源
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB()
@@ -169,7 +169,7 @@ export async function DELETE(
       return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     if (!ObjectId.isValid(id)) {
       return NextResponse.json({ error: '无效的数据源ID' }, { status: 400 })

@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { Suspense } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Play, Download, Save, History, Table, Code, Eye, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -54,7 +54,7 @@ const mockQueryResult = {
   totalRows: 5
 }
 
-export default function DataQueryPage() {
+function DataQueryContent() {
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -378,5 +378,20 @@ export default function DataQueryPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function DataQueryPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-2 text-gray-500">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>加载查询编辑器...</span>
+        </div>
+      </div>
+    }>
+      <DataQueryContent />
+    </Suspense>
   )
 }
