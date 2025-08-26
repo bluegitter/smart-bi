@@ -1,9 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Database, Table, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Database, Table } from 'lucide-react'
+import { CustomSelect, type SelectItem } from '@/components/ui/CustomSelect'
 import type { DataSource } from '@/types'
 
 interface TableSelectorProps {
@@ -17,6 +16,13 @@ interface TableSelectorProps {
   disabled?: boolean
 }
 
+interface TableInfo {
+  name: string
+  displayName: string
+  schema: string
+  comment?: string
+}
+
 export function TableSelector({
   dataSources,
   selectedDataSource,
@@ -28,7 +34,7 @@ export function TableSelector({
   disabled = false
 }: TableSelectorProps) {
   const [schemas, setSchemas] = React.useState<string[]>([])
-  const [tables, setTables] = React.useState<string[]>([])
+  const [tables, setTables] = React.useState<TableInfo[]>([])
   const [loadingSchemas, setLoadingSchemas] = React.useState(false)
   const [loadingTables, setLoadingTables] = React.useState(false)
 
@@ -79,12 +85,17 @@ export function TableSelector({
       if (response.ok) {
         const data = await response.json()
         // API返回的是 { tables: [...] } 结构
-        const tableNames = (data.tables || [])
+        const tableList = (data.tables || [])
           .filter((t: any) => !schema || t.schema === schema || (!t.schema && !schema))
-          .map((t: any) => t.name)
-          .sort()
+          .map((t: any) => ({
+            name: t.name,
+            displayName: t.displayName || t.name,
+            schema: t.schema,
+            comment: t.comment
+          }))
+          .sort((a: TableInfo, b: TableInfo) => a.name.localeCompare(b.name))
         
-        setTables(tableNames)
+        setTables(tableList)
       }
     } catch (error) {
       console.error('获取表列表失败:', error)
@@ -115,50 +126,57 @@ export function TableSelector({
 
   const selectedDataSourceObj = dataSources.find(ds => ds._id === selectedDataSource)
 
+  // 构建数据源选项
+  const dataSourceItems: SelectItem[] = dataSources.map(ds => ({
+    id: ds._id,
+    name: ds.name,
+    displayName: `${ds.name}`,
+    type: ds.type,
+    icon: Database
+  }))
+
+  // 构建模式选项
+  const schemaItems: SelectItem[] = schemas.map(schema => ({
+    id: schema,
+    name: schema,
+    displayName: schema || '默认模式',
+    icon: Database
+  }))
+
+  // 构建表选项
+  const tableItems: SelectItem[] = tables.map(table => ({
+    id: table.name,
+    name: table.name,
+    displayName: table.displayName,
+    icon: Table
+  }))
+
   return (
     <div className="space-y-3">
       {/* 数据源选择 */}
       <div>
         <label className="text-sm text-gray-600 mb-1 block">选择数据源</label>
-        <select
+        <CustomSelect
+          items={dataSourceItems}
           value={selectedDataSource}
-          onChange={(e) => onDataSourceChange(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          onValueChange={onDataSourceChange}
+          placeholder="请选择数据源"
           disabled={disabled}
-        >
-          <option value="">请选择数据源</option>
-          {dataSources.map(ds => (
-            <option key={ds._id} value={ds._id}>
-              {ds.name} ({ds.type})
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
       {/* 模式选择 */}
       {selectedDataSource && schemas.length > 1 && (
         <div>
           <label className="text-sm text-gray-600 mb-1 block">选择模式</label>
-          {loadingSchemas ? (
-            <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              加载模式中...
-            </div>
-          ) : (
-            <select
-              value={selectedSchema}
-              onChange={(e) => onSchemaChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={disabled}
-            >
-              <option value="">请选择模式</option>
-              {schemas.map(schema => (
-                <option key={schema} value={schema}>
-                  {schema || '(默认模式)'}
-                </option>
-              ))}
-            </select>
-          )}
+          <CustomSelect
+            items={schemaItems}
+            value={selectedSchema}
+            onValueChange={onSchemaChange}
+            placeholder="请选择模式"
+            loading={loadingSchemas}
+            disabled={disabled}
+          />
         </div>
       )}
 
@@ -166,25 +184,15 @@ export function TableSelector({
       {selectedDataSource && (
         <div>
           <label className="text-sm text-gray-600 mb-1 block">选择数据表</label>
-          {loadingTables ? (
-            <div className="flex items-center gap-2 p-2 text-sm text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              加载表列表中...
-            </div>
-          ) : tables.length > 0 ? (
-            <select
+          {tables.length > 0 || loadingTables ? (
+            <CustomSelect
+              items={tableItems}
               value={selectedTable}
-              onChange={(e) => onTableChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              onValueChange={onTableChange}
+              placeholder="请选择表"
+              loading={loadingTables}
               disabled={disabled}
-            >
-              <option value="">请选择表</option>
-              {tables.map(table => (
-                <option key={table} value={table}>
-                  {table}
-                </option>
-              ))}
-            </select>
+            />
           ) : (
             <div className="p-3 text-sm text-gray-500 border border-gray-300 rounded-md bg-gray-50">
               {selectedDataSource ? '该数据源暂无可用表' : '请先选择数据源'}

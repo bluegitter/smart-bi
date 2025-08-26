@@ -68,6 +68,15 @@ export async function GET(
         console.log('Available config keys:', Object.keys(config))
       }
 
+      // 调试：打印连接信息（不包括密码）
+      console.log('Attempting to connect to MySQL with config:', {
+        host: config.host || config.hostname || 'localhost',
+        user: config.username || config.user || 'root',
+        database: config.database,
+        port: config.port || 3306,
+        hasPassword: !!config.password
+      })
+
       // 验证必要的连接信息
       if (!config.host && !config.hostname) {
         throw new Error('缺少数据库主机地址配置')
@@ -90,9 +99,12 @@ export async function GET(
           port: config.port || 3306
         })
 
-          // 获取所有表名
+          // 获取所有表名和注释
           const [tablesResult] = await connection.execute(`
-            SELECT TABLE_NAME as table_name 
+            SELECT 
+              TABLE_NAME as table_name,
+              TABLE_COMMENT as table_comment,
+              TABLE_SCHEMA as schema_name
             FROM information_schema.TABLES 
             WHERE TABLE_SCHEMA = ? 
             AND TABLE_TYPE = 'BASE TABLE'
@@ -102,6 +114,8 @@ export async function GET(
           // 为每个表获取列信息
           for (const tableRow of tablesResult as any[]) {
             const tableName = tableRow.table_name
+            const tableComment = tableRow.table_comment
+            const schemaName = tableRow.schema_name
             
             const [columnsResult] = await connection.execute(`
               SELECT 
@@ -125,7 +139,9 @@ export async function GET(
 
             tables.push({
               name: tableName,
-              schema: datasource.config.database,
+              schema: schemaName || datasource.config.database,
+              comment: tableComment,
+              displayName: tableComment && tableComment.trim() ? tableComment.trim() : tableName,
               columns
             })
           }

@@ -30,6 +30,7 @@ import { SQLQueryBuilder } from '@/components/query-builder/SQLQueryBuilder'
 import { TableSelector } from '@/components/dataset/TableSelector'
 import { FieldTypeSelector } from '@/components/dataset/FieldTypeSelector'
 import { FieldEditorDialog } from '@/components/dataset/FieldEditorDialog'
+import { CustomSelect } from '@/components/ui/CustomSelect'
 import { useDataset } from '@/hooks/useDatasets'
 import { useDataSources } from '@/hooks/useDataSources'
 import { cn } from '@/lib/utils'
@@ -95,6 +96,8 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   // 面板宽度调节
   const [leftPanelWidth, setLeftPanelWidth] = React.useState(400)
   const [isResizing, setIsResizing] = React.useState(false)
+  const [startX, setStartX] = React.useState(0)
+  const [startWidth, setStartWidth] = React.useState(0)
   
   // 标记是否刚刚完成保存，避免保存后重新加载覆盖本地状态
   const [justSaved, setJustSaved] = React.useState(false)
@@ -105,14 +108,17 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   // 处理面板宽度调节
   const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
     setIsResizing(true)
+    setStartX(e.clientX)
+    setStartWidth(leftPanelWidth)
     e.preventDefault()
-  }, [])
+  }, [leftPanelWidth])
 
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return
       
-      const newWidth = Math.min(Math.max(320, e.clientX), 600)
+      const deltaX = e.clientX - startX
+      const newWidth = Math.min(Math.max(320, startWidth + deltaX), 600)
       setLeftPanelWidth(newWidth)
     }
 
@@ -133,7 +139,7 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing])
+  }, [isResizing, startX, startWidth])
 
   // 跟踪数据集ID，只有当ID改变时才重新初始化
   const [lastDatasetId, setLastDatasetId] = React.useState<string>('')
@@ -270,7 +276,7 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
             
             return {
               name: col.name,
-              displayName: generateDisplayName(col.name),
+              displayName: col.comment && col.comment.trim() ? col.comment.trim() : generateDisplayName(col.name),
               type: dataType,
               fieldType,
               isNullable: col.nullable,
@@ -348,16 +354,13 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
       .trim()
   }
 
-  // 监听表选择变化，自动分析字段（仅在创建模式或用户主动更改时）
+  // 监听表选择变化，自动分析字段
   React.useEffect(() => {
     if (selectedDataSource && selectedTable && datasetType === 'table') {
-      // 在编辑模式下，只有在已经有字段数据的情况下才避免重新分析（保护用户修改）
-      // 在创建模式下或字段为空时才进行自动分析
-      if (mode === 'create' || fields.length === 0) {
-        analyzeTableFields(selectedDataSource, selectedSchema, selectedTable)
-      }
+      // 无论在什么模式下，表选择变更时都重新分析字段
+      analyzeTableFields(selectedDataSource, selectedSchema, selectedTable)
     }
-  }, [selectedDataSource, selectedSchema, selectedTable, datasetType, mode, fields.length])
+  }, [selectedDataSource, selectedSchema, selectedTable, datasetType])
 
   // 处理保存
   const handleSave = async () => {
@@ -763,17 +766,20 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
                 {datasetType === 'sql' && (
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">数据源</label>
-                    <select
+                    <CustomSelect
+                      items={dataSources.map(ds => ({
+                        id: ds._id,
+                        name: ds.name,
+                        displayName: ds.name,
+                        type: ds.type,
+                        icon: Database
+                      }))}
                       value={selectedDataSource}
-                      onChange={(e) => setSelectedDataSource(e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs h-7"
+                      onValueChange={setSelectedDataSource}
+                      placeholder="选择数据源"
                       disabled={mode === 'view'}
-                    >
-                      <option value="">选择数据源</option>
-                      {dataSources.map(ds => (
-                        <option key={ds._id} value={ds._id}>{ds.name}</option>
-                      ))}
-                    </select>
+                      compact={true}
+                    />
                   </div>
                 )}
               </div>
@@ -934,32 +940,31 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
               {dimensions.length > 0 && (
                 <div className="bg-white">
                   <div
-                    className="flex items-center gap-3 px-6 py-4 cursor-pointer hover:bg-blue-50/50 transition-colors border-b border-gray-100"
+                    className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-blue-50/50 transition-colors border-b border-gray-100"
                     onClick={() => setExpandedSections(prev => ({ ...prev, dimensions: !prev.dimensions }))}
                   >
-                    <ChevronRight className={cn("h-5 w-5 text-gray-400 transition-transform", expandedSections.dimensions && "rotate-90")} />
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                      <Type className="h-5 w-5 text-white" />
+                    <ChevronRight className={cn("h-3 w-3 text-gray-400 transition-transform", expandedSections.dimensions && "rotate-90")} />
+                    <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded flex items-center justify-center">
+                      <Type className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900">维度字段</h4>
-                      <p className="text-xs text-gray-500 mt-0.5">{dimensions.length} 个维度 · 用于分组和筛选</p>
+                      <h4 className="font-medium text-gray-900 text-xs">维度字段</h4>
+                      <p className="text-xs text-gray-500">{dimensions.length} 个维度</p>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-bold text-blue-600">{dimensions.length}</div>
-                      <div className="text-xs text-gray-400">fields</div>
+                      <div className="text-sm font-bold text-blue-600">{dimensions.length}</div>
                     </div>
                   </div>
                   
                   {expandedSections.dimensions && (
-                    <div className="px-4 py-2 space-y-2">
+                    <div className="px-2 py-1 space-y-1">
                       {dimensions.map(field => (
                         <div
                           key={field.name}
                           className={cn(
-                            "group flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all duration-200",
+                            "group flex items-center gap-2 p-2 bg-white rounded border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all duration-200",
                             field.hidden && "opacity-60 bg-gray-50",
-                            selectedFields.has(field.name) && "ring-2 ring-blue-200 border-blue-300"
+                            selectedFields.has(field.name) && "ring-1 ring-blue-200 border-blue-300"
                           )}
                         >
                           {/* 复选框 */}
@@ -991,27 +996,27 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
 
                           {/* 字段信息 */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h5 className="font-medium text-gray-900 truncate">
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <h5 className="font-medium text-gray-900 text-xs truncate">
                                 {field.displayName || field.name}
                               </h5>
                               {field.type && (
-                                <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                                <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
                                   {field.type}
                                 </span>
                               )}
                               {field.dimensionLevel && (
-                                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+                                <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">
                                   {field.dimensionLevel === 'categorical' ? '分类' : 
                                    field.dimensionLevel === 'ordinal' ? '有序' : '时间'}
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-gray-500 font-mono mb-1">
+                            <div className="text-xs text-gray-500 font-mono">
                               {field.name}
                             </div>
                             {field.description && (
-                              <div className="text-xs text-gray-400 leading-relaxed">
+                              <div className="text-xs text-gray-400 mt-0.5">
                                 {field.description}
                               </div>
                             )}
@@ -1040,32 +1045,31 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
               {measures.length > 0 && (
                 <div className="bg-white mt-4">
                   <div
-                    className="flex items-center gap-3 px-6 py-4 cursor-pointer hover:bg-green-50/50 transition-colors border-b border-gray-100"
+                    className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-green-50/50 transition-colors border-b border-gray-100"
                     onClick={() => setExpandedSections(prev => ({ ...prev, measures: !prev.measures }))}
                   >
-                    <ChevronRight className={cn("h-5 w-5 text-gray-400 transition-transform", expandedSections.measures && "rotate-90")} />
-                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                      <Hash className="h-5 w-5 text-white" />
+                    <ChevronRight className={cn("h-3 w-3 text-gray-400 transition-transform", expandedSections.measures && "rotate-90")} />
+                    <div className="w-6 h-6 bg-gradient-to-br from-green-500 to-emerald-600 rounded flex items-center justify-center">
+                      <Hash className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900">度量字段</h4>
-                      <p className="text-xs text-gray-500 mt-0.5">{measures.length} 个度量 · 用于计算和聚合</p>
+                      <h4 className="font-medium text-gray-900 text-xs">度量字段</h4>
+                      <p className="text-xs text-gray-500">{measures.length} 个度量</p>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-bold text-green-600">{measures.length}</div>
-                      <div className="text-xs text-gray-400">metrics</div>
+                      <div className="text-sm font-bold text-green-600">{measures.length}</div>
                     </div>
                   </div>
                 
                   {expandedSections.measures && (
-                    <div className="px-4 py-2 space-y-2">
+                    <div className="px-2 py-1 space-y-1">
                       {measures.map(field => (
                         <div
                           key={field.name}
                           className={cn(
-                            "group flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-green-200 hover:shadow-sm transition-all duration-200",
+                            "group flex items-center gap-2 p-2 bg-white rounded border border-gray-100 hover:border-green-200 hover:shadow-sm transition-all duration-200",
                             field.hidden && "opacity-60 bg-gray-50",
-                            selectedFields.has(field.name) && "ring-2 ring-green-200 border-green-300"
+                            selectedFields.has(field.name) && "ring-1 ring-green-200 border-green-300"
                           )}
                         >
                           {/* 复选框 */}
@@ -1097,26 +1101,26 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
 
                           {/* 字段信息 */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h5 className="font-medium text-gray-900 truncate">
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <h5 className="font-medium text-gray-900 text-xs truncate">
                                 {field.displayName || field.name}
                               </h5>
                               {field.type && (
-                                <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                                <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
                                   {field.type}
                                 </span>
                               )}
                               {field.aggregationType && (
-                                <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">
+                                <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium">
                                   {field.aggregationType}
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-gray-500 font-mono mb-1">
+                            <div className="text-xs text-gray-500 font-mono">
                               {field.name}
                             </div>
                             {field.description && (
-                              <div className="text-xs text-gray-400 leading-relaxed">
+                              <div className="text-xs text-gray-400 mt-0.5">
                                 {field.description}
                               </div>
                             )}
@@ -1145,32 +1149,31 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
               {calculatedFields.length > 0 && (
                 <div className="bg-white mt-4">
                   <div
-                    className="flex items-center gap-3 px-6 py-4 cursor-pointer hover:bg-orange-50/50 transition-colors border-b border-gray-100"
+                    className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-orange-50/50 transition-colors border-b border-gray-100"
                     onClick={() => setExpandedSections(prev => ({ ...prev, calculated: !prev.calculated }))}
                   >
-                    <ChevronRight className={cn("h-5 w-5 text-gray-400 transition-transform", expandedSections.calculated && "rotate-90")} />
-                    <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
-                      <Calculator className="h-5 w-5 text-white" />
+                    <ChevronRight className={cn("h-3 w-3 text-gray-400 transition-transform", expandedSections.calculated && "rotate-90")} />
+                    <div className="w-6 h-6 bg-gradient-to-br from-orange-500 to-amber-600 rounded flex items-center justify-center">
+                      <Calculator className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900">计算字段</h4>
-                      <p className="text-xs text-gray-500 mt-0.5">{calculatedFields.length} 个计算字段 · 自定义表达式和公式</p>
+                      <h4 className="font-medium text-gray-900 text-xs">计算字段</h4>
+                      <p className="text-xs text-gray-500">{calculatedFields.length} 个计算字段</p>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-bold text-orange-600">{calculatedFields.length}</div>
-                      <div className="text-xs text-gray-400">computed</div>
+                      <div className="text-sm font-bold text-orange-600">{calculatedFields.length}</div>
                     </div>
                   </div>
                   
                   {expandedSections.calculated && (
-                    <div className="px-4 py-2 space-y-2">
+                    <div className="px-2 py-1 space-y-1">
                       {calculatedFields.map(field => (
                         <div
                           key={field.name}
                           className={cn(
-                            "group flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-orange-200 hover:shadow-sm transition-all duration-200",
+                            "group flex items-center gap-2 p-2 bg-white rounded border border-gray-100 hover:border-orange-200 hover:shadow-sm transition-all duration-200",
                             field.hidden && "opacity-60 bg-gray-50",
-                            selectedFields.has(field.name) && "ring-2 ring-orange-200 border-orange-300"
+                            selectedFields.has(field.name) && "ring-1 ring-orange-200 border-orange-300"
                           )}
                         >
                           {/* 复选框 */}
@@ -1202,29 +1205,29 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
 
                           {/* 字段信息 */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h5 className="font-medium text-gray-900 truncate">
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <h5 className="font-medium text-gray-900 text-xs truncate">
                                 {field.displayName || field.name}
                               </h5>
                               {field.type && (
-                                <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                                <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
                                   {field.type}
                                 </span>
                               )}
-                              <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full font-medium">
-                                计算字段
+                              <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded font-medium">
+                                计算
                               </span>
                             </div>
-                            <div className="text-sm text-gray-500 font-mono mb-1">
+                            <div className="text-xs text-gray-500 font-mono">
                               {field.name}
                             </div>
                             {field.expression && (
-                              <div className="text-xs text-orange-600 font-mono bg-orange-50 px-3 py-2 rounded-lg mt-2 border-l-2 border-orange-200">
+                              <div className="text-xs text-orange-600 font-mono bg-orange-50 px-2 py-1 rounded mt-1 border-l-2 border-orange-200">
                                 {field.expression}
                               </div>
                             )}
                             {field.description && (
-                              <div className="text-xs text-gray-400 leading-relaxed mt-2">
+                              <div className="text-xs text-gray-400 mt-0.5">
                                 {field.description}
                               </div>
                             )}
@@ -1259,7 +1262,11 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
             )}
             onMouseDown={handleMouseDown}
           >
-            <div className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 w-3 h-8 bg-gray-400 hover:bg-blue-500 rounded-full flex items-center justify-center opacity-60 hover:opacity-100 transition-all">
+            <div className="absolute right-0 transform -translate-y-1/2 translate-x-1/2 w-3 h-8 bg-gray-400 hover:bg-blue-500 rounded-full flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity"
+              style={{ 
+                top: 'calc(50vh - 32px)' // Center relative to viewport minus top toolbar
+              }}
+            >
               <div className="w-1 h-4 bg-white rounded-full"></div>
             </div>
           </div>

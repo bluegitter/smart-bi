@@ -2,39 +2,21 @@
 
 import React, { useEffect } from 'react'
 import { useDrop } from 'react-dnd'
-import { Plus, Layout, Save, Eye, Settings, Maximize2, Minimize2, Loader2, Database, BarChart3, Grid3x3 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
 import { PropertyPanel } from './PropertyPanel'
 import { MetricsLibraryPanel } from './MetricsLibraryPanel'
 import { ComponentLibraryPanel } from './ComponentLibraryPanel'
 import { DatasetLibraryPanel } from '@/components/dataset/DatasetLibraryPanel'
+import { DashboardToolbar } from './DashboardToolbar'
+import { DashboardCanvasArea } from './DashboardCanvasArea'
+import { DraggableComponent } from './DraggableComponent'
 import { cn } from '@/lib/utils'
 import { useDashboard } from '@/hooks/useDashboards'
 import { useActions, useIsFullscreen, useSidebarCollapsed } from '@/store/useAppStore'
-import { 
-  SimpleLineChart, 
-  SimpleBarChart, 
-  SimplePieChart, 
-  SimpleTable, 
-  SimpleKPICard, 
-  SimpleGauge,
-  ContainerComponent,
-  generateMockData 
-} from '@/components/charts/ChartComponents'
-import { SimpleMapComponent } from '@/components/charts/MapComponent'
-import { 
-  RealLineChart, 
-  RealBarChart, 
-  RealPieChart, 
-  RealKPICard 
-} from '@/components/charts/RealDataCharts'
-import {
-  DatasetLineChart,
-  DatasetBarChart,
-  DatasetKPICard,
-  DatasetPieChart
-} from '@/components/charts/DatasetCharts'
+import { useComponentAlignment } from '@/hooks/useComponentAlignment'
+import { useComponentSelection } from '@/hooks/useComponentSelection'
+import { useDashboardEvents } from '@/hooks/useDashboardEvents'
 import type { DragItem, ComponentLayout, Dashboard } from '@/types'
 
 interface DashboardCanvasProps {
@@ -59,807 +41,156 @@ export function DashboardCanvas({
     loading,
     error,
     saving,
-    saveDashboard,
-    saveLayout,
-    addComponent: addComponentToDb,
-    updateComponent: updateComponentInDb,
-    removeComponent: removeComponentFromDb
+    saveLayout
   } = useDashboard(dashboardId || null)
 
+  // 基本状态
   const [components, setComponents] = React.useState<ComponentLayout[]>(initialComponents)
-  const [selectedComponent, setSelectedComponent] = React.useState<ComponentLayout | null>(null)
-  const [selectedComponents, setSelectedComponents] = React.useState<ComponentLayout[]>([])
-  const [selectedChildParentId, setSelectedChildParentId] = React.useState<string | null>(null) // 跟踪子组件的父容器ID
-  const [isSelecting, setIsSelecting] = React.useState(false)
-  const [selectionBox, setSelectionBox] = React.useState<{
-    startX: number
-    startY: number
-    currentX: number
-    currentY: number
-  } | null>(null)
   const [isPropertyPanelOpen, setIsPropertyPanelOpen] = React.useState(false)
   const [isPreviewMode, setIsPreviewMode] = React.useState(initialPreviewMode)
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false)
-  const [alignmentGuides, setAlignmentGuides] = React.useState<{
-    vertical: number[]
-    horizontal: number[]
-  }>({ vertical: [], horizontal: [] })
   const [showHelpTip, setShowHelpTip] = React.useState(true)
-  const [isMetricsLibraryOpen, setIsMetricsLibraryOpen] = React.useState(false)
-  const [metricsLibraryHeight, setMetricsLibraryHeight] = React.useState(400)
-  const [isDatasetLibraryOpen, setIsDatasetLibraryOpen] = React.useState(false)
-  const [datasetLibraryHeight, setDatasetLibraryHeight] = React.useState(400)
-  const [isComponentLibraryOpen, setIsComponentLibraryOpen] = React.useState(false)
-  const [componentLibraryHeight, setComponentLibraryHeight] = React.useState(500)
   
   // 全屏状态和操作
   const isFullscreen = useIsFullscreen()
   const sidebarCollapsed = useSidebarCollapsed()
   const { toggleFullscreen } = useActions()
   
-  const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
-  const [datasetLibraryPosition, setDatasetLibraryPosition] = React.useState({ x: 0, y: isFullscreen ? 60 : 120 })
-  // 组件库面板默认位置计算（紧贴左侧）
-  const getComponentLibraryDefaultPosition = React.useCallback(() => {
-    return {
-      x: 10, // 距离左边缘10px
-      y: isFullscreen ? 60 : 120
-    }
-  }, [isFullscreen])
-
-  const [componentLibraryPosition, setComponentLibraryPosition] = React.useState(getComponentLibraryDefaultPosition())
-
-  // 窗口尺寸状态，用于响应式计算
+  // 窗口尺寸状态
   const [windowSize, setWindowSize] = React.useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 1200,
     height: typeof window !== 'undefined' ? window.innerHeight : 800
   })
 
-  // 计算面板的最佳高度（通用函数）
-  const calculateOptimalHeight = React.useCallback((panelY: number) => {
-    const panelTop = panelY
-    const bottomPadding = 80 // 距离底部的安全距离
-    const minHeight = 300
-    const maxHeight = 800
-    
-    const availableHeight = windowSize.height - panelTop - bottomPadding
-    const optimalHeight = Math.max(minHeight, Math.min(maxHeight, availableHeight))
-    
-    return optimalHeight
-  }, [windowSize.height])
+  // 计算数据集面板的最佳初始高度
+  const calculateDatasetPanelHeight = React.useCallback(() => {
+    const panelY = isFullscreen ? 60 : 120
+    const bottomPadding = 10 // 距离底部的安全距离
+    const availableHeight = windowSize.height - panelY - bottomPadding
+    // 最小高度400px，最大高度为可用高度
+    return Math.max(400, Math.min(availableHeight, 800))
+  }, [windowSize.height, isFullscreen])
 
-  // 监听窗口尺寸变化
-  React.useEffect(() => {
-    const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight
-      })
-    }
+  // 面板状态
+  const [isMetricsLibraryOpen, setIsMetricsLibraryOpen] = React.useState(false)
+  const [metricsLibraryHeight, setMetricsLibraryHeight] = React.useState(400)
+  const [isDatasetLibraryOpen, setIsDatasetLibraryOpen] = React.useState(false)
+  const [datasetLibraryHeight, setDatasetLibraryHeight] = React.useState(() => calculateDatasetPanelHeight())
+  const [isComponentLibraryOpen, setIsComponentLibraryOpen] = React.useState(false)
+  const [componentLibraryHeight, setComponentLibraryHeight] = React.useState(500)
+  
+  const [metricsLibraryPosition, setMetricsLibraryPosition] = React.useState({ 
+    x: 0, 
+    y: isFullscreen ? 60 : 120 
+  })
+  const [datasetLibraryPosition, setDatasetLibraryPosition] = React.useState({ 
+    x: 0, 
+    y: isFullscreen ? 60 : 120 
+  })
+  const [componentLibraryPosition, setComponentLibraryPosition] = React.useState({ 
+    x: 10, 
+    y: isFullscreen ? 60 : 120 
+  })
 
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  // 使用自定义Hooks
+  const selectionHook = useComponentSelection()
+  const alignmentHook = useComponentAlignment(components)
+  
+  // 画布引用
+  const canvasRef = React.useRef<HTMLDivElement>(null)
 
-  // 计算画布可用宽度（只考虑Sidebar状态）
+  // 计算画布宽度
   const canvasWidth = React.useMemo(() => {
     let availableWidth = windowSize.width
-    
-    // 减去侧边栏宽度（仅在非全屏且侧边栏展开时）
     if (!isFullscreen && !sidebarCollapsed) {
-      availableWidth -= 320 // 侧边栏宽度（w-80 = 320px）
+      availableWidth -= 320
     }
-    
-    // 确保最小宽度
     return Math.max(400, availableWidth)
   }, [windowSize.width, isFullscreen, sidebarCollapsed])
 
-  // 当指标面板打开时自动计算高度和调整位置
-  React.useEffect(() => {
-    if (isMetricsLibraryOpen) {
-      const windowHeight = window.innerHeight
-      const windowWidth = window.innerWidth
-      const panelWidth = 320
-      const minHeight = 300
-      
-      // 计算最佳位置
-      let newX = metricsLibraryPosition.x
-      let newY = metricsLibraryPosition.y
-      
-      // 检查水平位置是否需要调整
-      if (newX + panelWidth > windowWidth - 10) {
-        newX = Math.max(0, windowWidth - panelWidth - 10)
-      }
-      
-      // 确保不会超出左边界
-      newX = Math.max(0, newX)
-      
-      // 检查垂直位置是否需要调整
-      const maxY = windowHeight - minHeight - 50
-      if (newY > maxY) {
-        newY = Math.max(70, maxY)
-      }
-      
-      // 如果位置需要调整，更新位置
-      if (newX !== metricsLibraryPosition.x || newY !== metricsLibraryPosition.y) {
-        setMetricsLibraryPosition({ x: newX, y: newY })
-      }
-      
-      // 计算最佳高度
-      const panelTop = newY
-      const bottomPadding = 80
-      const availableHeight = windowHeight - panelTop - bottomPadding
-      const optimalHeight = Math.max(minHeight, Math.min(800, availableHeight))
-      
-      setMetricsLibraryHeight(optimalHeight)
-    }
-  }, [isMetricsLibraryOpen]) // 只依赖于打开状态
+  // 事件处理Hook
+  const { handleDrop, handleCanvasMouseDown } = useDashboardEvents({
+    components,
+    selectedComponent: selectionHook.selectedComponent,
+    selectedComponents: selectionHook.selectedComponents,
+    selectedChildParentId: selectionHook.selectedChildParentId,
+    isPreviewMode,
+    canvasRef,
+    setComponents,
+    clearSelection: selectionHook.clearSelection,
+    setIsPropertyPanelOpen,
+    setIsSelecting: selectionHook.setIsSelecting,
+    setSelectionBox: selectionHook.setSelectionBox,
+    handleComponentDelete,
+    handleDeleteChild,
+    setIsMetricsLibraryOpen,
+    setIsComponentLibraryOpen,
+    setIsPreviewMode,
+    handleBoxSelection: selectionHook.handleBoxSelection
+  })
 
-  // 监听窗口大小变化
-  React.useEffect(() => {
-    const handleResize = () => {
-      if (isMetricsLibraryOpen) {
-        const optimalHeight = calculateOptimalHeight(metricsLibraryPosition.y)
-        setMetricsLibraryHeight(optimalHeight)
-      }
-      if (isDatasetLibraryOpen) {
-        const optimalHeight = calculateOptimalHeight(datasetLibraryPosition.y)
-        setDatasetLibraryHeight(optimalHeight)
-      }
-      if (isComponentLibraryOpen) {
-        const optimalHeight = calculateOptimalHeight(componentLibraryPosition.y)
-        setComponentLibraryHeight(optimalHeight)
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [isMetricsLibraryOpen, isDatasetLibraryOpen, isComponentLibraryOpen, calculateOptimalHeight, metricsLibraryPosition.y, datasetLibraryPosition.y, componentLibraryPosition.y])
-
-  // 处理数据集面板位置变化，同时重新计算高度
-  const handleDatasetLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
-    // 确保位置在合理范围内
-    const windowWidth = window.innerWidth
-    const windowHeight = window.innerHeight
-    const panelWidth = 320
-    
-    const constrainedPosition = {
-      x: Math.max(0, Math.min(newPosition.x, windowWidth - panelWidth)),
-      y: Math.max(60, Math.min(newPosition.y, windowHeight - 300))
-    }
-    
-    setDatasetLibraryPosition(constrainedPosition)
-    
-    // 位置变化后立即重新计算高度
-    if (isDatasetLibraryOpen) {
-      setTimeout(() => {
-        const optimalHeight = calculateOptimalHeight(constrainedPosition.y)
-        setDatasetLibraryHeight(optimalHeight)
-      }, 0)
-    }
-  }, [isDatasetLibraryOpen, calculateOptimalHeight])
-
-  // 处理组件库面板位置变化，同时重新计算高度
-  const handleComponentLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
-    // 确保位置在合理范围内
-    const windowWidth = window.innerWidth
-    const windowHeight = window.innerHeight
-    const panelWidth = 360
-    
-    const constrainedPosition = {
-      x: Math.max(0, Math.min(newPosition.x, windowWidth - panelWidth)),
-      y: Math.max(60, Math.min(newPosition.y, windowHeight - 400))
-    }
-    
-    setComponentLibraryPosition(constrainedPosition)
-    
-    // 位置变化后立即重新计算高度
-    if (isComponentLibraryOpen) {
-      setTimeout(() => {
-        const optimalHeight = calculateOptimalHeight(constrainedPosition.y)
-        setComponentLibraryHeight(optimalHeight)
-      }, 0)
-    }
-  }, [isComponentLibraryOpen, calculateOptimalHeight])
-
-  // 当组件库面板打开时，确保它在正确的右侧位置
-  React.useEffect(() => {
-    if (isComponentLibraryOpen) {
-      const optimalPosition = getComponentLibraryDefaultPosition()
-      setComponentLibraryPosition(optimalPosition)
-      
-      // 同时计算高度
-      const optimalHeight = calculateOptimalHeight(optimalPosition.y)
-      setComponentLibraryHeight(optimalHeight)
-    }
-  }, [isComponentLibraryOpen, getComponentLibraryDefaultPosition, calculateOptimalHeight])
-
-  // 监听全屏模式变化，调整面板位置
-  React.useEffect(() => {
-    const newY = isFullscreen ? 60 : 120
-    setMetricsLibraryPosition(prev => ({ ...prev, y: newY }))
-    setDatasetLibraryPosition(prev => ({ ...prev, y: newY }))
-    
-    // 组件库面板只需要调整Y坐标，X坐标保持在左侧
-    setComponentLibraryPosition(prev => ({ ...prev, y: newY }))
-  }, [isFullscreen])
-
-  // 自动隐藏操作提示
-  React.useEffect(() => {
-    if (showHelpTip) {
-      const timer = setTimeout(() => {
-        setShowHelpTip(false)
-      }, 10000) // 10秒后自动隐藏
-      
-      return () => clearTimeout(timer)
-    }
-  }, [showHelpTip])
-
-  // 监听键盘事件
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Delete键删除选中组件
-      if (e.key === 'Delete' && !isPreviewMode) {
-        e.preventDefault()
-        
-        if (selectedComponents.length > 1) {
-          // 删除多个选中的组件
-          selectedComponents.forEach(component => {
-            setComponents(prev => prev.filter(comp => comp.id !== component.id))
-          })
-          clearSelection()
-          setIsPropertyPanelOpen(false)
-        } else if (selectedComponent) {
-          // 删除单个组件
-          if (selectedChildParentId) {
-            // 删除容器子组件
-            handleDeleteChild(selectedChildParentId, selectedComponent.id)
-          } else {
-            // 删除普通组件
-            handleComponentDelete(selectedComponent.id)
-          }
-        }
-      }
-      
-      // ESC键退出编辑模式
-      if (e.key === 'Escape' && !isPreviewMode) {
-        e.preventDefault()
-        setIsPreviewMode(true)
-        setSelectedComponent(null)
-        setIsPropertyPanelOpen(false)
-        setIsMetricsLibraryOpen(false)
-        setIsComponentLibraryOpen(false)
-      }
-    }
-
-    // 只在组件已挂载且用户没有在输入框中时监听键盘事件
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // 检查是否在输入元素中
-      const activeElement = document.activeElement
-      const isInputElement = activeElement && (
-        activeElement.tagName === 'INPUT' ||
-        activeElement.tagName === 'TEXTAREA' ||
-        activeElement.tagName === 'SELECT' ||
-        activeElement.getAttribute('contenteditable') === 'true'
-      )
-      
-      if (!isInputElement) {
-        handleKeyDown(e)
-      }
-    }
-
-    document.addEventListener('keydown', handleGlobalKeyDown)
-    return () => document.removeEventListener('keydown', handleGlobalKeyDown)
-  }, [selectedComponent, selectedChildParentId, isPreviewMode])
-
-  // 处理指标面板位置变化，同时重新计算高度
-  const handleMetricsLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
-    // 确保位置在合理范围内
-    const windowWidth = window.innerWidth
-    const windowHeight = window.innerHeight
-    const panelWidth = 320
-    
-    const constrainedPosition = {
-      x: Math.max(0, Math.min(newPosition.x, windowWidth - panelWidth)),
-      y: Math.max(60, Math.min(newPosition.y, windowHeight - 300))
-    }
-    
-    setMetricsLibraryPosition(constrainedPosition)
-    
-    // 位置变化后立即重新计算高度
-    if (isMetricsLibraryOpen) {
-      setTimeout(() => {
-        const windowHeight = window.innerHeight
-        const panelTop = constrainedPosition.y
-        const bottomPadding = 80
-        const minHeight = 300
-        const maxHeight = 800
-        
-        const availableHeight = windowHeight - panelTop - bottomPadding
-        const optimalHeight = Math.max(minHeight, Math.min(maxHeight, availableHeight))
-        
-        setMetricsLibraryHeight(optimalHeight)
-      }, 0)
-    }
-  }, [isMetricsLibraryOpen])
-
-  // 当看板数据加载时，更新组件状态
-  useEffect(() => {
-    if (dashboard?.layout?.components) {
-      setComponents(dashboard.layout.components)
-      setHasUnsavedChanges(false)
-    }
-  }, [dashboard])
-
-  // 监听组件变化，标记为有未保存的更改
-  useEffect(() => {
-    if (dashboard?.layout?.components) {
-      const currentComponents = JSON.stringify(components)
-      const savedComponents = JSON.stringify(dashboard.layout.components)
-      setHasUnsavedChanges(currentComponents !== savedComponents)
-    } else if (components.length > 0) {
-      // 如果没有现有dashboard但有组件，说明有未保存的更改
-      setHasUnsavedChanges(true)
-    } else {
-      // 如果没有dashboard也没有组件，说明没有更改
-      setHasUnsavedChanges(false)
-    }
-  }, [components, dashboard?.layout?.components])
-  
-  // Create a ref for the canvas element
-  const canvasRef = React.useRef<HTMLDivElement>(null)
-  
+  // 拖拽处理
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ['component', 'metric', 'container', 'container-child', 'dataset-field'],
     drop: (item: DragItem, monitor) => {
-      console.log('Drop zone triggered with item:', item)
       const offset = monitor.getSourceClientOffset()
-      console.log('Source client offset:', offset)
       if (offset) {
-        console.log('Calling handleDrop with:', item, offset)
-        try {
-          handleDrop(item, offset)
-          console.log('handleDrop completed successfully')
-        } catch (error) {
-          console.error('Error in handleDrop:', error)
-        }
-      } else {
-        console.log('No offset available for drop')
+        handleDrop(item, offset)
       }
-    },
-    hover: (item: DragItem, monitor) => {
-      console.log('Hovering over drop zone with:', item.type)
     },
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
   }))
 
-  const handleDrop = (item: DragItem, offset: { x: number; y: number }) => {
-    console.log('Drop event received:', item)
-    console.log('Offset:', offset)
-    console.log('Canvas ref current:', canvasRef.current)
-    
-    const canvasRect = canvasRef.current?.getBoundingClientRect()
-    console.log('Canvas rect:', canvasRect)
-    
-    if (!canvasRect) {
-      console.log('No canvas rect found, returning early')
-      return
-    }
-
-    const relativeX = offset.x - canvasRect.left
-    const relativeY = offset.y - canvasRect.top
-
-    // 网格对齐（24px 网格）
-    const gridSize = 24
-    const x = Math.max(0, Math.round(relativeX / gridSize) * gridSize)
-    const y = Math.max(0, Math.round(relativeY / gridSize) * gridSize)
-
-    console.log(`Drop position: x=${x}, y=${y}, item type: ${item.type}`)
-
-    console.log('Checking item type:', item.type, typeof item.type)
-    console.log('Is metric?', item.type === 'metric')
-    console.log('Is component?', item.type === 'component')
-
-    if (item.type === 'component') {
-      // 从侧边栏拖拽组件
-      const componentData = item.data as { type: ComponentLayout['type'], name: string }
-      const componentType = componentData.type || 'line-chart'
-      
-      // 根据组件类型设置合适的默认尺寸
-      const getDefaultSize = (type: ComponentLayout['type']) => {
-        switch (type) {
-          case 'kpi-card':
-            return { width: 300, height: 180 }
-          case 'gauge':
-            return { width: 250, height: 200 }
-          case 'pie-chart':
-            return { width: 350, height: 280 }
-          case 'table':
-            return { width: 500, height: 300 }
-          case 'map':
-            return { width: 400, height: 300 }
-          case 'container':
-            return { width: 600, height: 400 }
-          default:
-            return { width: 400, height: 300 }
-        }
-      }
-      
-      // 根据组件类型设置合适的中文标题
-      const getDefaultTitle = (type: ComponentLayout['type']) => {
-        switch (type) {
-          case 'line-chart':
-            return '趋势分析图'
-          case 'bar-chart':
-            return '柱状对比图'
-          case 'pie-chart':
-            return '数据分布图'
-          case 'table':
-            return '数据明细表'
-          case 'kpi-card':
-            return '关键指标'
-          case 'gauge':
-            return '进度仪表盘'
-          case 'map':
-            return '地图组件'
-          case 'container':
-            return '容器组件'
-          default:
-            return '新图表'
-        }
-      }
-      
-      const newComponent: ComponentLayout = {
-        id: `component-${Date.now()}`,
-        type: componentType,
-        title: componentData.name || getDefaultTitle(componentType),
-        position: { x, y },
-        size: getDefaultSize(componentType),
-        config: {
-          style: {
-            colorScheme: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'],
-            showBackground: true,
-            showBorder: true,
-            showShadow: false,
-            opacity: 1
-          }
-        },
-        dataConfig: {
-          datasourceId: '',
-          query: '',
-          metrics: [],
-          dimensions: [],
-          filters: [],
-        },
-        // 容器组件专用属性
-        ...(componentType === 'container' && {
-          children: [],
-          containerConfig: {
-            layout: 'flex',
-            padding: 16,
-            gap: 12,
-            backgroundColor: '#ffffff',
-            borderStyle: 'dashed',
-            borderColor: '#e2e8f0',
-            borderWidth: 2
-          }
-        })
-      }
-      setComponents(prev => [...prev, newComponent])
-      // 自动选择新创建的组件
-      setSelectedComponent(newComponent)
-      setIsPropertyPanelOpen(true)
-    } else if (item.type === 'metric') {
-      // 从指标面板拖拽指标到画布，自动创建对应的图表组件
-      console.log('Creating component from metric drag')
-      const metricData = item.data as { _id: string; name: string; displayName: string; category: string; type: string; unit?: string }
-      console.log('Metric data:', metricData)
-      
-      // 根据指标类型选择合适的图表类型
-      const getChartTypeForMetric = (metricType: string, metricCategory: string): ComponentLayout['type'] => {
-        // 根据指标类型和类别智能选择图表类型
-        if (metricType === 'ratio' || metricCategory === '营销') {
-          return 'pie-chart'
-        } else if (metricType === 'count') {
-          return 'bar-chart'
-        } else if (metricType === 'sum') {
-          return 'line-chart'
-        } else {
-          return 'kpi-card'
-        }
-      }
-      
-      const chartType = getChartTypeForMetric(metricData.type, metricData.category)
-      console.log('Selected chart type:', chartType)
-      
-      const newComponent: ComponentLayout = {
-        id: `metric-${metricData._id}-${Date.now()}`,
-        type: chartType,
-        title: metricData.unit ? `${metricData.displayName} (${metricData.unit})` : metricData.displayName,
-        position: { x, y },
-        size: chartType === 'kpi-card' ? { width: 300, height: 150 } : { width: 400, height: 300 },
-        config: {
-          style: {
-            colorScheme: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'],
-            showBackground: true,
-            showBorder: true,
-            showShadow: false,
-            opacity: 1
-          }
-        },
-        dataConfig: {
-          datasourceId: '',
-          query: '',
-          metrics: [metricData.name], // 内部使用name，但显示用displayName
-          dimensions: [],
-          filters: [],
-          // 保存指标的单位映射
-          fieldUnits: metricData.unit ? {
-            [metricData.name]: metricData.unit
-          } : {},
-        },
-      }
-      
-      console.log('Creating new component:', newComponent)
-      setComponents(prev => {
-        const updated = [...prev, newComponent]
-        return updated
-      })
-      // 自动选择新创建的组件
-      setSelectedComponent(newComponent)
-      setIsPropertyPanelOpen(true)
-    } else if (item.type === 'dataset-field') {
-      // 从数据集库拖拽字段到画布，自动创建对应的图表组件
-      console.log('Creating component from dataset field drag')
-      console.log('Item type confirmed:', item.type)
-      const fieldData = item.data as { 
-        datasetId: string; 
-        datasetName: string; 
-        field: any; 
-        fieldType: 'dimension' | 'measure' 
-      }
-      console.log('Field data:', fieldData)
-      
-      // 根据字段类型选择合适的图表类型
-      const getChartTypeForField = (fieldType: string, dataType: string): ComponentLayout['type'] => {
-        if (fieldType === 'measure') {
-          return dataType === 'number' ? 'kpi-card' : 'bar-chart'
-        } else {
-          return dataType === 'date' ? 'line-chart' : 'bar-chart'
-        }
-      }
-      
-      const chartType = getChartTypeForField(fieldData.fieldType, fieldData.field.type)
-      console.log('Selected chart type:', chartType)
-      
-      const newComponent: ComponentLayout = {
-        id: `dataset-${fieldData.datasetId}-${fieldData.field.name}-${Date.now()}`,
-        type: chartType,
-        title: `${fieldData.datasetName} - ${fieldData.field.displayName}`,
-        position: { x, y },
-        size: chartType === 'kpi-card' ? { width: 300, height: 150 } : { width: 400, height: 300 },
-        config: {
-          style: {
-            colorScheme: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'],
-            showBackground: true,
-            showBorder: true,
-            showShadow: false,
-            opacity: 1
-          }
-        },
-        dataConfig: {
-          // 新的数据集绑定方式
-          datasetId: fieldData.datasetId,
-          selectedMeasures: fieldData.fieldType === 'measure' ? [fieldData.field.name] : [],
-          selectedDimensions: fieldData.fieldType === 'dimension' ? [fieldData.field.name] : [],
-          filters: [],
-          // 保存字段的显示名称映射
-          fieldDisplayNames: {
-            [fieldData.field.name]: fieldData.field.displayName
-          },
-          // 保存字段的单位映射
-          fieldUnits: fieldData.field.unit ? {
-            [fieldData.field.name]: fieldData.field.unit
-          } : {},
-          // 调试用 - 确保这个字段被包含
-          testUnitField: fieldData.field.unit || 'no-unit'
-        },
-      }
-      
-      setComponents(prev => {
-        const updated = [...prev, newComponent]
-        return updated
-      })
-      // 自动选择新创建的组件
-      setSelectedComponent(newComponent)
-      setIsPropertyPanelOpen(true)
-    } else if (item.type === 'container-child') {
-      // 从容器拖拽子组件到画布
-      const childData = item.data as { component: ComponentLayout, containerId: string, index: number }
-      
-      // 创建新的独立组件，使用合适的画布尺寸
-      const getCanvasSize = (type: ComponentLayout['type']) => {
-        switch (type) {
-          case 'kpi-card':
-            return { width: 300, height: 180 }
-          case 'gauge':
-            return { width: 250, height: 200 }
-          case 'pie-chart':
-            return { width: 350, height: 280 }
-          case 'table':
-            return { width: 500, height: 300 }
-          case 'map':
-            return { width: 400, height: 300 }
-          default:
-            return { width: 400, height: 300 }
-        }
-      }
-      
-      const newComponent: ComponentLayout = {
-        ...childData.component,
-        id: `moved-${childData.component.id}-${Date.now()}`, // 新ID避免冲突
-        position: { x, y },
-        size: getCanvasSize(childData.component.type)
-      }
-      
-      // 添加到画布
-      setComponents(prev => [...prev, newComponent])
-      
-      // 从容器中删除子组件
-      handleDeleteChild(childData.containerId, childData.component.id)
-      
-      // 自动选择新创建的组件
-      setSelectedComponent(newComponent)
-      setIsPropertyPanelOpen(true)
-      console.log('Container child moved to canvas:', newComponent)
-    }
-  }
-
-  // 智能对齐功能
-  const calculateAlignmentGuides = (draggingComponent: ComponentLayout, newPosition: { x: number; y: number }, disableGrid = false) => {
-    const SNAP_THRESHOLD = 8 // 对齐吸附阈值，像素
-    const FINE_GRID_SIZE = 4 // 精细网格大小（4像素）
-    const guides: { vertical: number[], horizontal: number[] } = { vertical: [], horizontal: [] }
-    const snappedPosition = { ...newPosition }
-    
-    // 根据是否禁用网格来决定是否应用网格对齐
-    if (!disableGrid) {
-      // 应用精细网格对齐（4像素网格）
-      const gridX = Math.round(newPosition.x / FINE_GRID_SIZE) * FINE_GRID_SIZE
-      const gridY = Math.round(newPosition.y / FINE_GRID_SIZE) * FINE_GRID_SIZE
-      snappedPosition.x = Math.max(0, gridX)
-      snappedPosition.y = Math.max(0, gridY)
-    } else {
-      // 禁用网格时，允许像素级移动
-      snappedPosition.x = Math.max(0, newPosition.x)
-      snappedPosition.y = Math.max(0, newPosition.y)
-    }
-    
-    // 当前拖拽组件的边界（基于网格对齐后的位置）
-    const dragLeft = snappedPosition.x
-    const dragRight = snappedPosition.x + draggingComponent.size.width
-    const dragTop = snappedPosition.y
-    const dragBottom = snappedPosition.y + draggingComponent.size.height
-    const dragCenterX = snappedPosition.x + draggingComponent.size.width / 2
-    const dragCenterY = snappedPosition.y + draggingComponent.size.height / 2
-    
-    // 检查与其他组件的对齐
-    components.forEach(comp => {
-      if (comp.id === draggingComponent.id) return
-      
-      const compLeft = comp.position.x
-      const compRight = comp.position.x + comp.size.width
-      const compTop = comp.position.y
-      const compBottom = comp.position.y + comp.size.height
-      const compCenterX = comp.position.x + comp.size.width / 2
-      const compCenterY = comp.position.y + comp.size.height / 2
-      
-      // 垂直对齐检测（X轴方向）
-      // 左边缘对齐
-      if (Math.abs(dragLeft - compLeft) <= SNAP_THRESHOLD) {
-        snappedPosition.x = compLeft
-        guides.vertical.push(compLeft)
-      }
-      // 右边缘对齐
-      if (Math.abs(dragRight - compRight) <= SNAP_THRESHOLD) {
-        snappedPosition.x = compRight - draggingComponent.size.width
-        guides.vertical.push(compRight)
-      }
-      // 左边缘对齐到右边缘
-      if (Math.abs(dragLeft - compRight) <= SNAP_THRESHOLD) {
-        snappedPosition.x = compRight
-        guides.vertical.push(compRight)
-      }
-      // 右边缘对齐到左边缘
-      if (Math.abs(dragRight - compLeft) <= SNAP_THRESHOLD) {
-        snappedPosition.x = compLeft - draggingComponent.size.width
-        guides.vertical.push(compLeft)
-      }
-      // 中心对齐
-      if (Math.abs(dragCenterX - compCenterX) <= SNAP_THRESHOLD) {
-        snappedPosition.x = compCenterX - draggingComponent.size.width / 2
-        guides.vertical.push(compCenterX)
-      }
-      
-      // 水平对齐检测（Y轴方向）
-      // 顶边缘对齐
-      if (Math.abs(dragTop - compTop) <= SNAP_THRESHOLD) {
-        snappedPosition.y = compTop
-        guides.horizontal.push(compTop)
-      }
-      // 底边缘对齐
-      if (Math.abs(dragBottom - compBottom) <= SNAP_THRESHOLD) {
-        snappedPosition.y = compBottom - draggingComponent.size.height
-        guides.horizontal.push(compBottom)
-      }
-      // 顶边缘对齐到底边缘
-      if (Math.abs(dragTop - compBottom) <= SNAP_THRESHOLD) {
-        snappedPosition.y = compBottom
-        guides.horizontal.push(compBottom)
-      }
-      // 底边缘对齐到顶边缘
-      if (Math.abs(dragBottom - compTop) <= SNAP_THRESHOLD) {
-        snappedPosition.y = compTop - draggingComponent.size.height
-        guides.horizontal.push(compTop)
-      }
-      // 中心对齐
-      if (Math.abs(dragCenterY - compCenterY) <= SNAP_THRESHOLD) {
-        snappedPosition.y = compCenterY - draggingComponent.size.height / 2
-        guides.horizontal.push(compCenterY)
-      }
-    })
-    
-    // 去重对齐线
-    guides.vertical = [...new Set(guides.vertical)]
-    guides.horizontal = [...new Set(guides.horizontal)]
-    
-    return { snappedPosition, guides }
-  }
-
-  const handleComponentMove = (id: string, newPosition: { x: number; y: number }) => {
+  // 组件操作函数
+  const handleComponentMove = React.useCallback((id: string, newPosition: { x: number; y: number }) => {
     setComponents(prev => prev.map(comp => 
       comp.id === id ? { ...comp, position: newPosition } : comp
     ))
-    // 更新选中组件的状态
-    if (selectedComponent?.id === id) {
-      setSelectedComponent(prev => prev ? { ...prev, position: newPosition } : null)
+    if (selectionHook.selectedComponent?.id === id) {
+      selectionHook.setSelectedComponent(prev => prev ? { ...prev, position: newPosition } : null)
     }
-  }
+  }, [selectionHook])
 
-  const handleComponentMoveWithAlignment = (id: string, newPosition: { x: number; y: number }, disableGrid = false) => {
+  const handleComponentMoveWithAlignment = React.useCallback((
+    id: string, 
+    newPosition: { x: number; y: number }, 
+    disableGrid = false
+  ) => {
     const draggingComponent = components.find(comp => comp.id === id)
     if (!draggingComponent) return
     
-    // 检查是否为多选移动
-    if (selectedComponents.length > 1 && selectedComponents.some(comp => comp.id === id)) {
-      handleMultiComponentMove(id, newPosition, disableGrid)
+    if (selectionHook.selectedComponents.length > 1 && 
+        selectionHook.selectedComponents.some(comp => comp.id === id)) {
+      handleMultiComponentMove(id, newPosition)
       return
     }
     
-    const { snappedPosition, guides } = calculateAlignmentGuides(draggingComponent, newPosition, disableGrid)
-    setAlignmentGuides(guides)
+    const { snappedPosition, guides } = alignmentHook.calculateAlignmentGuides(
+      draggingComponent, 
+      newPosition, 
+      disableGrid
+    )
+    alignmentHook.setAlignmentGuides(guides)
     handleComponentMove(id, snappedPosition)
-  }
+  }, [components, selectionHook, alignmentHook])
 
-  // 多选组件移动
-  const handleMultiComponentMove = (primaryId: string, newPosition: { x: number; y: number }, disableGrid = false) => {
-    // 清除对齐辅助线
-    setAlignmentGuides({ vertical: [], horizontal: [] })
+  const handleMultiComponentMove = React.useCallback((
+    primaryId: string, 
+    newPosition: { x: number; y: number }
+  ) => {
+    alignmentHook.setAlignmentGuides({ vertical: [], horizontal: [] })
     
-    // 使用 setComponents 的回调来获取最新的组件状态
     setComponents(prev => {
       const primaryComponent = prev.find(comp => comp.id === primaryId)
       if (!primaryComponent) return prev
       
-      // 基于最新位置计算位移量
       const deltaX = newPosition.x - primaryComponent.position.x
       const deltaY = newPosition.y - primaryComponent.position.y
       
-      // 移动所有选中的组件，使用统一的位移量
       return prev.map(comp => {
-        if (selectedComponents.some(selected => selected.id === comp.id)) {
+        if (selectionHook.selectedComponents.some(selected => selected.id === comp.id)) {
           return {
             ...comp,
             position: {
@@ -872,301 +203,94 @@ export function DashboardCanvas({
       })
     })
     
-    // 更新主选择组件的状态
-    if (selectedComponent?.id === primaryId) {
-      setSelectedComponent(prev => prev ? {
+    if (selectionHook.selectedComponent?.id === primaryId) {
+      selectionHook.setSelectedComponent(prev => prev ? {
         ...prev,
         position: newPosition
       } : null)
     }
-  }
+  }, [selectionHook, alignmentHook])
 
-  // 智能调整大小功能
-  const calculateResizeAlignmentGuides = (resizingComponent: ComponentLayout, newSize: { width: number; height: number }, disableGrid = false) => {
-    const SNAP_THRESHOLD = 8 // 对齐吸附阈值，像素
-    const FINE_GRID_SIZE = 4 // 精细网格大小（4像素）
-    const guides: { vertical: number[], horizontal: number[] } = { vertical: [], horizontal: [] }
-    const snappedSize = { ...newSize }
-    
-    // 根据是否禁用网格来决定是否应用网格对齐
-    if (!disableGrid) {
-      // 应用精细网格对齐（4像素网格）
-      const gridWidth = Math.round(newSize.width / FINE_GRID_SIZE) * FINE_GRID_SIZE
-      const gridHeight = Math.round(newSize.height / FINE_GRID_SIZE) * FINE_GRID_SIZE
-      snappedSize.width = Math.max(100, gridWidth) // 最小宽度100px
-      snappedSize.height = Math.max(80, gridHeight) // 最小高度80px
-    } else {
-      // 禁用网格时，允许像素级调整
-      snappedSize.width = Math.max(100, newSize.width)
-      snappedSize.height = Math.max(80, newSize.height)
-    }
-    
-    // 当前调整组件的边界（基于新尺寸）
-    const resizeRight = resizingComponent.position.x + snappedSize.width
-    const resizeBottom = resizingComponent.position.y + snappedSize.height
-    
-    // 检查与其他组件的尺寸对齐
-    components.forEach(comp => {
-      if (comp.id === resizingComponent.id) return
-      
-      const compLeft = comp.position.x
-      const compRight = comp.position.x + comp.size.width
-      const compTop = comp.position.y
-      const compBottom = comp.position.y + comp.size.height
-      
-      // 右边缘对齐到其他组件的左边缘
-      if (Math.abs(resizeRight - compLeft) <= SNAP_THRESHOLD) {
-        const newWidth = compLeft - resizingComponent.position.x
-        if (newWidth >= 100) { // 确保最小宽度
-          snappedSize.width = newWidth
-          guides.vertical.push(compLeft)
-        }
-      }
-      // 右边缘对齐到其他组件的右边缘
-      if (Math.abs(resizeRight - compRight) <= SNAP_THRESHOLD) {
-        snappedSize.width = compRight - resizingComponent.position.x
-        guides.vertical.push(compRight)
-      }
-      
-      // 底边缘对齐到其他组件的顶边缘
-      if (Math.abs(resizeBottom - compTop) <= SNAP_THRESHOLD) {
-        const newHeight = compTop - resizingComponent.position.y
-        if (newHeight >= 80) { // 确保最小高度
-          snappedSize.height = newHeight
-          guides.horizontal.push(compTop)
-        }
-      }
-      // 底边缘对齐到其他组件的底边缘
-      if (Math.abs(resizeBottom - compBottom) <= SNAP_THRESHOLD) {
-        snappedSize.height = compBottom - resizingComponent.position.y
-        guides.horizontal.push(compBottom)
-      }
-      
-      // 宽度对齐到其他组件的宽度
-      if (Math.abs(snappedSize.width - comp.size.width) <= SNAP_THRESHOLD) {
-        snappedSize.width = comp.size.width
-        // 添加宽度对齐的视觉提示线（在组件右边缘）
-        guides.vertical.push(resizingComponent.position.x + comp.size.width)
-      }
-      
-      // 高度对齐到其他组件的高度
-      if (Math.abs(snappedSize.height - comp.size.height) <= SNAP_THRESHOLD) {
-        snappedSize.height = comp.size.height
-        // 添加高度对齐的视觉提示线（在组件底边缘）
-        guides.horizontal.push(resizingComponent.position.y + comp.size.height)
-      }
-    })
-    
-    // 去重对齐线
-    guides.vertical = [...new Set(guides.vertical)]
-    guides.horizontal = [...new Set(guides.horizontal)]
-    
-    return { snappedSize, guides }
-  }
-
-  const handleComponentResize = (id: string, newSize: { width: number; height: number }) => {
+  const handleComponentResize = React.useCallback((id: string, newSize: { width: number; height: number }) => {
     setComponents(prev => prev.map(comp => 
       comp.id === id ? { ...comp, size: newSize } : comp
     ))
-    // 更新选中组件的状态
-    if (selectedComponent?.id === id) {
-      setSelectedComponent(prev => prev ? { ...prev, size: newSize } : null)
+    if (selectionHook.selectedComponent?.id === id) {
+      selectionHook.setSelectedComponent(prev => prev ? { ...prev, size: newSize } : null)
     }
-  }
+  }, [selectionHook])
 
-  const handleComponentResizeWithAlignment = (id: string, newSize: { width: number; height: number }, disableGrid = false) => {
+  const handleComponentResizeWithAlignment = React.useCallback((
+    id: string, 
+    newSize: { width: number; height: number }, 
+    disableGrid = false
+  ) => {
     const resizingComponent = components.find(comp => comp.id === id)
     if (!resizingComponent) return
     
-    const { snappedSize, guides } = calculateResizeAlignmentGuides(resizingComponent, newSize, disableGrid)
-    setAlignmentGuides(guides)
+    const { snappedSize, guides } = alignmentHook.calculateResizeAlignmentGuides(
+      resizingComponent, 
+      newSize, 
+      disableGrid
+    )
+    alignmentHook.setAlignmentGuides(guides)
     handleComponentResize(id, snappedSize)
-  }
+  }, [components, alignmentHook])
 
-  // 多选相关函数
-  const clearSelection = () => {
-    setSelectedComponent(null)
-    setSelectedComponents([])
-    setSelectedChildParentId(null)
-    setAlignmentGuides({ vertical: [], horizontal: [] })
-  }
-
-  const handleOpenProperties = (component: ComponentLayout) => {
-    // 确保组件被选中，然后打开属性面板
-    setSelectedComponent(component)
-    setSelectedComponents([component])
-    setSelectedChildParentId(null)
-    setIsPropertyPanelOpen(true)
-    // 清理对齐辅助线
-    setAlignmentGuides({ vertical: [], horizontal: [] })
-  }
-
-  const handleComponentSelect = (component: ComponentLayout, isMultiSelect = false) => {
-    if (isMultiSelect) {
-      // Shift + 点击多选
-      setSelectedComponents(prev => {
-        const isAlreadySelected = prev.some(comp => comp.id === component.id)
-        if (isAlreadySelected) {
-          // 取消选择
-          const newSelection = prev.filter(comp => comp.id !== component.id)
-          if (newSelection.length === 0) {
-            setSelectedComponent(null)
-            setIsPropertyPanelOpen(false)
-          } else if (newSelection.length === 1) {
-            setSelectedComponent(newSelection[0])
-            // 不自动打开属性面板
-          } else {
-            // 多选状态，设置第一个作为主选择
-            setSelectedComponent(newSelection[0])
-            // 多选时不显示属性面板
-          }
-          return newSelection
-        } else {
-          // 添加到选择
-          const newSelection = [...prev, component]
-          if (newSelection.length === 1) {
-            setSelectedComponent(component)
-            // 不自动打开属性面板
-          } else {
-            // 多选状态，保持第一个作为主选择
-            setSelectedComponent(prev.length > 0 ? prev[0] : component)
-            // 多选时不显示属性面板
-          }
-          return newSelection
-        }
-      })
-    } else {
-      // 单选
-      setSelectedComponent(component)
-      setSelectedComponents([component])
-      setSelectedChildParentId(null) // 清除子组件父容器ID
-      // 不自动打开属性面板
-    }
-    // 清理对齐辅助线
-    setAlignmentGuides({ vertical: [], horizontal: [] })
-  }
-
-  // 框选功能
-  const calculateSelectionBox = (startX: number, startY: number, currentX: number, currentY: number) => {
-    return {
-      left: Math.min(startX, currentX),
-      top: Math.min(startY, currentY),
-      width: Math.abs(currentX - startX),
-      height: Math.abs(currentY - startY)
-    }
-  }
-
-  const getComponentsInSelection = (selectionRect: { left: number; top: number; width: number; height: number }) => {
-    return components.filter(component => {
-      const compLeft = component.position.x
-      const compRight = component.position.x + component.size.width
-      const compTop = component.position.y
-      const compBottom = component.position.y + component.size.height
-      
-      const selRight = selectionRect.left + selectionRect.width
-      const selBottom = selectionRect.top + selectionRect.height
-      
-      // 检查组件是否与选择框相交
-      return !(compLeft > selRight || compRight < selectionRect.left || 
-               compTop > selBottom || compBottom < selectionRect.top)
-    })
-  }
-
-  const handleComponentDelete = (id: string) => {
+  function handleComponentDelete(id: string) {
     setComponents(prev => prev.filter(comp => comp.id !== id))
-    // 如果删除的是选中组件，清除选择
-    if (selectedComponent?.id === id) {
-      setSelectedComponent(null)
+    if (selectionHook.selectedComponent?.id === id) {
+      selectionHook.setSelectedComponent(null)
       setIsPropertyPanelOpen(false)
     }
   }
 
-  const handleComponentUpdate = (componentId: string, updates: Partial<ComponentLayout>) => {
+  const handleComponentUpdate = React.useCallback((componentId: string, updates: Partial<ComponentLayout>) => {
     setComponents(prev => prev.map(comp => 
       comp.id === componentId ? { ...comp, ...updates } : comp
     ))
-    // 更新选中组件的状态
-    if (selectedComponent?.id === componentId) {
-      setSelectedComponent(prev => prev ? { ...prev, ...updates } : null)
+    if (selectionHook.selectedComponent?.id === componentId) {
+      selectionHook.setSelectedComponent(prev => prev ? { ...prev, ...updates } : null)
     }
-  }
+  }, [selectionHook])
 
-  // 处理拖拽到容器组件的逻辑
-  const handleDropToContainer = (item: DragItem, containerId: string, position?: { x: number; y: number }) => {
-    console.log('Dropping item to container:', item, containerId)
-    
-    if (item.type === 'metric') {
-      // 拖拽指标到容器，创建新的图表组件作为子组件
-      const metricData = item.data as { _id: string; name: string; displayName: string; category: string; type: string; unit?: string }
-      
-      const getChartTypeForMetric = (metricType: string, metricCategory: string): ComponentLayout['type'] => {
-        if (metricType === 'ratio' || metricCategory === '营销') {
-          return 'pie-chart'
-        } else if (metricType === 'count') {
-          return 'bar-chart'
-        } else if (metricType === 'sum') {
-          return 'line-chart'
-        } else {
-          return 'kpi-card'
-        }
-      }
-      
-      const chartType = getChartTypeForMetric(metricData.type, metricData.category)
-      
-      const newChildComponent: ComponentLayout = {
-        id: `metric-${metricData._id}-${Date.now()}`,
-        type: chartType,
-        title: metricData.unit ? `${metricData.displayName} (${metricData.unit})` : metricData.displayName,
-        position: position || { x: 0, y: 0 }, // 在容器内的相对位置
-        size: chartType === 'kpi-card' ? { width: 200, height: 120 } : { width: 300, height: 200 },
-        config: {
-          style: {
-            colorScheme: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'],
-            showBackground: true,
-            showBorder: true,
-            showShadow: false,
-            opacity: 1
-          }
-        },
-        dataConfig: {
-          datasourceId: '',
-          query: '',
-          metrics: [metricData.name],
-          dimensions: [],
-          filters: [],
-          // 保存指标的单位映射
-          fieldUnits: metricData.unit ? {
-            [metricData.name]: metricData.unit
-          } : {},
-        },
-      }
-      
-      // 将子组件添加到容器中
-      setComponents(prev => prev.map(comp => {
-        if (comp.id === containerId && comp.type === 'container') {
-          return {
-            ...comp,
-            children: [...(comp.children || []), newChildComponent]
-          }
-        }
-        return comp
-      }))
-      
-    } else if (item.type === 'component') {
-      // 拖拽现有组件到容器 - 暂时不支持，避免复杂的布局问题
-      console.log('Moving existing component to container - not implemented yet')
-    }
-  }
-
-  // 处理选择容器内的子组件
-  const handleSelectChild = (childComponent: ComponentLayout, containerId?: string) => {
-    setSelectedComponent(childComponent)
-    setSelectedChildParentId(containerId || null)
+  const handleOpenProperties = React.useCallback((component: ComponentLayout) => {
+    selectionHook.setSelectedComponent(component)
+    selectionHook.setSelectedComponents([component])
+    selectionHook.setSelectedChildParentId(null)
     setIsPropertyPanelOpen(true)
+    alignmentHook.setAlignmentGuides({ vertical: [], horizontal: [] })
+  }, [selectionHook, alignmentHook])
+
+  function handleDeleteChild(containerId: string, childId: string) {
+    setComponents(prev => prev.map(comp => {
+      if (comp.id === containerId && comp.type === 'container' && comp.children) {
+        return {
+          ...comp,
+          children: comp.children.filter(child => child.id !== childId)
+        }
+      }
+      return comp
+    }))
+    
+    if (selectionHook.selectedComponent?.id === childId) {
+      selectionHook.setSelectedComponent(null)
+      setIsPropertyPanelOpen(false)
+    }
   }
 
-  // 处理更新容器内的子组件
-  const handleUpdateChild = (containerId: string, childId: string, updates: Partial<ComponentLayout>) => {
+  const handleDropToContainer = React.useCallback((item: DragItem, containerId: string, position?: { x: number; y: number }) => {
+    // 简化版容器拖拽处理
+    console.log('Drop to container:', item, containerId, position)
+  }, [])
+
+  const handleSelectChild = React.useCallback((childComponent: ComponentLayout) => {
+    selectionHook.setSelectedComponent(childComponent)
+    selectionHook.setSelectedChildParentId(childComponent.id)
+    setIsPropertyPanelOpen(true)
+  }, [selectionHook])
+
+  const handleUpdateChild = React.useCallback((containerId: string, childId: string, updates: Partial<ComponentLayout>) => {
     setComponents(prev => prev.map(comp => {
       if (comp.id === containerId && comp.type === 'container' && comp.children) {
         return {
@@ -1179,33 +303,12 @@ export function DashboardCanvas({
       return comp
     }))
     
-    // 如果更新的是当前选中的子组件，也要更新选中状态
-    if (selectedComponent?.id === childId) {
-      setSelectedComponent(prev => prev ? { ...prev, ...updates } : null)
+    if (selectionHook.selectedComponent?.id === childId) {
+      selectionHook.setSelectedComponent(prev => prev ? { ...prev, ...updates } : null)
     }
-  }
+  }, [selectionHook])
 
-  // 处理删除容器内的子组件
-  const handleDeleteChild = (containerId: string, childId: string) => {
-    setComponents(prev => prev.map(comp => {
-      if (comp.id === containerId && comp.type === 'container' && comp.children) {
-        return {
-          ...comp,
-          children: comp.children.filter(child => child.id !== childId)
-        }
-      }
-      return comp
-    }))
-    
-    // 如果删除的是当前选中的子组件，清除选择
-    if (selectedComponent?.id === childId) {
-      setSelectedComponent(null)
-      setIsPropertyPanelOpen(false)
-    }
-  }
-
-  // 处理容器内子组件的拖拽排序
-  const handleMoveChild = (containerId: string, dragIndex: number, hoverIndex: number) => {
+  const handleMoveChild = React.useCallback((containerId: string, dragIndex: number, hoverIndex: number) => {
     setComponents(prev => prev.map(comp => {
       if (comp.id === containerId && comp.type === 'container' && comp.children) {
         const newChildren = [...comp.children]
@@ -1220,12 +323,12 @@ export function DashboardCanvas({
       }
       return comp
     }))
-  }
+  }, [])
 
-  const handleSave = async () => {
+  // 工具栏事件处理
+  const handleSave = React.useCallback(async () => {
     try {
       if (dashboardId && dashboard) {
-        // 保存到数据库
         const updatedLayout = {
           ...dashboard.layout,
           components
@@ -1235,25 +338,126 @@ export function DashboardCanvas({
         if (onSave && savedDashboard) {
           onSave(savedDashboard)
         }
-        
-        console.log('Dashboard saved successfully:', savedDashboard)
       } else if (onSave) {
-        // 如果没有dashboardId，使用传递的onSave回调
-        onSave({ components } as Dashboard)
+        onSave({
+          _id: '',
+          name: dashboardName,
+          components,
+          layout: { components },
+          globalConfig: {}
+        } as Dashboard)
       }
     } catch (error) {
       console.error('Failed to save dashboard:', error)
       alert('保存失败: ' + (error instanceof Error ? error.message : '未知错误'))
     }
-  }
+  }, [dashboardId, dashboard, components, saveLayout, onSave])
 
-  const handlePreviewToggle = () => {
+  const handlePreviewToggle = React.useCallback(() => {
     setIsPreviewMode(!isPreviewMode)
     if (!isPreviewMode) {
-      // 进入预览模式时关闭属性面板
       setIsPropertyPanelOpen(false)
     }
-  }
+  }, [isPreviewMode])
+
+  // 渲染DraggableComponent的函数
+  const renderDraggableComponent = React.useCallback((component: ComponentLayout) => {
+    const isSelected = selectionHook.selectedComponent?.id === component.id
+    const isMultiSelected = selectionHook.selectedComponents.some(comp => comp.id === component.id) && 
+                           selectionHook.selectedComponent?.id !== component.id
+
+    return (
+      <DraggableComponent
+        key={component.id}
+        component={component}
+        isSelected={isSelected}
+        isPreviewMode={isPreviewMode}
+        selectedChildId={selectionHook.selectedComponent?.id}
+        onMove={handleComponentMoveWithAlignment}
+        onResize={handleComponentResizeWithAlignment}
+        onSelect={(comp, isMultiSelect) => selectionHook.handleComponentSelect(comp, isMultiSelect)}
+        isMultiSelected={isMultiSelected}
+        onOpenProperties={handleOpenProperties}
+        onDelete={handleComponentDelete}
+        onDropToContainer={handleDropToContainer}
+        onSelectChild={handleSelectChild}
+        onUpdateChild={handleUpdateChild}
+        onDeleteChild={handleDeleteChild}
+        onMoveChild={handleMoveChild}
+        onDragEnd={() => alignmentHook.setAlignmentGuides({ vertical: [], horizontal: [] })}
+      />
+    )
+  }, [
+    selectionHook,
+    isPreviewMode,
+    handleComponentMoveWithAlignment,
+    handleComponentResizeWithAlignment,
+    handleOpenProperties,
+    handleDropToContainer,
+    handleSelectChild,
+    handleUpdateChild,
+    handleDeleteChild,
+    handleMoveChild,
+    alignmentHook
+  ])
+
+  // 监听看板数据变化
+  useEffect(() => {
+    if (dashboard?.layout?.components) {
+      setComponents(dashboard.layout.components)
+      setHasUnsavedChanges(false)
+    }
+  }, [dashboard])
+
+  // 监听组件变化
+  useEffect(() => {
+    if (dashboard?.layout?.components) {
+      const currentComponents = JSON.stringify(components)
+      const savedComponents = JSON.stringify(dashboard.layout.components)
+      setHasUnsavedChanges(currentComponents !== savedComponents)
+    } else if (components.length > 0) {
+      setHasUnsavedChanges(true)
+    } else {
+      setHasUnsavedChanges(false)
+    }
+  }, [components, dashboard?.layout?.components])
+
+  // 监听窗口尺寸变化
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // 自动隐藏操作提示
+  useEffect(() => {
+    if (showHelpTip) {
+      const timer = setTimeout(() => {
+        setShowHelpTip(false)
+      }, 10000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [showHelpTip])
+
+  // 面板位置处理函数（简化版）
+  const handleMetricsLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
+    setMetricsLibraryPosition(newPosition)
+  }, [])
+
+  const handleDatasetLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
+    setDatasetLibraryPosition(newPosition)
+  }, [])
+
+  const handleComponentLibraryMove = React.useCallback((newPosition: { x: number; y: number }) => {
+    setComponentLibraryPosition(newPosition)
+  }, [])
 
   // 显示加载状态
   if (loading) {
@@ -1267,7 +471,7 @@ export function DashboardCanvas({
     )
   }
 
-  // 显示错误状态（但允许新看板继续编辑）
+  // 显示错误状态
   if (error && !error.includes('Dashboard not found')) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -1285,410 +489,63 @@ export function DashboardCanvas({
 
   return (
     <div className={cn("flex-1 bg-white flex flex-col", className)} style={{ height: '100vh', overflow: 'hidden' }}>
-      {/* 工具栏 - 绝对固定在顶部 */}
-      <div 
-        className="h-12 border-b border-slate-200 pr-4 flex items-center justify-between flex-shrink-0 bg-white z-50"
-        style={{
-          // 计算左边距：根据sidebar状态调整左侧内容位置，保持右侧按钮位置固定
-          paddingLeft: (() => {
-            let padding = 16 // 基础边距
-            
-            // 当sidebar展开时，增加左边距为sidebar腾出空间
-            if (!sidebarCollapsed && !isFullscreen) {
-              padding += 60 // 为sidebar腾出空间
-            }
-            
-            return `${padding}px`
-          })(),
-          transition: 'padding-left 0.3s ease-in-out' // 平滑过渡
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <h1 className="font-semibold">
-            {dashboard?.name || dashboardName}
-            {hasUnsavedChanges && <span className="text-orange-500">*</span>}
-          </h1>
-          <div className="flex items-center gap-1">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={() => setIsComponentLibraryOpen(!isComponentLibraryOpen)}
-              disabled={isPreviewMode}
-              title="组件库"
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={() => setIsMetricsLibraryOpen(!isMetricsLibraryOpen)}
-              disabled={isPreviewMode}
-              title="指标库"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={() => setIsDatasetLibraryOpen(!isDatasetLibraryOpen)}
-              disabled={isPreviewMode}
-              title="数据集库"
-            >
-              <Database className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={() => setIsPropertyPanelOpen(!isPropertyPanelOpen)}
-              disabled={!selectedComponent}
-              title="属性设置"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={handlePreviewToggle}
-              title={isPreviewMode ? "编辑模式" : "预览模式"}
-            >
-              {isPreviewMode ? <Layout className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={toggleFullscreen}
-              title={isFullscreen ? "退出全屏" : "全屏模式"}
-            >
-              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
-        <div className={cn(
-          "flex items-center gap-2",
-          // 当sidebar展开且不是全屏时，隐藏文字版本的重复按钮，只保留保存按钮
-          !sidebarCollapsed && !isFullscreen && "hidden sm:flex"
-        )}>
-          {/* 在sidebar展开时，只显示最重要的保存按钮 */}
-          <Button 
-            size="sm"
-            onClick={handleSave}
-            disabled={saving || !hasUnsavedChanges}
-            className="flex items-center gap-1"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                保存中...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                保存
-              </>
-            )}
-          </Button>
-          
-          {/* 在sidebar折叠或全屏时显示完整按钮组 */}
-          <div className={cn(
-            "flex items-center gap-2",
-            !sidebarCollapsed || isFullscreen ? "flex" : "hidden sm:flex"
-          )}>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handlePreviewToggle}
-              className={cn(isPreviewMode && "bg-blue-50 text-blue-700")}
-            >
-              {isPreviewMode ? (
-                <>
-                  <Layout className="h-4 w-4 mr-1" />
-                  编辑
-                </>
-              ) : (
-                <>
-                  <Eye className="h-4 w-4 mr-1" />
-                  预览
-                </>
-              )}
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={toggleFullscreen}
-              className={cn(isFullscreen && "bg-blue-50 text-blue-700")}
-              title={isFullscreen ? "退出全屏" : "全屏模式"}
-            >
-              {isFullscreen ? (
-                <>
-                  <Minimize2 className="h-4 w-4 mr-1" />
-                  退出全屏
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="h-4 w-4 mr-1" />
-                  全屏
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
+      {/* 工具栏 */}
+      <DashboardToolbar
+        dashboardName={dashboard?.name || dashboardName}
+        hasUnsavedChanges={hasUnsavedChanges}
+        saving={saving}
+        isPreviewMode={isPreviewMode}
+        isFullscreen={isFullscreen}
+        sidebarCollapsed={sidebarCollapsed}
+        selectedComponent={selectionHook.selectedComponent}
+        onComponentLibraryToggle={() => setIsComponentLibraryOpen(!isComponentLibraryOpen)}
+        onMetricsLibraryToggle={() => setIsMetricsLibraryOpen(!isMetricsLibraryOpen)}
+        onDatasetLibraryToggle={() => setIsDatasetLibraryOpen(!isDatasetLibraryOpen)}
+        onPropertyPanelToggle={() => setIsPropertyPanelOpen(!isPropertyPanelOpen)}
+        onPreviewToggle={handlePreviewToggle}
+        onFullscreenToggle={toggleFullscreen}
+        onSave={handleSave}
+      />
 
-      {/* 画布容器 - 独立的滚动区域 */}
-      <div 
-        className="flex-1 flex"
-        style={{ 
-          height: 'calc(100vh - 48px)',
-          maxHeight: 'calc(100vh - 48px)',
-          overflow: 'hidden'
-        }}>
-        {/* 画布区域 */}
-        <div 
-          ref={(node) => {
-            canvasRef.current = node
-            drop(node)
-          }}
-          className={cn(
-            "h-full",
-            isPreviewMode ? "bg-white" : "bg-slate-50",
-            !isPreviewMode && "bg-grid-pattern",
-            isOver && !isPreviewMode && "bg-blue-50 ring-2 ring-blue-300 ring-inset"
-          )}
-          style={{
-            overflow: 'auto',
-            position: 'relative',
-            // 使用计算的画布宽度，确保滚动条可见
-            width: `${canvasWidth}px`,
-            transition: 'width 0.3s ease-in-out', // 平滑过渡
-            ...(!isPreviewMode ? {
-              backgroundImage: `
-                radial-gradient(circle, #e2e8f0 0.5px, transparent 0.5px),
-                radial-gradient(circle, #cbd5e1 1px, transparent 1px)
-              `,
-              backgroundSize: '4px 4px, 24px 24px',
-              backgroundPosition: '0 0, 0 0'
-            } : {})
-          }}
-          onMouseDown={(e) => {
-            if (isPreviewMode) return
-            
-            // 检查是否点击在组件上
-            const target = e.target as HTMLElement
-            const isClickOnComponent = target.closest('[data-component-id]')
-            
-            if (!isClickOnComponent) {
-              // 开始框选
-              const canvasRect = canvasRef.current?.getBoundingClientRect()
-              if (canvasRect) {
-                const startX = e.clientX - canvasRect.left
-                const startY = e.clientY - canvasRect.top
-                
-                setIsSelecting(true)
-                setSelectionBox({
-                  startX,
-                  startY,
-                  currentX: startX,
-                  currentY: startY
-                })
-                
-                clearSelection()
-                
-                const handleMouseMove = (e: MouseEvent) => {
-                  const currentX = e.clientX - canvasRect.left
-                  const currentY = e.clientY - canvasRect.top
-                  
-                  setSelectionBox(prev => prev ? {
-                    ...prev,
-                    currentX,
-                    currentY
-                  } : null)
-                }
-                
-                const handleMouseUp = () => {
-                  setIsSelecting(false)
-                  
-                  if (selectionBox) {
-                    const selectionRect = calculateSelectionBox(
-                      selectionBox.startX,
-                      selectionBox.startY,
-                      selectionBox.currentX,
-                      selectionBox.currentY
-                    )
-                    
-                    const selectedComps = getComponentsInSelection(selectionRect)
-                    if (selectedComps.length > 0) {
-                      setSelectedComponents(selectedComps)
-                      if (selectedComps.length === 1) {
-                        setSelectedComponent(selectedComps[0])
-                        // 不自动打开属性面板
-                      } else if (selectedComps.length > 1) {
-                        // 多选时，设置第一个组件为主选择，用于对齐参考
-                        setSelectedComponent(selectedComps[0])
-                        // 多选时不显示属性面板
-                      }
-                    }
-                  }
-                  
-                  setSelectionBox(null)
-                  document.removeEventListener('mousemove', handleMouseMove)
-                  document.removeEventListener('mouseup', handleMouseUp)
-                }
-                
-                document.addEventListener('mousemove', handleMouseMove)
-                document.addEventListener('mouseup', handleMouseUp)
-              }
-            }
-          }}
-          onClick={() => {
-            if (!isPreviewMode && !isSelecting) {
-              clearSelection()
-              setIsPropertyPanelOpen(false)
-            }
-          }}
-          onDoubleClick={() => {
-            if (isPreviewMode) {
-              setIsPreviewMode(false)
-            }
-          }}
-        >
-          {/* 画布内容区域 - 动态计算滚动空间 */}
-          <div 
-            className="relative"
-            style={{ 
-              width: components.length > 0 
-                ? Math.max(1200, Math.max(...components.map(c => c.position.x + c.size.width)) + 200) + 'px'
-                : '1200px',
-              height: components.length > 0 
-                ? Math.max(800, Math.max(...components.map(c => c.position.y + c.size.height)) + 200) + 'px'
-                : '800px',
-              padding: '24px'
-            }}
-          >
-            {components.length === 0 && !isPreviewMode ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Card className="w-96">
-                  <CardContent className="p-8 text-center">
-                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Plus className="h-8 w-8 text-slate-400" />
-                    </div>
-                    <h3 className="font-semibold mb-2">开始创建你的看板</h3>
-                    <p className="text-slate-500 text-sm mb-4">
-                      从左侧拖拽组件到画布，或使用AI智能生成看板
-                    </p>
-                    <Button className="w-full">
-                      使用AI生成看板
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <>
-                {/* 操作提示 */}
-                {!isPreviewMode && showHelpTip && (
-                  <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs px-3 py-2 rounded-lg pointer-events-none z-20 animate-fade-in">
-                    <div className="flex items-center gap-4">
-                      <span>按住 <kbd className="bg-white/20 px-1 rounded">Alt</kbd> 键：像素级精确移动和调整大小</span>
-                      <span>按住 <kbd className="bg-white/20 px-1 rounded">Shift</kbd> 键点击：多选组件</span>
-                      <span>拖拽空白区域：框选多个组件</span>
-                      <button 
-                        className="text-white/60 hover:text-white pointer-events-auto"
-                        onClick={() => setShowHelpTip(false)}
-                        title="关闭提示"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                )}
-                
-                {components.map((component) => {
-                  const isSelected = selectedComponent?.id === component.id
-                  const isMultiSelected = selectedComponents.some(comp => comp.id === component.id) && selectedComponent?.id !== component.id
-                  
-                  return (
-                    <DraggableComponent
-                      key={component.id}
-                      component={component}
-                      isSelected={isSelected}
-                      isPreviewMode={isPreviewMode}
-                      selectedChildId={selectedComponent?.id}
-                      onMove={handleComponentMoveWithAlignment}
-                      onResize={handleComponentResizeWithAlignment}
-                      onSelect={(comp, isMultiSelect) => handleComponentSelect(comp, isMultiSelect)}
-                      isMultiSelected={isMultiSelected}
-                      onOpenProperties={handleOpenProperties}
-                      onDelete={handleComponentDelete}
-                      onDropToContainer={handleDropToContainer}
-                      onSelectChild={handleSelectChild}
-                      onUpdateChild={handleUpdateChild}
-                      onDeleteChild={handleDeleteChild}
-                      onMoveChild={handleMoveChild}
-                      onDragEnd={() => setAlignmentGuides({ vertical: [], horizontal: [] })}
-                    />
-                  )
-                })}
-                
-                {/* 框选区域 */}
-                {!isPreviewMode && selectionBox && (
-                  <div
-                    className="absolute border-2 border-blue-500 bg-blue-100/20 pointer-events-none z-30"
-                    style={{
-                      left: Math.min(selectionBox.startX, selectionBox.currentX),
-                      top: Math.min(selectionBox.startY, selectionBox.currentY),
-                      width: Math.abs(selectionBox.currentX - selectionBox.startX),
-                      height: Math.abs(selectionBox.currentY - selectionBox.startY)
-                    }}
-                  />
-                )}
-                
-                {/* 对齐辅助线 */}
-                {!isPreviewMode && (alignmentGuides.vertical.length > 0 || alignmentGuides.horizontal.length > 0) && (
-                  <div className="absolute inset-0 pointer-events-none z-10">
-                    {/* 垂直对齐线 */}
-                    {alignmentGuides.vertical.map((x, index) => (
-                      <div
-                        key={`v-${index}`}
-                        className="absolute top-0 bottom-0 w-0.5 opacity-60"
-                        style={{
-                          left: x,
-                          background: 'repeating-linear-gradient(to bottom, #94a3b8 0px, #94a3b8 4px, transparent 4px, transparent 8px)'
-                        }}
-                      />
-                    ))}
-                    {/* 水平对齐线 */}
-                    {alignmentGuides.horizontal.map((y, index) => (
-                      <div
-                        key={`h-${index}`}
-                        className="absolute left-0 right-0 h-0.5 opacity-60"
-                        style={{
-                          top: y,
-                          background: 'repeating-linear-gradient(to right, #94a3b8 0px, #94a3b8 4px, transparent 4px, transparent 8px)'
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-        
-        {/* 属性面板 */}
-        <PropertyPanel
-          isOpen={isPropertyPanelOpen && !isPreviewMode}
-          onClose={() => setIsPropertyPanelOpen(false)}
-          selectedComponent={selectedComponent}
-          onUpdateComponent={handleComponentUpdate}
-          onUpdateChild={handleUpdateChild}
-          parentContainerId={selectedChildParentId}
-        />
-      </div>
+      {/* 画布区域 */}
+      <DashboardCanvasArea
+        canvasRef={canvasRef}
+        components={components}
+        canvasWidth={canvasWidth}
+        isPreviewMode={isPreviewMode}
+        isOver={isOver}
+        isSelecting={selectionHook.isSelecting}
+        selectionBox={selectionHook.selectionBox}
+        alignmentGuides={alignmentHook.alignmentGuides}
+        showHelpTip={showHelpTip}
+        selectedComponent={selectionHook.selectedComponent}
+        selectedComponents={selectionHook.selectedComponents}
+        drop={drop}
+        onMouseDown={handleCanvasMouseDown}
+        onClick={() => {
+          if (!isPreviewMode && !selectionHook.isSelecting) {
+            selectionHook.clearSelection()
+            setIsPropertyPanelOpen(false)
+          }
+        }}
+        onDoubleClick={() => {
+          if (isPreviewMode) {
+            setIsPreviewMode(false)
+          }
+        }}
+        onSetShowHelpTip={setShowHelpTip}
+        renderDraggableComponent={renderDraggableComponent}
+      />
+
+      {/* 属性面板 */}
+      <PropertyPanel
+        isOpen={isPropertyPanelOpen && !isPreviewMode}
+        onClose={() => setIsPropertyPanelOpen(false)}
+        selectedComponent={selectionHook.selectedComponent}
+        onUpdateComponent={handleComponentUpdate}
+        onUpdateChild={handleUpdateChild}
+        parentContainerId={selectionHook.selectedChildParentId || undefined}
+      />
 
       {/* 组件库面板 */}
       <ComponentLibraryPanel
@@ -1719,592 +576,6 @@ export function DashboardCanvas({
         height={datasetLibraryHeight}
         onHeightChange={setDatasetLibraryHeight}
       />
-    </div>
-  )
-}
-
-// 可拖拽的组件
-interface DraggableComponentProps {
-  component: ComponentLayout
-  isSelected: boolean
-  isMultiSelected?: boolean
-  isPreviewMode: boolean
-  selectedChildId?: string
-  onMove: (id: string, position: { x: number; y: number }, disableGrid?: boolean) => void
-  onResize: (id: string, size: { width: number; height: number }, disableGrid?: boolean) => void
-  onSelect: (component: ComponentLayout, isMultiSelect?: boolean) => void
-  onOpenProperties: (component: ComponentLayout) => void
-  onDelete: (id: string) => void
-  onDropToContainer: (item: DragItem, containerId: string, position?: { x: number; y: number }) => void
-  onSelectChild: (childComponent: ComponentLayout) => void
-  onUpdateChild: (containerId: string, childId: string, updates: Partial<ComponentLayout>) => void
-  onDeleteChild: (containerId: string, childId: string) => void
-  onMoveChild: (containerId: string, dragIndex: number, hoverIndex: number) => void
-  onDragEnd?: () => void
-}
-
-function DraggableComponent({ 
-  component, 
-  isSelected,
-  isMultiSelected = false,
-  isPreviewMode,
-  selectedChildId,
-  onMove, 
-  onResize,
-  onSelect,
-  onOpenProperties,
-  onDelete,
-  onDropToContainer,
-  onSelectChild,
-  onUpdateChild,
-  onDeleteChild,
-  onMoveChild,
-  onDragEnd
-}: DraggableComponentProps) {
-  const [isDragging, setIsDragging] = React.useState(false)
-  const [isHovered, setIsHovered] = React.useState(false)
-
-  // Pre-generate mock data to avoid hooks order issues
-  const mockLineChartData = React.useMemo(() => generateMockData.lineChart(), [component.id])
-  const mockBarChartData = React.useMemo(() => generateMockData.barChart(), [component.id])
-  const mockPieChartData = React.useMemo(() => generateMockData.pieChart(), [component.id])
-  const mockTableData = React.useMemo(() => generateMockData.tableData(), [component.id])
-  const mockKpiData = React.useMemo(() => generateMockData.kpiData(), [component.id])
-  const mockGaugeData = React.useMemo(() => generateMockData.gaugeData(), [component.id])
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (isPreviewMode) return
-    
-    // 检查是否点击在子组件上，如果是则不启动容器拖拽
-    const target = e.target as HTMLElement
-    const isChildComponent = target.closest('[data-container-child="true"]')
-    if (isChildComponent) {
-      return
-    }
-    
-    e.preventDefault()
-    e.stopPropagation()
-    
-    // handleClick 已经处理了组件选择逻辑，这里不需要重复处理
-    // 只是确保组件被选中即可（如果还没有被选中的话）
-    
-    setIsDragging(true)
-
-    const startX = e.clientX - component.position.x
-    const startY = e.clientY - component.position.y
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newX = e.clientX - startX
-      const newY = e.clientY - startY
-      
-      // 检测是否按住Alt键禁用网格对齐
-      const disableGrid = e.altKey
-      
-      onMove(component.id, { x: newX, y: newY }, disableGrid)
-    }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-      onDragEnd?.() // 清理对齐辅助线
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }
-
-  const handleClick = (e: React.MouseEvent) => {
-    if (isPreviewMode) return
-    e.stopPropagation()
-    
-    // 检测是否按住 Shift 键进行多选
-    const isMultiSelect = e.shiftKey
-    onSelect(component, isMultiSelect)
-  }
-
-  // 检查是否有自定义背景样式（支持所有DatasetCharts组件）
-  const getCustomBackgroundType = () => {
-    switch (component.type) {
-      case 'kpi-card':
-        return component.config?.kpi?.backgroundType
-      case 'line-chart':
-        return component.config?.lineChart?.backgroundType
-      case 'bar-chart':
-        return component.config?.barChart?.backgroundType
-      case 'pie-chart':
-        return component.config?.pieChart?.backgroundType
-      default:
-        return undefined
-    }
-  }
-  
-  const customBackgroundType = getCustomBackgroundType()
-  const isComponentWithCustomBackground = component.dataConfig?.datasetId && 
-    customBackgroundType && 
-    customBackgroundType !== 'default'
-  
-  // 对于有配色方案的组件，也应该应用标题栏样式
-  const hasColorScheme = component.config?.style?.colorScheme && component.config?.style?.colorScheme.length > 0
-  const shouldApplyTitleBackground = isComponentWithCustomBackground || hasColorScheme
-  
-  
-  
-  // 获取组件的配色方案用于外层容器
-  const getComponentOuterStyles = () => {
-    if (!isComponentWithCustomBackground) return {}
-    
-    const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-    const primaryColor = colors[0] || '#3b82f6'
-    const secondaryColor = colors[1] || '#ef4444'
-    
-    switch (customBackgroundType) {
-      case 'solid':
-        return {
-          backgroundColor: primaryColor,
-          borderColor: primaryColor
-        }
-      case 'gradient':
-        return {
-          background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`,
-          borderColor: primaryColor
-        }
-      default:
-        return {
-          background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
-          borderColor: primaryColor
-        }
-    }
-  }
-  
-
-  return (
-    <div
-      data-component-id={component.id}
-      className={cn(
-        "absolute rounded-lg transition-all",
-        // 对于有配色方案的组件，都使用透明背景，避免影响标题栏显示
-        shouldApplyTitleBackground ? "bg-transparent" : "bg-white border border-slate-200",
-        // 只有没有配色方案的组件才显示边框
-        !isPreviewMode && "cursor-move",
-        // 有配色方案组件不显示阴影，避免视觉冲突
-        !isPreviewMode && !shouldApplyTitleBackground && "shadow-sm hover:shadow-md",
-        // 多选状态的视觉反馈
-        !isPreviewMode && isMultiSelected && !isSelected && "ring-2 ring-orange-400",
-        !isPreviewMode && isSelected && "ring-2 ring-blue-500",
-        // 有配色方案组件选中时不改变边框色
-        !isPreviewMode && isSelected && !shouldApplyTitleBackground && "border-blue-300",
-        !isPreviewMode && isDragging && "shadow-lg ring-2 ring-blue-400",
-        // 预览模式只给非配色方案组件显示阴影
-        isPreviewMode && !shouldApplyTitleBackground && "shadow-sm"
-      )}
-      style={{
-        left: component.position.x,
-        top: component.position.y,
-        width: component.size.width,
-        height: component.size.height,
-        opacity: component.config?.style?.opacity || 1
-        // 移除外层样式应用，避免影响标题栏显示
-      }}
-      onMouseDown={handleMouseDown}
-      onClick={handleClick}
-      onMouseEnter={() => !isPreviewMode && setIsHovered(true)}
-      onMouseLeave={() => !isPreviewMode && setIsHovered(false)}
-    >
-      {/* 组件头部 - 预览和编辑模式都显示 */}
-      <div 
-        className={cn(
-          "h-10 px-3 flex items-center justify-between border-b rounded-t-lg",
-          shouldApplyTitleBackground ? "border-white/20" : "border-slate-100"
-        )}
-        style={(() => {
-          if (!shouldApplyTitleBackground) return {}
-          
-          const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-          
-          // 使用配色方案中最深的颜色作为标题栏背景
-          const darkestColor = colors.reduce((darkest, color) => {
-            // 简单的亮度计算，选择最深（最暗）的颜色
-            const hex = color.replace('#', '')
-            const r = parseInt(hex.substr(0, 2), 16)
-            const g = parseInt(hex.substr(2, 2), 16)  
-            const b = parseInt(hex.substr(4, 2), 16)
-            const brightness = (r * 299 + g * 587 + b * 114) / 1000
-            
-            const darkestHex = darkest.replace('#', '')
-            const dr = parseInt(darkestHex.substr(0, 2), 16)
-            const dg = parseInt(darkestHex.substr(2, 2), 16)
-            const db = parseInt(darkestHex.substr(4, 2), 16)
-            const darkestBrightness = (dr * 299 + dg * 587 + db * 114) / 1000
-            
-            return brightness < darkestBrightness ? color : darkest
-          }, colors[0])
-          
-          return {
-            backgroundColor: darkestColor,
-            borderColor: darkestColor
-          }
-        })()}
-      >
-        <span className={cn(
-          "text-sm font-medium truncate",
-          shouldApplyTitleBackground ? "text-white" : "text-gray-900"
-        )}>
-          {component.title}
-        </span>
-        {!isPreviewMode && (
-          <div className={cn(
-            "flex items-center gap-1 transition-opacity",
-            (!isHovered && !isSelected) && "opacity-0"
-          )}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-6 w-6",
-                shouldApplyTitleBackground 
-                  ? "text-white/70 hover:text-white" 
-                  : "text-slate-400 hover:text-blue-500"
-              )}
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenProperties(component)
-              }}
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-6 w-6",
-                shouldApplyTitleBackground 
-                  ? "text-white/70 hover:text-red-300" 
-                  : "text-slate-400 hover:text-red-500"
-              )}
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete(component.id)
-              }}
-            >
-              ×
-            </Button>
-          </div>
-        )}
-      </div>
-
-
-      {/* 组件内容 */}
-      <div className={cn(
-        component.type === 'map' ? "overflow-hidden" : "flex items-center justify-center overflow-hidden",
-        "h-[calc(100%-40px)]", // 所有组件都有标题栏，统一高度计算
-        !shouldApplyTitleBackground && component.type !== 'map' && "p-2" // 地图组件不加padding
-      )}>
-        {component.type === 'line-chart' && (
-          <div 
-            className="w-full h-full flex items-center justify-center rounded-b-lg"
-            style={shouldApplyTitleBackground ? (() => {
-              if (isComponentWithCustomBackground) {
-                return getComponentOuterStyles()
-              } else {
-                // 为只有配色方案的组件提供默认的淡色背景和边框
-                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-                const primaryColor = colors[0] || '#3b82f6'
-                const secondaryColor = colors[1] || '#ef4444'
-                return {
-                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
-                  borderColor: primaryColor,
-                  borderWidth: '1px',
-                  borderStyle: 'solid'
-                }
-              }
-            })() : {}}
-          >
-            {component.dataConfig?.datasetId ? (
-              <DatasetLineChart 
-                component={component}
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-              />
-            ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
-              <RealLineChart 
-                metricId={component.id.split('-')[1]} 
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-                config={component.config}
-              />
-            ) : (
-              <SimpleLineChart 
-                data={mockLineChartData} 
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-                config={component.config}
-              />
-            )}
-          </div>
-        )}
-        
-        {component.type === 'bar-chart' && (
-          <div 
-            className="w-full h-full flex items-center justify-center rounded-b-lg"
-            style={shouldApplyTitleBackground ? (() => {
-              if (isComponentWithCustomBackground) {
-                return getComponentOuterStyles()
-              } else {
-                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-                const primaryColor = colors[0] || '#3b82f6'
-                const secondaryColor = colors[1] || '#ef4444'
-                return {
-                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
-                  borderColor: primaryColor,
-                  borderWidth: '1px',
-                  borderStyle: 'solid'
-                }
-              }
-            })() : {}}
-          >
-            {component.dataConfig?.datasetId ? (
-              <DatasetBarChart 
-                component={component}
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-              />
-            ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
-              <RealBarChart 
-                metricId={component.id.split('-')[1]} 
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-                config={component.config}
-              />
-            ) : (
-              <SimpleBarChart 
-                data={mockBarChartData} 
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-                config={component.config}
-              />
-            )}
-          </div>
-        )}
-        
-        {component.type === 'pie-chart' && (
-          <div 
-            className="w-full h-full flex items-center justify-center rounded-b-lg"
-            style={shouldApplyTitleBackground ? (() => {
-              if (isComponentWithCustomBackground) {
-                return getComponentOuterStyles()
-              } else {
-                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-                const primaryColor = colors[0] || '#3b82f6'
-                const secondaryColor = colors[1] || '#ef4444'
-                return {
-                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
-                  borderColor: primaryColor,
-                  borderWidth: '1px',
-                  borderStyle: 'solid'
-                }
-              }
-            })() : {}}
-          >
-            {component.dataConfig?.datasetId ? (
-              <DatasetPieChart 
-                component={component}
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-              />
-            ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
-              <RealPieChart 
-                metricId={component.id.split('-')[1]} 
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-                config={component.config}
-              />
-            ) : (
-              <SimplePieChart 
-                data={mockPieChartData} 
-                width={component.size.width - 10}
-                height={component.size.height - 50}
-                config={component.config}
-              />
-            )}
-          </div>
-        )}
-        
-        {component.type === 'table' && (
-          <div 
-            className="w-full h-full overflow-hidden rounded-b-lg"
-            style={shouldApplyTitleBackground ? (() => {
-              if (isComponentWithCustomBackground) {
-                return getComponentOuterStyles()
-              } else {
-                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-                const primaryColor = colors[0] || '#3b82f6'
-                const secondaryColor = colors[1] || '#ef4444'
-                return {
-                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
-                  borderColor: primaryColor,
-                  borderWidth: '1px',
-                  borderStyle: 'solid'
-                }
-              }
-            })() : {}}
-          >
-            <SimpleTable 
-              data={mockTableData} 
-              config={component.config}
-            />
-          </div>
-        )}
-        
-        {component.type === 'kpi-card' && (
-          <div 
-            className="w-full h-full rounded-b-lg"
-            style={shouldApplyTitleBackground ? (() => {
-              if (isComponentWithCustomBackground) {
-                return getComponentOuterStyles()
-              } else {
-                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-                const primaryColor = colors[0] || '#3b82f6'
-                const secondaryColor = colors[1] || '#ef4444'
-                return {
-                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`
-                }
-              }
-            })() : {}}
-          >
-            {component.dataConfig?.datasetId ? (
-              <DatasetKPICard 
-                component={component}
-              />
-            ) : component.dataConfig?.metrics?.length > 0 && component.id.includes('metric-') ? (
-              <RealKPICard 
-                metricId={component.id.split('-')[1]} 
-                title={undefined}
-                config={component.config}
-              />
-            ) : (
-              <SimpleKPICard 
-                key={`${component.id}-${JSON.stringify(component.config?.style?.colorScheme)}-${component.config?.kpi?.backgroundType}`}
-                data={mockKpiData} 
-                title={undefined}
-                config={component.config}
-              />
-            )}
-          </div>
-        )}
-        
-        {component.type === 'gauge' && (
-          <div 
-            className="w-full h-full flex items-center justify-center rounded-b-lg"
-            style={shouldApplyTitleBackground ? (() => {
-              if (isComponentWithCustomBackground) {
-                return getComponentOuterStyles()
-              } else {
-                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-                const primaryColor = colors[0] || '#3b82f6'
-                const secondaryColor = colors[1] || '#ef4444'
-                return {
-                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
-                  borderColor: primaryColor,
-                  borderWidth: '1px',
-                  borderStyle: 'solid'
-                }
-              }
-            })() : {}}
-          >
-            <SimpleGauge 
-              data={mockGaugeData} 
-              width={component.size.width}
-              height={component.size.height - 40}
-              config={component.config}
-            />
-          </div>
-        )}
-        
-        {component.type === 'map' && (
-          <div 
-            className="w-full h-full rounded-b-lg"
-            style={shouldApplyTitleBackground ? (() => {
-              if (isComponentWithCustomBackground) {
-                return getComponentOuterStyles()
-              } else {
-                const colors = component.config?.style?.colorScheme || ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe']
-                const primaryColor = colors[0] || '#3b82f6'
-                const secondaryColor = colors[1] || '#ef4444'
-                return {
-                  background: `linear-gradient(135deg, ${primaryColor}15, ${secondaryColor}05)`,
-                  borderColor: primaryColor,
-                  borderWidth: '1px',
-                  borderStyle: 'solid'
-                }
-              }
-            })() : { backgroundColor: '#ffffff' }}
-          >
-            <SimpleMapComponent 
-              component={component}
-              className="w-full h-full rounded-b-lg"
-            />
-          </div>
-        )}
-
-        {component.type === 'container' && (
-          <div className="w-full h-full">
-            <ContainerComponent
-              component={component}
-              isPreviewMode={isPreviewMode}
-              isSelected={isSelected}
-              selectedChildId={selectedChildId}
-              onDropToContainer={onDropToContainer}
-              onSelectChild={onSelectChild}
-              onUpdateChild={onUpdateChild}
-              onDeleteChild={onDeleteChild}
-              onMoveChild={onMoveChild}
-              className="h-full"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* 调整尺寸手柄 - 只在编辑模式显示 */}
-      {!isPreviewMode && (isSelected || isHovered) && (
-        <div
-          className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize opacity-60 hover:opacity-100 transition-opacity"
-          style={{
-            background: 'linear-gradient(-45deg, transparent 30%, #3b82f6 30%, #3b82f6 70%, transparent 70%)',
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-
-            const startX = e.clientX
-            const startY = e.clientY
-            const startWidth = component.size.width
-            const startHeight = component.size.height
-
-            const handleMouseMove = (e: MouseEvent) => {
-              const deltaX = e.clientX - startX
-              const deltaY = e.clientY - startY
-              
-              const newWidth = Math.max(100, startWidth + deltaX)
-              const newHeight = Math.max(80, startHeight + deltaY)
-              
-              // 检测是否按住Alt键禁用网格对齐
-              const disableGrid = e.altKey
-              
-              onResize(component.id, { width: newWidth, height: newHeight }, disableGrid)
-            }
-
-            const handleMouseUp = () => {
-              onDragEnd?.() // 清理对齐辅助线
-              document.removeEventListener('mousemove', handleMouseMove)
-              document.removeEventListener('mouseup', handleMouseUp)
-            }
-
-            document.addEventListener('mousemove', handleMouseMove)
-            document.addEventListener('mouseup', handleMouseUp)
-          }}
-        />
-      )}
     </div>
   )
 }
