@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Settings } from 'lucide-react'
+import { Settings, Star, Zap, TrendingUp, Target, BarChart3, PieChart, Activity, Database, Globe, Users, ShoppingCart, DollarSign, Calendar, Clock, Mail, Phone, MapPin, Home, Heart, Award, Bookmark, Camera, File, Folder, Image, Music, Play, Video, Wifi, Bluetooth, Battery, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { 
@@ -28,6 +28,22 @@ import {
   DatasetPieChart
 } from '@/components/charts/DatasetCharts'
 import type { ComponentLayout, DragItem } from '@/types'
+
+// 图标映射
+const iconMap = {
+  TrendingUp, BarChart3, PieChart, Activity, Target, Database, DollarSign, 
+  Users, ShoppingCart, Globe, Calendar, Clock, Mail, Phone, MapPin, 
+  Star, Zap, Settings, Home, Heart, Award, Bookmark, Camera, File, 
+  Folder, Image, Music, Play, Video, Wifi, Bluetooth, Battery, Volume2
+}
+
+// 渲染图标的函数
+function renderIcon(iconName?: string, className?: string) {
+  if (!iconName) return null
+  const IconComponent = iconMap[iconName as keyof typeof iconMap]
+  if (!IconComponent) return null
+  return <IconComponent className={className} />
+}
 
 interface DraggableComponentProps {
   component: ComponentLayout
@@ -362,12 +378,18 @@ export function DraggableComponent({
           }
         })()}
       >
-        <span className={cn(
-          "text-sm font-medium truncate",
-          shouldApplyTitleBackground ? "text-white" : "text-gray-900"
-        )}>
-          {component.title}
-        </span>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {renderIcon(component.titleIcon, cn(
+            "h-4 w-4 shrink-0",
+            shouldApplyTitleBackground ? "text-white" : "text-gray-700"
+          ))}
+          <span className={cn(
+            "text-sm font-medium truncate",
+            shouldApplyTitleBackground ? "text-white" : "text-gray-900"
+          )}>
+            {component.title}
+          </span>
+        </div>
         {!isPreviewMode && (
           <div className={cn(
             "flex items-center gap-1 transition-opacity",

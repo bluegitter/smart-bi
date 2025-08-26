@@ -32,6 +32,7 @@ export interface ComponentLayout {
   id: string
   type: 'line-chart' | 'bar-chart' | 'pie-chart' | 'table' | 'kpi-card' | 'gauge' | 'container' | 'map'
   title: string
+  titleIcon?: string // 标题图标
   position: { x: number, y: number }
   size: { width: number, height: number }
   config: Record<string, any>

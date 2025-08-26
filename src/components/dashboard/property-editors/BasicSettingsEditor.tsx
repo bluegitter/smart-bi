@@ -4,6 +4,7 @@ import React from 'react'
 import { ChevronDown, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { IconSelector } from '@/components/ui/IconSelector'
 import { cn } from '@/lib/utils'
 import type { ComponentLayout } from '@/types'
 
@@ -228,6 +229,10 @@ export function BasicSettingsEditor({ selectedComponent, onUpdate }: BasicSettin
     onUpdate({ title: newTitle })
   }
 
+  const handleTitleIconChange = (iconName: string | undefined) => {
+    onUpdate({ titleIcon: iconName })
+  }
+
   return (
     <div className="space-y-4">
       {/* 组件类型 */}
@@ -248,6 +253,16 @@ export function BasicSettingsEditor({ selectedComponent, onUpdate }: BasicSettin
           value={selectedComponent.title}
           onChange={(e) => handleTitleChange(e.target.value)}
           placeholder="输入组件标题"
+        />
+      </div>
+
+      {/* 标题图标 */}
+      <div>
+        <label className="block text-sm font-medium mb-2">标题图标</label>
+        <IconSelector
+          value={selectedComponent.titleIcon}
+          onChange={handleTitleIconChange}
+          placeholder="选择标题图标（可选）"
         />
       </div>
 
