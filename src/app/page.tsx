@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, BarChart3, Brain, Zap, Users, Loader2 } from 'lucide-react'
+import { ArrowRight, BarChart3, Brain, Zap, Database, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
@@ -10,14 +10,8 @@ import { useAuth } from '@/contexts/AuthContext'
 
 export default function HomePage() {
   const router = useRouter()
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isLoading } = useAuth()
 
-  // 自动重定向到dashboards页面
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.push('/dashboards')
-    }
-  }, [isAuthenticated, isLoading, router])
 
   if (isLoading) {
     return (
@@ -42,13 +36,17 @@ export default function HomePage() {
           </p>
           <div className="flex items-center gap-4">
             <Button 
-              className="bg-white text-blue-600 hover:bg-slate-50"
+              className="bg-white text-blue-600 hover:bg-green-600"
               onClick={() => router.push('/dashboards')}
             >
               开始使用
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            <Button variant="outline" className="border-white text-white hover:bg-white/10">
+            <Button 
+              variant="outline" 
+              className="border-white text-white bg-blue-700 hover:bg-white hover:text-blue-600"
+              onClick={() => router.push('/demo')}
+            >
               观看演示
             </Button>
           </div>
@@ -110,16 +108,19 @@ export default function HomePage() {
                 </CardContent>
               </Card>
 
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <Card 
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => router.push('/datasets')}
+              >
                 <CardHeader className="pb-3">
                   <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center mb-2">
-                    <Users className="h-5 w-5 text-orange-600" />
+                    <Database className="h-5 w-5 text-orange-600" />
                   </div>
-                  <CardTitle className="text-lg">团队协作</CardTitle>
+                  <CardTitle className="text-lg">创建数据集</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-slate-600">
-                    与团队成员共享和协作编辑看板
+                    创建和管理数据集，为看板提供数据源
                   </p>
                 </CardContent>
               </Card>
