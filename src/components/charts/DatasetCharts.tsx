@@ -1461,6 +1461,8 @@ export function BackgroundImageUpload({
       const reader = new FileReader()
       reader.onload = (e) => {
         const imageUrl = e.target?.result as string
+        console.log('Image uploaded successfully, size:', imageUrl.length, 'characters')
+        console.log('Image URL preview:', imageUrl.substring(0, 100) + '...')
         onImageChange(imageUrl)
         setUploading(false)
       }
@@ -1500,19 +1502,35 @@ export function BackgroundImageUpload({
       
       {currentImage ? (
         <div className="relative group">
-          <div className="w-full h-32 rounded-lg border-2 border-dashed border-gray-300 relative overflow-hidden bg-gray-100">
+          <div className="w-full h-32 rounded-lg border-2 border-dashed border-gray-300 relative overflow-hidden bg-white flex items-center justify-center">
             <img 
               src={currentImage}
               alt="Background preview"
-              className="w-full h-full object-cover"
+              className="max-w-full max-h-full object-contain"
+              onLoad={(e) => {
+                // 图片加载成功时确保显示
+                e.currentTarget.style.display = 'block'
+              }}
               onError={(e) => {
                 // 如果图片加载失败，显示错误状态
+                console.error('Image failed to load:', currentImage)
                 e.currentTarget.style.display = 'none'
+                // 显示错误提示
+                const container = e.currentTarget.parentElement
+                if (container) {
+                  container.innerHTML = `
+                    <div class="text-center text-red-500 text-sm">
+                      <p>图片加载失败</p>
+                      <p class="text-xs text-gray-500 mt-1">请重新上传</p>
+                    </div>
+                  `
+                }
               }}
+              style={{ display: 'block' }}
             />
             {/* 覆盖层和操作按钮 */}
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center">
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
+            <div className="absolute inset-0 bg-opacity-0 group-hover:bg-black group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center pointer-events-none group-hover:pointer-events-auto">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2 pointer-events-auto">
                 <Button
                   size="sm"
                   variant="outline"
