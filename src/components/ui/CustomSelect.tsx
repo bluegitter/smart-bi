@@ -122,7 +122,7 @@ export function CustomSelect({
 
       {/* 下拉内容 */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
+        <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
           {/* 搜索框 */}
           {searchable && (
             <div className="p-2 border-b border-gray-200">

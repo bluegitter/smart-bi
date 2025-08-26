@@ -22,6 +22,21 @@ interface UseDashboardEventsProps {
   setSelectedComponent: (component: ComponentLayout | null) => void
 }
 
+// 获取默认标题图标的辅助函数
+const getDefaultTitleIcon = (type: ComponentLayout['type']) => {
+  switch (type) {
+    case 'line-chart': return 'TrendingUp'
+    case 'bar-chart': return 'BarChart3'
+    case 'pie-chart': return 'PieChart'
+    case 'table': return 'Database'
+    case 'kpi-card': return 'Target'
+    case 'gauge': return 'Activity'
+    case 'map': return 'Globe'
+    case 'container': return 'Folder'
+    default: return undefined
+  }
+}
+
 export function useDashboardEvents({
   components,
   selectedComponent,
@@ -85,10 +100,12 @@ export function useDashboardEvents({
         }
       }
       
+      
       const newComponent: ComponentLayout = {
         id: `component-${Date.now()}`,
         type: componentType,
         title: componentData.name || getDefaultTitle(componentType),
+        titleIcon: getDefaultTitleIcon(componentType),
         position: { x, y },
         size: getDefaultSize(componentType),
         config: {
@@ -146,6 +163,7 @@ export function useDashboardEvents({
         id: `dataset-${fieldData.datasetId}-${fieldData.field.name}-${Date.now()}`,
         type: chartType,
         title: `${fieldData.datasetName} - ${fieldData.field.displayName}`,
+        titleIcon: getDefaultTitleIcon(chartType),
         position: { x, y },
         size: chartType === 'kpi-card' ? { width: 300, height: 150 } : { width: 400, height: 300 },
         config: {

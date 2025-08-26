@@ -1,7 +1,23 @@
 'use client'
 
 import React from 'react'
-import { TrendingUp, TrendingDown, BarChart3, PieChart, Table, Activity } from 'lucide-react'
+import { TrendingUp, TrendingDown, BarChart3, PieChart, Table, Activity, Star, Zap, Target, Database, Globe, Users, ShoppingCart, DollarSign, Calendar, Clock, Mail, Phone, MapPin, Settings, Home, Heart, Award, Bookmark, Camera, File, Folder, Image, Music, Play, Video, Wifi, Bluetooth, Battery, Volume2 } from 'lucide-react'
+
+// 图标映射
+const iconMap = {
+  TrendingUp, TrendingDown, BarChart3, PieChart, Activity, Target, Database, DollarSign, 
+  Users, ShoppingCart, Globe, Calendar, Clock, Mail, Phone, MapPin, 
+  Star, Zap, Settings, Home, Heart, Award, Bookmark, Camera, File, 
+  Folder, Image, Music, Play, Video, Wifi, Bluetooth, Battery, Volume2, Table
+}
+
+// 渲染图标的函数
+function renderIcon(iconName?: string, className?: string) {
+  if (!iconName) return null
+  const IconComponent = iconMap[iconName as keyof typeof iconMap]
+  if (!IconComponent) return null
+  return <IconComponent className={className} />
+}
 
 // 导出容器组件
 export { ContainerComponent } from './ContainerComponent'
@@ -994,6 +1010,23 @@ export function SimpleKPICard({ data, title, config }: { data: any, title?: stri
     opacity: config?.style?.opacity ?? 1
   }
 
+  // 获取内容区图标设置
+  const contentIcon = config?.kpi?.contentIcon
+  const contentIconPosition = config?.kpi?.contentIconPosition || 'left'
+  const contentIconSize = config?.kpi?.contentIconSize || 'medium'
+  
+  // 根据大小设置图标尺寸
+  const getIconSizeClass = (size: string) => {
+    switch (size) {
+      case 'small': return 'h-6 w-6'
+      case 'large': return 'h-12 w-12'
+      default: return 'h-8 w-8'
+    }
+  }
+
+  const iconSizeClass = getIconSizeClass(contentIconSize)
+  const iconColorClass = isDarkBackground ? 'text-white/70' : 'text-slate-500'
+
   return (
     <div 
       className={cardStyles.className} 
@@ -1022,32 +1055,53 @@ export function SimpleKPICard({ data, title, config }: { data: any, title?: stri
           )}
         </div>
         
-        {/* 主要数值 */}
+        {/* 主要数值区域 - 支持内容区图标 */}
         <div className="mb-3">
-          <div className={`text-2xl font-bold ${textColor} leading-none mb-1`}>
-            {safeData.value || '0'}
-          </div>
-          
-          {/* 变化趋势 */}
-          {showTrend && safeData.change && (
-            <div className={`flex items-center text-sm font-medium ${
-              isDarkBackground 
-                ? (safeData.trend === 'up' ? 'text-emerald-300' : 'text-rose-300')
-                : (safeData.trend === 'up' ? 'text-emerald-600' : 'text-rose-600')
+          <div className={`flex items-center gap-3 ${
+            contentIconPosition === 'top' ? 'flex-col' : 
+            contentIconPosition === 'right' ? 'flex-row-reverse' : 'flex-row'
+          }`}>
+            {/* 内容区图标 */}
+            {contentIcon && (
+              <div className={`flex items-center justify-center shrink-0 ${
+                contentIconPosition === 'top' ? 'mb-2' : ''
+              }`}>
+                {renderIcon(contentIcon, `${iconSizeClass} ${iconColorClass}`)}
+              </div>
+            )}
+            
+            {/* 数值和趋势 */}
+            <div className={`flex flex-col ${
+              contentIconPosition === 'top' ? 'items-center text-center' : 'flex-1 min-w-0'
             }`}>
-              {safeData.trend === 'up' ? (
-                <TrendingUp className="w-3.5 h-3.5 mr-1" />
-              ) : (
-                <TrendingDown className="w-3.5 h-3.5 mr-1" />
-              )}
-              <span>{safeData.change}</span>
-              {safeData.trend === 'up' ? (
-                <span className={`ml-1 text-xs ${isDarkBackground ? 'text-white/70' : 'text-slate-500'}`}>↗</span>
-              ) : (
-                <span className={`ml-1 text-xs ${isDarkBackground ? 'text-white/70' : 'text-slate-500'}`}>↘</span>
+              <div className={`font-bold leading-none mb-1 ${
+                contentIcon && contentIconPosition !== 'top' ? 'text-xl' : 'text-2xl'
+              } ${textColor}`}>
+                {safeData.value || '0'}
+              </div>
+              
+              {/* 变化趋势 */}
+              {showTrend && safeData.change && (
+                <div className={`flex items-center text-sm font-medium ${
+                  isDarkBackground 
+                    ? (safeData.trend === 'up' ? 'text-emerald-300' : 'text-rose-300')
+                    : (safeData.trend === 'up' ? 'text-emerald-600' : 'text-rose-600')
+                }`}>
+                  {safeData.trend === 'up' ? (
+                    <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5 mr-1" />
+                  )}
+                  <span>{safeData.change}</span>
+                  {safeData.trend === 'up' ? (
+                    <span className={`ml-1 text-xs ${isDarkBackground ? 'text-white/70' : 'text-slate-500'}`}>↗</span>
+                  ) : (
+                    <span className={`ml-1 text-xs ${isDarkBackground ? 'text-white/70' : 'text-slate-500'}`}>↘</span>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </div>
         
         {/* 底部：描述 */}

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, Search, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { IconSelector } from '@/components/ui/IconSelector'
@@ -233,6 +233,10 @@ export function BasicSettingsEditor({ selectedComponent, onUpdate }: BasicSettin
     onUpdate({ titleIcon: iconName })
   }
 
+  const handleTitleAlignChange = (align: 'left' | 'center' | 'right') => {
+    onUpdate({ titleAlign: align })
+  }
+
   return (
     <div className="space-y-4">
       {/* 组件类型 */}
@@ -264,6 +268,32 @@ export function BasicSettingsEditor({ selectedComponent, onUpdate }: BasicSettin
           onChange={handleTitleIconChange}
           placeholder="选择标题图标（可选）"
         />
+      </div>
+
+      {/* 标题对齐 */}
+      <div>
+        <label className="block text-sm font-medium mb-2">标题对齐</label>
+        <div className="flex gap-2">
+          {[
+            { value: 'left', label: '左对齐', icon: AlignLeft },
+            { value: 'center', label: '居中', icon: AlignCenter },
+            { value: 'right', label: '右对齐', icon: AlignRight }
+          ].map((option) => {
+            const Icon = option.icon
+            return (
+              <Button
+                key={option.value}
+                variant={selectedComponent.titleAlign === option.value ? "default" : "outline"}
+                size="sm"
+                className="flex-1 px-2"
+                onClick={() => handleTitleAlignChange(option.value as 'left' | 'center' | 'right')}
+                title={option.label}
+              >
+                <Icon className="h-4 w-4" />
+              </Button>
+            )
+          })}
+        </div>
       </div>
 
       {/* 位置和尺寸 */}

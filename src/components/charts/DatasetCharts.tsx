@@ -1,10 +1,26 @@
 'use client'
 
 import React from 'react'
-import { TrendingUp, TrendingDown, BarChart3, Loader2, RefreshCw, Database } from 'lucide-react'
+import { TrendingUp, TrendingDown, BarChart3, Loader2, RefreshCw, Database, Star, Zap, Target, Activity, Globe, Users, ShoppingCart, DollarSign, Calendar, Clock, Mail, Phone, MapPin, Settings, Home, Heart, Award, Bookmark, Camera, File, Folder, Image, Music, Play, Video, Wifi, Bluetooth, Battery, Volume2, PieChart } from 'lucide-react'
 import { useDatasetData } from '@/hooks/useDatasetData'
 import { Button } from '@/components/ui/Button'
 import type { ComponentLayout } from '@/types'
+
+// 图标映射
+const iconMap = {
+  TrendingUp, TrendingDown, BarChart3, PieChart, Activity, Target, Database, DollarSign, 
+  Users, ShoppingCart, Globe, Calendar, Clock, Mail, Phone, MapPin, 
+  Star, Zap, Settings, Home, Heart, Award, Bookmark, Camera, File, 
+  Folder, Image, Music, Play, Video, Wifi, Bluetooth, Battery, Volume2
+}
+
+// 渲染图标的函数
+function renderIcon(iconName?: string, className?: string, style?: React.CSSProperties) {
+  if (!iconName) return null
+  const IconComponent = iconMap[iconName as keyof typeof iconMap]
+  if (!IconComponent) return null
+  return <IconComponent className={className} style={style} />
+}
 
 // 工具函数：合并类名
 function cn(...classes: (string | undefined)[]): string {
@@ -454,7 +470,7 @@ export function DatasetKPICard({
     }
     
     // 从组件配置中获取单位（备用）
-    const fieldUnits = component.config?.kpi?.fieldUnits || {}
+    const fieldUnits = (component.config as any)?.kpi?.fieldUnits || {}
     if (fieldUnits[fieldName]) {
       const unit = fieldUnits[fieldName]
       return unit
@@ -514,6 +530,38 @@ export function DatasetKPICard({
   const textColor = isDarkBackground ? 'text-white' : 'text-gray-900'
   const subtextColor = isDarkBackground ? 'text-white/80' : 'text-gray-600'
 
+  // 获取内容区图标设置
+  const contentIcon = component.config?.kpi?.contentIcon
+  const contentIconPosition = component.config?.kpi?.contentIconPosition || 'left'
+  const contentIconSize = component.config?.kpi?.contentIconSize || 'medium'
+  
+  // 根据大小设置图标尺寸
+  const getIconSizeClass = (size: string) => {
+    switch (size) {
+      case 'small': return 'h-6 w-6'
+      case 'large': return 'h-12 w-12'
+      default: return 'h-8 w-8'
+    }
+  }
+
+  const iconSizeClass = getIconSizeClass(contentIconSize)
+  const iconColorClass = isDarkBackground ? 'text-white/70' : ''
+
+  // 根据图标位置决定布局
+  const getLayoutClasses = () => {
+    if (!contentIcon) return "flex flex-col h-full justify-center"
+    
+    switch (contentIconPosition) {
+      case 'top':
+        return "flex flex-col h-full justify-center items-center text-center"
+      case 'right':
+        return "flex flex-row h-full justify-between items-center"
+      case 'left':
+      default:
+        return "flex flex-row h-full justify-start items-center gap-4"
+    }
+  }
+
   return (
     <div 
       className="w-full h-full p-4 transition-all duration-200 rounded-b-lg"
@@ -522,32 +570,62 @@ export function DatasetKPICard({
         opacity: component.config?.style?.opacity ?? 1
       }}
     >
-      <div className="flex flex-col h-full justify-center">
-        <div className={`text-2xl font-bold mb-1 ${textColor}`}>
-          {totalValue.toLocaleString()}{primaryUnit && ` ${primaryUnit}`}
-        </div>
-        <div className={`text-xs mb-3 ${subtextColor}`}>
-          平均: {avgValue.toFixed(1)}{primaryUnit && ` ${primaryUnit}`}
-        </div>
-        <div className="flex items-center gap-1">
-          {trend > 0 ? (
-            <TrendingUp className={`h-4 w-4 ${isDarkBackground ? 'text-green-300' : 'text-green-500'}`} />
-          ) : trend < 0 ? (
-            <TrendingDown className={`h-4 w-4 ${isDarkBackground ? 'text-red-300' : 'text-red-500'}`} />
-          ) : (
-            <BarChart3 className={`h-4 w-4 ${isDarkBackground ? 'text-white/60' : 'text-gray-400'}`} />
-          )}
-          <span className={cn(
-            "text-sm font-medium",
-            trend > 0 
-              ? (isDarkBackground ? "text-green-300" : "text-green-600")
-              : trend < 0 
-              ? (isDarkBackground ? "text-red-300" : "text-red-600") 
-              : subtextColor
+      <div className={getLayoutClasses()}>
+        {/* 左侧或顶部图标 */}
+        {contentIcon && (contentIconPosition === 'left' || contentIconPosition === 'top') && (
+          <div className={cn(
+            "flex items-center justify-center shrink-0",
+            contentIconPosition === 'top' ? "mb-2" : ""
           )}>
-            {trend > 0 ? '+' : ''}{trend.toFixed(1)}{primaryUnit && ` ${primaryUnit}`}
-          </span>
+            {renderIcon(contentIcon, cn(iconSizeClass, iconColorClass), isDarkBackground ? undefined : { color: primaryColor })}
+          </div>
+        )}
+
+        {/* 主要内容区域 */}
+        <div className={cn(
+          "flex flex-col justify-center",
+          contentIconPosition === 'top' ? "items-center text-center" : "flex-1 min-w-0"
+        )}>
+          <div className={cn(
+            "font-bold mb-1",
+            contentIcon && contentIconPosition !== 'top' ? "text-xl" : "text-2xl",
+            textColor
+          )}>
+            {totalValue.toLocaleString()}{primaryUnit && ` ${primaryUnit}`}
+          </div>
+          <div className={cn(
+            "text-xs mb-3",
+            subtextColor
+          )}>
+            平均: {avgValue.toFixed(1)}{primaryUnit && ` ${primaryUnit}`}
+          </div>
+          <div className="flex items-center gap-1">
+            {trend > 0 ? (
+              <TrendingUp className={`h-4 w-4 ${isDarkBackground ? 'text-green-300' : 'text-green-500'}`} />
+            ) : trend < 0 ? (
+              <TrendingDown className={`h-4 w-4 ${isDarkBackground ? 'text-red-300' : 'text-red-500'}`} />
+            ) : (
+              <BarChart3 className={`h-4 w-4 ${isDarkBackground ? 'text-white/60' : 'text-gray-400'}`} />
+            )}
+            <span className={cn(
+              "text-sm font-medium",
+              trend > 0 
+                ? (isDarkBackground ? "text-green-300" : "text-green-600")
+                : trend < 0 
+                ? (isDarkBackground ? "text-red-300" : "text-red-600") 
+                : subtextColor
+            )}>
+              {trend > 0 ? '+' : ''}{trend.toFixed(1)}{primaryUnit && ` ${primaryUnit}`}
+            </span>
+          </div>
         </div>
+
+        {/* 右侧图标 */}
+        {contentIcon && contentIconPosition === 'right' && (
+          <div className="flex items-center justify-center shrink-0">
+            {renderIcon(contentIcon, cn(iconSizeClass, iconColorClass), isDarkBackground ? undefined : { color: primaryColor })}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -33,9 +33,21 @@ export interface ComponentLayout {
   type: 'line-chart' | 'bar-chart' | 'pie-chart' | 'table' | 'kpi-card' | 'gauge' | 'container' | 'map'
   title: string
   titleIcon?: string // 标题图标
+  titleAlign?: 'left' | 'center' | 'right' // 标题对齐方式
   position: { x: number, y: number }
   size: { width: number, height: number }
-  config: Record<string, any>
+  config: Record<string, any> & {
+    kpi?: {
+      style?: 'modern' | 'minimal' | 'colorful'
+      backgroundType?: 'default' | 'solid' | 'gradient'
+      showIcon?: boolean
+      showTrend?: boolean
+      showDescription?: boolean
+      contentIcon?: string // KPI内容区图标
+      contentIconPosition?: 'left' | 'right' | 'top' // KPI内容区图标位置
+      contentIconSize?: 'small' | 'medium' | 'large' // KPI内容区图标大小
+    }
+  }
   dataConfig: {
     // 新的数据集绑定方式
     datasetId?: ObjectId

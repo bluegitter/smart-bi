@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { IconSelector } from '@/components/ui/IconSelector'
 import type { ComponentLayout } from '@/types'
 
 interface KPIStyleEditorProps {
@@ -72,6 +73,52 @@ export function KPIStyleEditor({ selectedComponent, onKPIConfigUpdate }: KPIStyl
             onChange={(e) => onKPIConfigUpdate({ showDescription: e.target.checked })}
           />
           <label htmlFor="showDescription" className="text-sm">显示描述</label>
+        </div>
+        
+        {/* 内容区图标设置 */}
+        <div className="pt-3 border-t border-slate-100">
+          <label className="block text-xs text-slate-500 mb-2 font-medium">内容区图标</label>
+          
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">选择图标</label>
+              <IconSelector
+                value={selectedComponent.config?.kpi?.contentIcon}
+                onChange={(iconName) => onKPIConfigUpdate({ contentIcon: iconName })}
+                placeholder="选择内容区图标（可选）"
+              />
+            </div>
+            
+            {selectedComponent.config?.kpi?.contentIcon && (
+              <>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">图标位置</label>
+                  <select 
+                    className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                    value={selectedComponent.config?.kpi?.contentIconPosition || 'left'}
+                    onChange={(e) => onKPIConfigUpdate({ contentIconPosition: e.target.value })}
+                  >
+                    <option value="left">左侧</option>
+                    <option value="right">右侧</option>
+                    <option value="top">顶部</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">图标大小</label>
+                  <select 
+                    className="w-full h-8 px-2 py-1 border border-slate-200 rounded text-sm"
+                    value={selectedComponent.config?.kpi?.contentIconSize || 'medium'}
+                    onChange={(e) => onKPIConfigUpdate({ contentIconSize: e.target.value })}
+                  >
+                    <option value="small">小 (24px)</option>
+                    <option value="medium">中 (32px)</option>
+                    <option value="large">大 (48px)</option>
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
         </div>
         
         {/* 配色提示 */}

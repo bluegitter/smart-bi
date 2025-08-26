@@ -378,7 +378,11 @@ export function DraggableComponent({
           }
         })()}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className={cn(
+          "flex items-center gap-2 flex-1 min-w-0",
+          component.titleAlign === 'center' && "justify-center",
+          component.titleAlign === 'right' && "justify-end"
+        )}>
           {renderIcon(component.titleIcon, cn(
             "h-4 w-4 shrink-0",
             shouldApplyTitleBackground ? "text-white" : "text-gray-700"
