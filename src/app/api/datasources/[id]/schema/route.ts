@@ -99,23 +99,32 @@ export async function GET(
           port: config.port || 3306
         })
 
-          // 获取所有表名和注释
+          // 获取所有表和视图的名称和注释
           const [tablesResult] = await connection.execute(`
             SELECT 
               TABLE_NAME as table_name,
               TABLE_COMMENT as table_comment,
-              TABLE_SCHEMA as schema_name
+              TABLE_SCHEMA as schema_name,
+              TABLE_TYPE as table_type
             FROM information_schema.TABLES 
             WHERE TABLE_SCHEMA = ? 
-            AND TABLE_TYPE = 'BASE TABLE'
-            ORDER BY TABLE_NAME
+            AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')
+            ORDER BY TABLE_TYPE, TABLE_NAME
           `, [datasource.config.database])
+          
+          console.log('Found tables and views:', (tablesResult as any[]).map(t => ({
+            name: t.table_name,
+            type: t.table_type,
+            comment: t.table_comment,
+            hasComment: !!t.table_comment && t.table_comment.trim() !== ''
+          })))
 
-          // 为每个表获取列信息
+          // 为每个表和视图获取列信息
           for (const tableRow of tablesResult as any[]) {
             const tableName = tableRow.table_name
             const tableComment = tableRow.table_comment
             const schemaName = tableRow.schema_name
+            const tableType = tableRow.table_type
             
             const [columnsResult] = await connection.execute(`
               SELECT 
@@ -142,6 +151,7 @@ export async function GET(
               schema: schemaName || datasource.config.database,
               comment: tableComment,
               displayName: tableComment && tableComment.trim() ? tableComment.trim() : tableName,
+              type: tableType === 'BASE TABLE' ? 'table' : 'view',
               columns
             })
           }

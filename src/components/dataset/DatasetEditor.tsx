@@ -43,16 +43,28 @@ interface DatasetEditorProps {
   initialName?: string
   initialDisplayName?: string
   initialType?: DatasetType
+  initialDataSource?: string
+  initialSchema?: string
+  initialTable?: string
 }
 
-export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName, initialType }: DatasetEditorProps) {
+export function DatasetEditor({ 
+  datasetId, 
+  mode, 
+  initialName, 
+  initialDisplayName, 
+  initialType,
+  initialDataSource,
+  initialSchema,
+  initialTable
+}: DatasetEditorProps) {
   const router = useRouter()
   const { dataSources, loading: dataSourcesLoading } = useDataSources()
   const { dataset, loading, error, save, preview, refresh } = useDataset(datasetId)
   
   // 编辑器状态
   const [datasetType, setDatasetType] = React.useState<DatasetType>(initialType || 'table')
-  const [selectedDataSource, setSelectedDataSource] = React.useState<string>('')
+  const [selectedDataSource, setSelectedDataSource] = React.useState<string>(initialDataSource || '')
   const [datasetName, setDatasetName] = React.useState(initialName || '')
   const [datasetDisplayName, setDatasetDisplayName] = React.useState(initialDisplayName || '')
   const [datasetDescription, setDatasetDescription] = React.useState('')
@@ -73,8 +85,8 @@ export function DatasetEditor({ datasetId, mode, initialName, initialDisplayName
   const [previewError, setPreviewError] = React.useState<string>('')
   
   // 表选择器状态（用于table类型）
-  const [selectedTable, setSelectedTable] = React.useState('')
-  const [selectedSchema, setSelectedSchema] = React.useState('')
+  const [selectedTable, setSelectedTable] = React.useState(initialTable || '')
+  const [selectedSchema, setSelectedSchema] = React.useState(initialSchema || '')
   
   // SQL编辑器状态（用于sql类型）
   const [sqlQuery, setSqlQuery] = React.useState('')

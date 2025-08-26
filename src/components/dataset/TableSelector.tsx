@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Database, Table } from 'lucide-react'
+import { Database, Table, Eye } from 'lucide-react'
 import { CustomSelect, type SelectItem } from '@/components/ui/CustomSelect'
 import type { DataSource } from '@/types'
 
@@ -21,6 +21,7 @@ interface TableInfo {
   displayName: string
   schema: string
   comment?: string
+  type?: 'table' | 'view'
 }
 
 export function TableSelector({
@@ -91,9 +92,16 @@ export function TableSelector({
             name: t.name,
             displayName: t.displayName || t.name,
             schema: t.schema,
-            comment: t.comment
+            comment: t.comment,
+            type: t.type || 'table'
           }))
-          .sort((a: TableInfo, b: TableInfo) => a.name.localeCompare(b.name))
+          .sort((a: TableInfo, b: TableInfo) => {
+            // 先按类型排序（表在前，视图在后），再按名称排序
+            if (a.type !== b.type) {
+              return a.type === 'table' ? -1 : 1
+            }
+            return a.name.localeCompare(b.name)
+          })
         
         setTables(tableList)
       }
@@ -148,7 +156,8 @@ export function TableSelector({
     id: table.name,
     name: table.name,
     displayName: table.displayName,
-    icon: Table
+    type: table.type === 'view' ? '视图' : '表',
+    icon: table.type === 'view' ? Eye : Table
   }))
 
   return (
@@ -201,24 +210,6 @@ export function TableSelector({
         </div>
       )}
 
-      {/* 选中信息显示 */}
-      {selectedDataSourceObj && selectedTable && (
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Table className="h-4 w-4 text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-blue-900 mb-1">已选择</h4>
-              <div className="text-sm text-blue-700 space-y-1">
-                <div>数据源: {selectedDataSourceObj.name}</div>
-                {selectedSchema && <div>模式: {selectedSchema}</div>}
-                <div>数据表: {selectedTable}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
