@@ -94,6 +94,11 @@ export function DashboardCanvasArea({
         onClick={onClick}
         onDoubleClick={onDoubleClick}
       >
+        {/* 空画布占位符 - 基于外层画布容器定位 */}
+        {components.length === 0 && !isPreviewMode && (
+          <EmptyCanvasPlaceholder onAddComponents={onAddComponents} />
+        )}
+
         <div 
           className="relative"
           style={{ 
@@ -106,9 +111,7 @@ export function DashboardCanvasArea({
             padding: '24px'
           }}
         >
-          {components.length === 0 && !isPreviewMode ? (
-            <EmptyCanvasPlaceholder onAddComponents={onAddComponents} />
-          ) : (
+          {components.length > 0 && (
             <>
               <HelpTip 
                 show={!isPreviewMode && showHelpTip} 
@@ -173,7 +176,12 @@ function EmptyCanvasPlaceholder({ onAddComponents }: { onAddComponents: (compone
 
   return (
     <>
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div 
+        className="absolute inset-0 flex items-center justify-center"
+        style={{
+          zIndex: 10
+        }}
+      >
         <Card className="w-96">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
