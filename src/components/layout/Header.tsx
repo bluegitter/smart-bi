@@ -1,10 +1,10 @@
 'use client'
 
 import React from 'react'
-import { Search, MessageSquare, Menu } from 'lucide-react'
+import { MessageSquare, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { UserMenu } from '@/components/auth/UserMenu'
+import { GlobalSearch } from '@/components/search/GlobalSearch'
 import { useAuth } from '@/contexts/AuthContext'
 import { useActions } from '@/store/useAppStore'
 
@@ -34,14 +34,8 @@ export function Header() {
 
       {/* 中间：搜索栏和AI问答 */}
       <div className="flex-1 max-w-2xl mx-4 flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder="搜索看板、指标或数据源..."
-            className="pl-10 pr-4"
-          />
-        </div>
-        <Button variant="outline" className="flex items-center gap-2">
+        <GlobalSearch className="flex-1" />
+        <Button variant="outline" className="flex items-center gap-2 whitespace-nowrap">
           <MessageSquare className="h-4 w-4" />
           <span className="hidden sm:inline">AI 问答</span>
         </Button>
