@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { AIGenerateDashboardDialog } from './AIGenerateDashboardDialog'
 import { cn } from '@/lib/utils'
-import type { ComponentLayout, DragItem, Metric } from '@/types'
+import type { ComponentLayout, DragItem, Dataset } from '@/types'
 
 interface DashboardCanvasAreaProps {
   canvasRef: React.RefObject<HTMLDivElement | null>
@@ -141,28 +141,28 @@ export function DashboardCanvasArea({
 
 function EmptyCanvasPlaceholder({ onAddComponents }: { onAddComponents: (components: ComponentLayout[]) => void }) {
   const [showAIDialog, setShowAIDialog] = React.useState(false)
-  const [metrics, setMetrics] = React.useState<Metric[]>([])
-  const [loadingMetrics, setLoadingMetrics] = React.useState(false)
+  const [datasets, setDatasets] = React.useState<Dataset[]>([])
+  const [loadingDatasets, setLoadingDatasets] = React.useState(false)
 
-  // 加载指标数据
-  const loadMetrics = async () => {
-    setLoadingMetrics(true)
+  // 加载数据集数据
+  const loadDatasets = async () => {
+    setLoadingDatasets(true)
     try {
-      const response = await fetch('/api/metrics?limit=50')
+      const response = await fetch('/api/datasets?limit=50')
       if (response.ok) {
         const data = await response.json()
-        setMetrics(data.metrics || [])
+        setDatasets(data.datasets || [])
       }
     } catch (error) {
-      console.error('加载指标失败:', error)
+      console.error('加载数据集失败:', error)
     } finally {
-      setLoadingMetrics(false)
+      setLoadingDatasets(false)
     }
   }
 
   const handleAIGenerate = async () => {
-    if (metrics.length === 0) {
-      await loadMetrics()
+    if (datasets.length === 0) {
+      await loadDatasets()
     }
     setShowAIDialog(true)
   }
@@ -181,14 +181,14 @@ function EmptyCanvasPlaceholder({ onAddComponents }: { onAddComponents: (compone
             </div>
             <h3 className="font-semibold mb-2">开始创建你的看板</h3>
             <p className="text-slate-500 text-sm mb-4">
-              从左侧拖拽组件到画布，或使用AI智能生成看板
+              从左侧拖拽组件到画布，或基于数据集AI智能生成看板
             </p>
             <Button 
               className="w-full" 
               onClick={handleAIGenerate}
-              disabled={loadingMetrics}
+              disabled={loadingDatasets}
             >
-              {loadingMetrics ? (
+              {loadingDatasets ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   加载中...
@@ -208,8 +208,8 @@ function EmptyCanvasPlaceholder({ onAddComponents }: { onAddComponents: (compone
         isOpen={showAIDialog}
         onClose={() => setShowAIDialog(false)}
         onGenerate={handleGenerate}
-        metrics={metrics}
-        loading={loadingMetrics}
+        datasets={datasets}
+        loading={loadingDatasets}
       />
     </>
   )

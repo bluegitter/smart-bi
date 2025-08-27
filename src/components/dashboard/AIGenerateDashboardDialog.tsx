@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/Input'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Sparkles, X, Loader2, RefreshCw, Check, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Metric, ComponentLayout } from '@/types'
+import type { Metric, ComponentLayout, Dataset, DatasetField } from '@/types'
 
 interface AIGenerateDashboardDialogProps {
   isOpen: boolean
   onClose: () => void
   onGenerate: (components: ComponentLayout[]) => void
-  metrics: Metric[]
+  datasets: Dataset[]
   loading?: boolean
 }
 
@@ -21,42 +21,42 @@ interface DashboardTemplate {
   name: string
   description: string
   category: string
-  requiredMetricTypes: string[]
+  requiredFieldTypes: string[]
   layoutPattern: 'executive' | 'operational' | 'analytical' | 'monitoring'
 }
 
 const DASHBOARD_TEMPLATES: DashboardTemplate[] = [
   {
-    id: 'sales-executive',
-    name: '销售管理看板',
-    description: '适合销售经理查看核心销售指标，包含销售额、订单量、趋势分析等',
-    category: '销售',
-    requiredMetricTypes: ['sum', 'count', 'ratio'],
+    id: 'data-overview',
+    name: '数据概览看板',
+    description: '全面展示数据集的核心指标，包含KPI卡片、趋势图、分布图等',
+    category: '通用',
+    requiredFieldTypes: ['measure', 'dimension'],
     layoutPattern: 'executive'
   },
   {
-    id: 'finance-overview',
-    name: '财务概览看板',
-    description: '展示收入、利润、成本等财务核心指标，适合财务团队使用',
-    category: '财务',
-    requiredMetricTypes: ['sum', 'ratio'],
-    layoutPattern: 'executive'
-  },
-  {
-    id: 'user-behavior',
-    name: '用户行为分析',
-    description: '分析用户活跃度、行为模式、设备分布等用户相关指标',
-    category: '用户行为',
-    requiredMetricTypes: ['count', 'ratio'],
+    id: 'analytical-deep-dive',
+    name: '分析洞察看板',
+    description: '深度分析数据模式，适合数据分析师进行详细的数据探索',
+    category: '分析',
+    requiredFieldTypes: ['measure', 'dimension'],
     layoutPattern: 'analytical'
   },
   {
-    id: 'product-performance',
-    name: '产品表现分析',
-    description: '展示产品销售、用户反馈、市场表现等产品相关指标',
-    category: '产品',
-    requiredMetricTypes: ['sum', 'count'],
-    layoutPattern: 'operational'
+    id: 'monitoring-dashboard',
+    name: '监控看板',
+    description: '实时监控关键指标变化，适合业务运营团队日常监控使用',
+    category: '监控',
+    requiredFieldTypes: ['measure'],
+    layoutPattern: 'monitoring'
+  },
+  {
+    id: 'executive-summary',
+    name: '管理层汇总',
+    description: '高层次的数据汇总展示，突出核心业务指标和趋势',
+    category: '管理',
+    requiredFieldTypes: ['measure', 'dimension'],
+    layoutPattern: 'executive'
   }
 ]
 
@@ -64,41 +64,40 @@ export function AIGenerateDashboardDialog({
   isOpen,
   onClose,
   onGenerate,
-  metrics,
+  datasets,
   loading = false
 }: AIGenerateDashboardDialogProps) {
   const [step, setStep] = React.useState<'requirements' | 'preview' | 'generating'>('requirements')
   const [selectedTemplate, setSelectedTemplate] = React.useState<string>('')
   const [customRequirement, setCustomRequirement] = React.useState('')
-  const [selectedMetrics, setSelectedMetrics] = React.useState<string[]>([])
+  const [selectedDatasets, setSelectedDatasets] = React.useState<string[]>([])
+  const [selectedFields, setSelectedFields] = React.useState<Record<string, string[]>>({}) // datasetId -> fieldNames[]
   const [generatedComponents, setGeneratedComponents] = React.useState<ComponentLayout[]>([])
   const { showConfirm, confirmDialog } = useConfirmDialog()
 
-  // 按分类分组指标
-  const metricsByCategory = React.useMemo(() => {
-    const grouped: Record<string, Metric[]> = {}
-    metrics.forEach(metric => {
-      if (!grouped[metric.category]) {
-        grouped[metric.category] = []
+  // 按分类分组数据集
+  const datasetsByCategory = React.useMemo(() => {
+    const grouped: Record<string, Dataset[]> = {}
+    datasets.forEach(dataset => {
+      if (!grouped[dataset.category]) {
+        grouped[dataset.category] = []
       }
-      grouped[metric.category].push(metric)
+      grouped[dataset.category].push(dataset)
     })
     return grouped
-  }, [metrics])
+  }, [datasets])
 
-  // 获取推荐的模板
+  // 获取推荐的模板 - 所有模板都可用
   const recommendedTemplates = React.useMemo(() => {
-    const availableCategories = Object.keys(metricsByCategory)
-    return DASHBOARD_TEMPLATES.filter(template =>
-      availableCategories.includes(template.category)
-    )
-  }, [metricsByCategory])
+    return DASHBOARD_TEMPLATES
+  }, [])
 
   const resetDialog = () => {
     setStep('requirements')
     setSelectedTemplate('')
     setCustomRequirement('')
-    setSelectedMetrics([])
+    setSelectedDatasets([])
+    setSelectedFields({})
     setGeneratedComponents([])
   }
 
@@ -129,12 +128,12 @@ export function AIGenerateDashboardDialog({
     
     try {
       const template = DASHBOARD_TEMPLATES.find(t => t.id === selectedTemplate)
-      const relevantMetrics = metrics.filter(m => selectedMetrics.includes(m._id))
+      const relevantDatasets = datasets.filter(d => selectedDatasets.includes(d._id))
       
       // 模拟AI生成过程
       await new Promise(resolve => setTimeout(resolve, 2000))
       
-      const components = generateComponentsFromMetrics(relevantMetrics, template?.layoutPattern || 'executive')
+      const components = generateComponentsFromDatasets(relevantDatasets, selectedFields, template?.layoutPattern || 'executive')
       setGeneratedComponents(components)
       setStep('preview')
     } catch (error) {
@@ -143,117 +142,168 @@ export function AIGenerateDashboardDialog({
     }
   }
 
-  // 根据指标生成组件
-  const generateComponentsFromMetrics = (metrics: Metric[], layoutPattern: string): ComponentLayout[] => {
+  // 根据数据集生成组件
+  const generateComponentsFromDatasets = (
+    datasets: Dataset[], 
+    selectedFields: Record<string, string[]>, 
+    layoutPattern: string
+  ): ComponentLayout[] => {
     const components: ComponentLayout[] = []
     let yOffset = 24
     
-    // KPI卡片区域 - 核心指标
-    const kpiMetrics = metrics.filter(m => ['sum', 'count', 'ratio'].includes(m.type)).slice(0, 4)
-    kpiMetrics.forEach((metric, index) => {
-      components.push({
-        id: `kpi-${metric._id}-${Date.now()}-${index}`,
-        type: 'kpi-card',
-        title: metric.displayName,
-        position: { x: 24 + (index * 280), y: yOffset },
-        size: { width: 260, height: 120 },
-        config: {
-          kpi: {
-            style: 'modern',
-            showIcon: true,
-            showTrend: true,
-            unit: metric.unit
+    // 为每个数据集生成组件
+    datasets.forEach((dataset, datasetIndex) => {
+      const datasetFields = selectedFields[dataset._id] || []
+      const fields = dataset.fields?.filter(f => datasetFields.includes(f.name)) || []
+      
+      // 按字段类型分类
+      const measures = fields.filter(f => f.fieldType === 'measure')
+      const dimensions = fields.filter(f => f.fieldType === 'dimension')
+      
+      // KPI卡片区域 - 度量字段
+      const kpiMeasures = measures.slice(0, 4)
+      if (kpiMeasures.length > 0) {
+        kpiMeasures.forEach((field, index) => {
+          components.push({
+            id: `kpi-${dataset._id}-${field.name}-${Date.now()}-${index}`,
+            type: 'kpi-card',
+            title: field.displayName,
+            position: { 
+              x: 24 + (index * 280), 
+              y: yOffset + (datasetIndex * 500)
+            },
+            size: { width: 260, height: 120 },
+            config: {
+              kpi: {
+                style: 'modern',
+                showIcon: true,
+                showTrend: true,
+                unit: field.unit
+              }
+            },
+            dataConfig: {
+              datasetId: dataset._id,
+              selectedMeasures: [field.name],
+              selectedDimensions: [],
+              fieldDisplayNames: { [field.name]: field.displayName },
+              fieldUnits: field.unit ? { [field.name]: field.unit } : {},
+              filters: []
+            }
+          })
+        })
+        
+        yOffset += 144
+      }
+
+      // 如果有维度和度量，生成图表
+      if (measures.length > 0 && dimensions.length > 0) {
+        const primaryMeasure = measures[0]
+        const primaryDimension = dimensions[0]
+        
+        // 趋势图 - 如果有日期类型的维度
+        const dateFields = dimensions.filter(f => f.type === 'date')
+        if (dateFields.length > 0) {
+          components.push({
+            id: `line-${dataset._id}-${Date.now()}`,
+            type: 'line-chart',
+            title: `${dataset.displayName} - 趋势分析`,
+            position: { x: 24, y: yOffset + (datasetIndex * 500) },
+            size: { width: 560, height: 320 },
+            config: {},
+            dataConfig: {
+              datasetId: dataset._id,
+              selectedMeasures: [primaryMeasure.name],
+              selectedDimensions: [dateFields[0].name],
+              fieldDisplayNames: {
+                [primaryMeasure.name]: primaryMeasure.displayName,
+                [dateFields[0].name]: dateFields[0].displayName
+              },
+              fieldUnits: primaryMeasure.unit ? { [primaryMeasure.name]: primaryMeasure.unit } : {},
+              filters: []
+            }
+          })
+        }
+        
+        // 分布图 - 饼图
+        if (dimensions.length > 0) {
+          components.push({
+            id: `pie-${dataset._id}-${Date.now()}`,
+            type: 'pie-chart',
+            title: `${dataset.displayName} - 分布图`,
+            position: { x: dateFields.length > 0 ? 604 : 24, y: yOffset + (datasetIndex * 500) },
+            size: { width: 500, height: 320 },
+            config: {},
+            dataConfig: {
+              datasetId: dataset._id,
+              selectedMeasures: [primaryMeasure.name],
+              selectedDimensions: [primaryDimension.name],
+              fieldDisplayNames: {
+                [primaryMeasure.name]: primaryMeasure.displayName,
+                [primaryDimension.name]: primaryDimension.displayName
+              },
+              fieldUnits: primaryMeasure.unit ? { [primaryMeasure.name]: primaryMeasure.unit } : {},
+              filters: []
+            }
+          })
+        }
+        
+        yOffset += 344
+        
+        // 柱状图 - 如果有多个维度
+        if (dimensions.length > 1) {
+          components.push({
+            id: `bar-${dataset._id}-${Date.now()}`,
+            type: 'bar-chart',
+            title: `${dataset.displayName} - 对比分析`,
+            position: { x: 24, y: yOffset + (datasetIndex * 500) },
+            size: { width: 540, height: 280 },
+            config: {},
+            dataConfig: {
+              datasetId: dataset._id,
+              selectedMeasures: [primaryMeasure.name],
+              selectedDimensions: [dimensions[1].name],
+              fieldDisplayNames: {
+                [primaryMeasure.name]: primaryMeasure.displayName,
+                [dimensions[1].name]: dimensions[1].displayName
+              },
+              fieldUnits: primaryMeasure.unit ? { [primaryMeasure.name]: primaryMeasure.unit } : {},
+              filters: []
+            }
+          })
+        }
+      }
+      
+      // 数据表格 - 展示所有选中的字段
+      if (fields.length > 0) {
+        const selectedMeasures = measures.map(f => f.name)
+        const selectedDimensions = dimensions.map(f => f.name)
+        const fieldDisplayNames = fields.reduce((acc, f) => {
+          acc[f.name] = f.displayName
+          return acc
+        }, {} as Record<string, string>)
+        const fieldUnits = measures.reduce((acc, f) => {
+          if (f.unit) acc[f.name] = f.unit
+          return acc
+        }, {} as Record<string, string>)
+
+        components.push({
+          id: `table-${dataset._id}-${Date.now()}`,
+          type: 'table',
+          title: `${dataset.displayName} - 详细数据`,
+          position: { x: dimensions.length > 1 ? 584 : 24, y: yOffset + (datasetIndex * 500) },
+          size: { width: 520, height: 280 },
+          config: {},
+          dataConfig: {
+            datasetId: dataset._id,
+            selectedMeasures,
+            selectedDimensions,
+            fieldDisplayNames,
+            fieldUnits,
+            filters: []
           }
-        },
-        dataConfig: {
-          metrics: [metric.name],
-          filters: []
-        }
-      })
+        })
+      }
     })
-    
-    yOffset += 144
-
-    // 图表区域
-    const chartMetrics = metrics.filter(m => !kpiMetrics.includes(m))
-    
-    // 趋势图 - 时间序列类指标
-    const trendMetrics = chartMetrics.filter(m => 
-      m.displayName.includes('趋势') || m.displayName.includes('日') || m.displayName.includes('每日')
-    ).slice(0, 1)
-    
-    if (trendMetrics.length > 0) {
-      components.push({
-        id: `line-${trendMetrics[0]._id}-${Date.now()}`,
-        type: 'line-chart',
-        title: trendMetrics[0].displayName + '趋势',
-        position: { x: 24, y: yOffset },
-        size: { width: 560, height: 320 },
-        config: {},
-        dataConfig: {
-          metrics: [trendMetrics[0].name],
-          filters: []
-        }
-      })
-    }
-
-    // 分布图 - 分类类指标
-    const distributionMetrics = chartMetrics.filter(m => 
-      m.displayName.includes('分类') || m.displayName.includes('分布') || m.displayName.includes('地区')
-    ).slice(0, 1)
-    
-    if (distributionMetrics.length > 0) {
-      components.push({
-        id: `pie-${distributionMetrics[0]._id}-${Date.now()}`,
-        type: 'pie-chart',
-        title: distributionMetrics[0].displayName,
-        position: { x: 604, y: yOffset },
-        size: { width: 500, height: 320 },
-        config: {},
-        dataConfig: {
-          metrics: [distributionMetrics[0].name],
-          filters: []
-        }
-      })
-    }
-
-    yOffset += 344
-
-    // 排行榜 - TOP类指标
-    const rankingMetrics = chartMetrics.filter(m => 
-      m.displayName.includes('TOP') || m.displayName.includes('热销') || m.displayName.includes('排行')
-    ).slice(0, 1)
-    
-    if (rankingMetrics.length > 0) {
-      components.push({
-        id: `bar-${rankingMetrics[0]._id}-${Date.now()}`,
-        type: 'bar-chart',
-        title: rankingMetrics[0].displayName,
-        position: { x: 24, y: yOffset },
-        size: { width: 540, height: 280 },
-        config: {},
-        dataConfig: {
-          metrics: [rankingMetrics[0].name],
-          filters: []
-        }
-      })
-    }
-
-    // 详细数据表格
-    if (chartMetrics.length > 3) {
-      components.push({
-        id: `table-${Date.now()}`,
-        type: 'table',
-        title: '详细数据',
-        position: { x: 584, y: yOffset },
-        size: { width: 520, height: 280 },
-        config: {},
-        dataConfig: {
-          metrics: chartMetrics.slice(0, 3).map(m => m.name),
-          filters: []
-        }
-      })
-    }
 
     return components
   }
@@ -329,12 +379,14 @@ export function AIGenerateDashboardDialog({
             {step === 'requirements' && (
               <RequirementsStep
                 templates={recommendedTemplates}
-                metricsByCategory={metricsByCategory}
+                datasetsByCategory={datasetsByCategory}
                 selectedTemplate={selectedTemplate}
-                selectedMetrics={selectedMetrics}
+                selectedDatasets={selectedDatasets}
+                selectedFields={selectedFields}
                 customRequirement={customRequirement}
                 onTemplateChange={setSelectedTemplate}
-                onMetricsChange={setSelectedMetrics}
+                onDatasetsChange={setSelectedDatasets}
+                onFieldsChange={setSelectedFields}
                 onCustomRequirementChange={setCustomRequirement}
               />
             )}
@@ -346,7 +398,7 @@ export function AIGenerateDashboardDialog({
             {step === 'preview' && (
               <PreviewStep
                 components={generatedComponents}
-                selectedMetrics={metrics.filter(m => selectedMetrics.includes(m._id))}
+                selectedDatasets={datasets.filter(d => selectedDatasets.includes(d._id))}
               />
             )}
           </div>
@@ -365,7 +417,7 @@ export function AIGenerateDashboardDialog({
                   </Button>
                   <Button 
                     onClick={generateDashboardComponents}
-                    disabled={!selectedTemplate || selectedMetrics.length === 0}
+                    disabled={!selectedTemplate || selectedDatasets.length === 0}
                   >
                     <Sparkles className="h-4 w-4 mr-2" />
                     开始生成
@@ -402,24 +454,43 @@ export function AIGenerateDashboardDialog({
 // 需求收集步骤组件
 function RequirementsStep({
   templates,
-  metricsByCategory,
+  datasetsByCategory,
   selectedTemplate,
-  selectedMetrics,
+  selectedDatasets,
+  selectedFields,
   customRequirement,
   onTemplateChange,
-  onMetricsChange,
+  onDatasetsChange,
+  onFieldsChange,
   onCustomRequirementChange
 }: {
   templates: DashboardTemplate[]
-  metricsByCategory: Record<string, Metric[]>
+  datasetsByCategory: Record<string, Dataset[]>
   selectedTemplate: string
-  selectedMetrics: string[]
+  selectedDatasets: string[]
+  selectedFields: Record<string, string[]>
   customRequirement: string
   onTemplateChange: (templateId: string) => void
-  onMetricsChange: (metrics: string[]) => void
+  onDatasetsChange: (datasetIds: string[]) => void
+  onFieldsChange: (fields: Record<string, string[]>) => void
   onCustomRequirementChange: (requirement: string) => void
 }) {
   const selectedTemplateData = templates.find(t => t.id === selectedTemplate)
+
+  const handleFieldSelection = (datasetId: string, fieldName: string, checked: boolean) => {
+    const currentFields = selectedFields[datasetId] || []
+    if (checked) {
+      onFieldsChange({
+        ...selectedFields,
+        [datasetId]: [...currentFields, fieldName]
+      })
+    } else {
+      onFieldsChange({
+        ...selectedFields,
+        [datasetId]: currentFields.filter(name => name !== fieldName)
+      })
+    }
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -455,37 +526,72 @@ function RequirementsStep({
         </div>
       </div>
 
-      {/* 指标选择 */}
+      {/* 数据集选择 */}
       {selectedTemplateData && (
         <div>
-          <h4 className="font-medium text-slate-900 mb-3">选择相关指标</h4>
+          <h4 className="font-medium text-slate-900 mb-3">选择数据集</h4>
           <div className="space-y-4">
-            {Object.entries(metricsByCategory).map(([category, metrics]) => (
+            {Object.entries(datasetsByCategory).map(([category, datasets]) => (
               <div key={category}>
                 <h5 className="text-sm font-medium text-slate-700 mb-2">{category}</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {metrics.map((metric) => (
-                    <label
-                      key={metric._id}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedMetrics.includes(metric._id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            onMetricsChange([...selectedMetrics, metric._id])
-                          } else {
-                            onMetricsChange(selectedMetrics.filter(id => id !== metric._id))
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      <div>
-                        <div className="text-sm font-medium text-slate-900">{metric.displayName}</div>
-                        <div className="text-xs text-slate-500">{metric.unit}</div>
-                      </div>
-                    </label>
+                <div className="space-y-2">
+                  {datasets.map((dataset) => (
+                    <div key={dataset._id} className="border border-slate-200 rounded-lg">
+                      <label className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          checked={selectedDatasets.includes(dataset._id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              onDatasetsChange([...selectedDatasets, dataset._id])
+                            } else {
+                              onDatasetsChange(selectedDatasets.filter(id => id !== dataset._id))
+                              // 同时清除该数据集的字段选择
+                              const newFields = { ...selectedFields }
+                              delete newFields[dataset._id]
+                              onFieldsChange(newFields)
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <div>
+                          <div className="text-sm font-medium text-slate-900">{dataset.displayName}</div>
+                          <div className="text-xs text-slate-500">
+                            {dataset.fields?.filter(f => f.fieldType === 'dimension').length || 0} 维度，
+                            {dataset.fields?.filter(f => f.fieldType === 'measure').length || 0} 度量
+                          </div>
+                        </div>
+                      </label>
+                      
+                      {/* 字段选择 */}
+                      {selectedDatasets.includes(dataset._id) && dataset.fields && (
+                        <div className="border-t border-slate-200 p-3 bg-slate-50">
+                          <div className="text-xs font-medium text-slate-700 mb-2">选择要展示的字段：</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                            {dataset.fields.map((field) => (
+                              <label key={field.name} className="flex items-center gap-2 text-xs cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={(selectedFields[dataset._id] || []).includes(field.name)}
+                                  onChange={(e) => handleFieldSelection(dataset._id, field.name, e.target.checked)}
+                                  className="rounded text-xs"
+                                />
+                                <span className={cn(
+                                  "px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                  field.fieldType === 'measure' 
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-purple-100 text-purple-700"
+                                )}>
+                                  {field.fieldType === 'measure' ? '度量' : '维度'}
+                                </span>
+                                <span className="text-slate-900">{field.displayName}</span>
+                                {field.unit && <span className="text-slate-500">({field.unit})</span>}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -533,17 +639,17 @@ function GeneratingStep() {
 // 预览步骤组件
 function PreviewStep({ 
   components, 
-  selectedMetrics 
+  selectedDatasets 
 }: { 
   components: ComponentLayout[]
-  selectedMetrics: Metric[]
+  selectedDatasets: Dataset[]
 }) {
   return (
     <div className="p-6">
       <div className="mb-4">
         <h4 className="font-medium text-slate-900 mb-2">生成的看板预览</h4>
         <p className="text-sm text-slate-600">
-          为您生成了 {components.length} 个图表组件，使用了 {selectedMetrics.length} 个指标
+          为您生成了 {components.length} 个图表组件，基于 {selectedDatasets.length} 个数据集
         </p>
       </div>
 
@@ -562,6 +668,11 @@ function PreviewStep({
                    component.type === 'table' ? '数据表格' : '图表'}
                   • 尺寸: {component.size.width}×{component.size.height}
                 </p>
+                {component.dataConfig.datasetId && (
+                  <div className="text-xs text-slate-500 mt-1">
+                    数据源: {selectedDatasets.find(d => d._id === component.dataConfig.datasetId)?.displayName}
+                  </div>
+                )}
               </div>
               <div className="text-xs text-slate-500">
                 位置: ({component.position.x}, {component.position.y})
