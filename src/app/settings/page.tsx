@@ -14,12 +14,14 @@ import {
   Monitor,
   Moon,
   Sun,
-  Loader2
+  Loader2,
+  Bot
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
+import { LLMConfigPanel } from '@/components/settings/LLMConfigPanel'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -77,6 +79,7 @@ export default function SettingsPage() {
     { id: 'appearance', label: '外观设置', icon: Palette },
     { id: 'security', label: '安全设置', icon: Shield },
     { id: 'data', label: '数据设置', icon: Database },
+    { id: 'llm', label: 'AI模型配置', icon: Bot },
   ]
 
   const renderProfileSettings = () => (
@@ -381,6 +384,8 @@ export default function SettingsPage() {
         return renderSecuritySettings()
       case 'data':
         return renderDataSettings()
+      case 'llm':
+        return <LLMConfigPanel />
       default:
         return renderProfileSettings()
     }
@@ -457,16 +462,20 @@ export default function SettingsPage() {
 
             {/* 设置内容区 */}
             <div className="lg:col-span-3">
-              <Card className="border-slate-200/60 shadow-sm">
-                <CardHeader className="pb-6">
-                  <CardTitle className="text-xl text-slate-900">
-                    {tabs.find(tab => tab.id === activeTab)?.label}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {renderTabContent()}
-                </CardContent>
-              </Card>
+              {activeTab === 'llm' ? (
+                renderTabContent()
+              ) : (
+                <Card className="border-slate-200/60 shadow-sm">
+                  <CardHeader className="pb-6">
+                    <CardTitle className="text-xl text-slate-900">
+                      {tabs.find(tab => tab.id === activeTab)?.label}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {renderTabContent()}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         </div>
