@@ -575,8 +575,8 @@ export function DatasetEditor({
 
   return (
     <div className="h-full flex flex-col">
-      {/* 顶部工具栏 */}
-      <div className="h-16 bg-gradient-to-r from-white via-blue-50 to-purple-50 border-b border-gray-200 px-6 flex items-center justify-between shadow-sm">
+      {/* 顶部工具栏 - 固定不滚动 */}
+      <div className="h-16 bg-gradient-to-r from-white via-blue-50 to-purple-50 border-b border-gray-200 px-6 flex items-center justify-between shadow-sm flex-shrink-0 sticky top-0 z-20">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -636,14 +636,16 @@ export function DatasetEditor({
         </div>
       </div>
 
-      <div className="flex-1 flex">
-        {/* 左侧配置面板 */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* 左侧配置面板 - 独立滚动 */}
         <div 
-          className="bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex flex-col relative"
+          className="bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex flex-col relative overflow-hidden"
           style={{ width: leftPanelWidth }}
         >
-          {/* 基本信息 - 紧凑折叠设计 */}
-          <div className="border-b border-gray-200 bg-white">
+          {/* 左侧面板滚动容器 */}
+          <div className="flex-1 overflow-y-auto">
+            {/* 基本信息 - 紧凑折叠设计 */}
+            <div className="border-b border-gray-200 bg-white">
             <div 
               className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors"
               onClick={() => setCollapsedSections(prev => ({ ...prev, basicInfo: !prev.basicInfo }))}
@@ -799,7 +801,7 @@ export function DatasetEditor({
           </div>
 
           {/* 字段管理 - 重点展示区域 */}
-          <div className="flex-1 overflow-hidden flex flex-col bg-white">
+          <div className="flex flex-col bg-white">
             {/* 字段管理头部 - 优化布局 */}
             <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-slate-50 to-gray-50">
               {/* 标题行 */}
@@ -920,7 +922,7 @@ export function DatasetEditor({
               )}
             </div>
             
-            <div className="flex-1 overflow-y-auto bg-gray-50/30">
+            <div className="bg-gray-50/30">
               {/* 无字段提示 */}
               {filteredFields.length === 0 && (
                 <div className="flex items-center justify-center h-full p-12">
@@ -1265,6 +1267,7 @@ export function DatasetEditor({
               )}
             </div>
           </div>
+          </div>
           
           {/* 拖拽手柄 */}
           <div
@@ -1285,10 +1288,10 @@ export function DatasetEditor({
         </div>
 
         {/* 右侧主内容区 */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {/* SQL编辑器（仅SQL类型显示） */}
           {datasetType === 'sql' && (
-            <div className="h-2/5 border-b border-gray-200 bg-gray-900">
+            <div className="h-2/5 border-b border-gray-200 bg-gray-900 flex-shrink-0">
               <div className="h-full p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -1322,8 +1325,8 @@ WHERE condition = 'value';"
           )}
 
           {/* 数据预览区 */}
-          <div className="flex-1 flex flex-col">
-            <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-50 to-purple-50">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="border-b border-gray-200 px-6 py-4 bg-gradient-to-r from-blue-50 to-purple-50 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
@@ -1359,7 +1362,7 @@ WHERE condition = 'value';"
               </div>
             </div>
             
-            <div className="flex-1 overflow-auto bg-gray-50">
+            <div className="flex-1 bg-gray-50">
               {previewLoading ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">
@@ -1368,8 +1371,9 @@ WHERE condition = 'value';"
                   </div>
                 </div>
               ) : previewData.length > 0 ? (
-                <div className="overflow-auto p-4">
-                  <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                <div className="h-full p-4">
+                  <div className="bg-white rounded-lg shadow-sm overflow-hidden h-full">
+                    <div className="h-full overflow-auto">
                     <table className="w-full">
                       <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white sticky top-0">
                         <tr>
@@ -1401,6 +1405,7 @@ WHERE condition = 'value';"
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               ) : (
