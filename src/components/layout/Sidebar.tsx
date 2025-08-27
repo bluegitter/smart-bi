@@ -31,6 +31,7 @@ const sidebarItems = [
   { icon: Database, label: '数据源', href: '/datasources', badge: null },
   { icon: Table, label: '数据集', href: '/datasets', badge: null },
   { icon: BarChart3, label: '看板', href: '/dashboards', badge: null },
+  { icon: Users, label: '用户管理', href: '/admin/users', badge: null, adminOnly: true },
   { icon: Settings, label: '设置', href: '/settings', badge: null },
 ]
 
@@ -92,6 +93,11 @@ export function Sidebar({ className }: SidebarProps) {
           </div>
           <nav className="space-y-1">
             {sidebarItems.map((item) => {
+              // 如果是仅管理员可见的项目，检查用户权限
+              if (item.adminOnly && user?.role !== 'admin') {
+                return null
+              }
+
               const Icon = item.icon
               const isActive = pathname === item.href
               return (

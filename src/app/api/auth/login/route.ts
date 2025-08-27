@@ -1,116 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateToken } from '@/lib/auth'
-import type { User } from '@/types'
+import { authenticateUser } from '@/lib/auth'
+import { ensureDefaultUsers } from '@/lib/middleware/initializeUsers'
+import { z } from 'zod'
 
-// Mock用户数据
-const mockUsers: User[] = [
-  {
-    _id: '507f1f77bcf86cd799439011',
-    email: 'admin@smartbi.com',
-    name: '管理员',
-    role: 'admin',
-    avatarUrl: '',
-    preferences: {
-      theme: 'light',
-      language: 'zh-CN',
-      timezone: 'Asia/Shanghai'
-    },
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date()
-  },
-  {
-    _id: '507f1f77bcf86cd799439012',
-    email: 'user@smartbi.com',
-    name: '普通用户',
-    role: 'user',
-    avatarUrl: '',
-    preferences: {
-      theme: 'light',
-      language: 'zh-CN',
-      timezone: 'Asia/Shanghai'
-    },
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date()
-  },
-  {
-    _id: '507f1f77bcf86cd799439013',
-    email: 'viewer@smartbi.com',
-    name: '观察者',
-    role: 'viewer',
-    avatarUrl: '',
-    preferences: {
-      theme: 'light',
-      language: 'zh-CN',
-      timezone: 'Asia/Shanghai'
-    },
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date()
-  }
-]
+// 登录请求验证schema
+const loginSchema = z.object({
+  email: z.string().email('邮箱格式不正确'),
+  password: z.string().min(1, '密码不能为空')
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    // 确保默认用户已初始化
+    await ensureDefaultUsers()
 
-    // 验证输入
-    if (!email || !password) {
+    const body = await request.json()
+    
+    // 验证请求数据
+    const validationResult = loginSchema.safeParse(body)
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: '邮箱和密码不能为空' },
+        { error: '请求数据格式错误', details: validationResult.error.errors },
         { status: 400 }
       )
     }
 
-    // 查找用户（在实际应用中应该对密码进行哈希验证）
-    const user = mockUsers.find(u => u.email === email)
+    const { email, password } = validationResult.data
+
+    // 使用新的认证服务
+    const authResult = await authenticateUser(email, password)
     
-    if (!user) {
+    if (!authResult) {
       return NextResponse.json(
-        { error: '用户不存在' },
+        { error: '邮箱或密码错误' },
         { status: 401 }
       )
     }
 
-    // 简单的密码验证（实际应用中应该使用bcrypt等加密库）
-    const validPasswords = {
-      'admin@smartbi.com': 'admin123',
-      'user@smartbi.com': 'user123',
-      'viewer@smartbi.com': 'viewer123'
-    }
-
-    if (validPasswords[email as keyof typeof validPasswords] !== password) {
-      return NextResponse.json(
-        { error: '密码错误' },
-        { status: 401 }
-      )
-    }
-
-    // 生成JWT令牌
-    const token = generateToken({
-      _id: user._id,
-      email: user.email,
-      name: user.name
-    })
+    const { user, token } = authResult
 
     // 设置Cookie
     const response = NextResponse.json({
-      user: {
-        _id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatarUrl: user.avatarUrl,
-        preferences: user.preferences
-      },
+      message: '登录成功',
+      user,
       token
     })
 
-    // 设置两个cookie：一个httpOnly用于服务器端，一个客户端可访问的用于前端
+    // 设置auth-token cookie
     response.cookies.set('auth-token', token, {
-      httpOnly: false, // 改为false，允许JavaScript访问
-      secure: false,   // 在开发和生产环境都设为false，确保HTTP也能工作
+      httpOnly: false, // 允许JavaScript访问
+      secure: process.env.NODE_ENV === 'production', // 生产环境使用HTTPS
       sameSite: 'lax',
       maxAge: 24 * 60 * 60, // 24小时
-      path: '/' // 明确设置path
+      path: '/'
     })
 
     return response
