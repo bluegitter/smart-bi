@@ -187,7 +187,7 @@ export async function POST(
     })
 
   } catch (error) {
-    console.error(`自定义查询指标 ${params.id} 失败:`, error)
+    console.error(`自定义查询指标 ${metricId} 失败:`, error)
     return NextResponse.json(
       { 
         error: '自定义查询失败',

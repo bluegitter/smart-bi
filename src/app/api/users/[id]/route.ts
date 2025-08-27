@@ -19,7 +19,7 @@ const updateUserSchema = z.object({
 // GET /api/users/[id] - 获取单个用户信息
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 验证用户权限
@@ -28,7 +28,7 @@ export async function GET(
       return NextResponse.json(error, { status: error.status })
     }
     
-    const userId = params.id
+    const { id: userId } = await params
     
     // 用户只能查看自己的信息，管理员可以查看所有用户
     if (user!.role !== 'admin' && user!._id !== userId) {
@@ -60,7 +60,7 @@ export async function GET(
 // PUT /api/users/[id] - 更新用户信息
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 验证用户权限
@@ -69,7 +69,7 @@ export async function PUT(
       return NextResponse.json(error, { status: error.status })
     }
     
-    const userId = params.id
+    const { id: userId } = await params
     
     // 用户只能编辑自己的信息（除了role和isActive），管理员可以编辑所有用户
     const isOwnProfile = user!._id === userId
@@ -125,7 +125,7 @@ export async function PUT(
 // DELETE /api/users/[id] - 删除用户（软删除）
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 验证用户权限
@@ -142,7 +142,7 @@ export async function DELETE(
       )
     }
     
-    const userId = params.id
+    const { id: userId } = await params
     
     // 不能删除自己
     if (user!._id === userId) {

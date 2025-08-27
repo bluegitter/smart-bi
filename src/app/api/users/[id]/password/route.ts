@@ -12,7 +12,7 @@ const updatePasswordSchema = z.object({
 // PUT /api/users/[id]/password - 更新用户密码
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 验证用户权限
@@ -21,7 +21,7 @@ export async function PUT(
       return NextResponse.json(error, { status: error.status })
     }
     
-    const userId = params.id
+    const { id: userId } = await params
     const isOwnPassword = user!._id === userId
     const isAdmin = user!.role === 'admin'
     

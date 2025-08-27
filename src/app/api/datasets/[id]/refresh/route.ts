@@ -5,7 +5,7 @@ import { DatasetService } from '@/lib/services/datasetService'
 // POST /api/datasets/[id]/refresh - 刷新数据集统计信息
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { user, error } = await requireAuth(request)
@@ -13,7 +13,7 @@ export async function POST(
       return NextResponse.json(error, { status: error.status })
     }
 
-    const datasetId = params.id
+    const { id: datasetId } = await params
 
     // 验证用户是否有权限访问该数据集
     try {
