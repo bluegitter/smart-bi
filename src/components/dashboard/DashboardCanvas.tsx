@@ -471,7 +471,7 @@ export function DashboardCanvas({
   // 显示加载状态
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
           <p className="text-gray-600">加载看板中...</p>
@@ -483,7 +483,7 @@ export function DashboardCanvas({
   // 显示错误状态
   if (error && !error.includes('Dashboard not found')) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="text-red-600 mb-2">⚠️</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">加载失败</h3>
