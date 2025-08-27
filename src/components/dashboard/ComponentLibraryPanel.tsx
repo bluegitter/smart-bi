@@ -135,6 +135,10 @@ export function ComponentLibraryPanel({
   const [selectedCategory, setSelectedCategory] = React.useState('全部')
   const [isDragging, setIsDragging] = React.useState(false)
   const [isResizing, setIsResizing] = React.useState(false)
+  const [windowSize, setWindowSize] = React.useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800
+  })
   const panelRef = React.useRef<HTMLDivElement>(null)
 
   // 获取所有分类
@@ -177,6 +181,47 @@ export function ComponentLibraryPanel({
     return groups
   }, [filteredComponents, selectedCategory])
 
+  // 计算最佳面板高度
+  const calculateOptimalHeight = React.useCallback(() => {
+    const bottomPadding = 20
+    const maxAvailableHeight = windowSize.height - position.y - bottomPadding
+    
+    // 最小高度400px，最大为可用高度
+    return Math.max(400, Math.min(800, maxAvailableHeight))
+  }, [windowSize.height, position.y])
+
+  // 监听窗口大小变化
+  React.useEffect(() => {
+    const handleResize = () => {
+      const newSize = {
+        width: window.innerWidth,
+        height: window.innerHeight
+      }
+      setWindowSize(newSize)
+      
+      // 当窗口大小变化时，自动调整面板高度
+      if (isOpen) {
+        const newHeight = Math.max(400, Math.min(800, newSize.height - position.y - 20))
+        if (newHeight !== height) {
+          onHeightChange?.(newHeight)
+        }
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [isOpen, position.y, height, onHeightChange])
+
+  // 当面板打开或位置改变时，自动调整高度
+  React.useEffect(() => {
+    if (isOpen) {
+      const optimalHeight = calculateOptimalHeight()
+      if (optimalHeight !== height) {
+        onHeightChange?.(optimalHeight)
+      }
+    }
+  }, [isOpen, calculateOptimalHeight, height, onHeightChange])
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.panel-header')) {
       setIsDragging(true)
@@ -186,7 +231,18 @@ export function ComponentLibraryPanel({
       const handleMouseMove = (e: MouseEvent) => {
         const newX = e.clientX - startX
         const newY = e.clientY - startY
-        onMove?.({ x: Math.max(0, newX), y: Math.max(0, newY) })
+        const adjustedPosition = { x: Math.max(0, newX), y: Math.max(0, newY) }
+        
+        onMove?.(adjustedPosition)
+        
+        // 当拖拽到新位置时，自动调整高度以适应可用空间
+        const bottomPadding = 20
+        const maxAvailableHeight = windowSize.height - adjustedPosition.y - bottomPadding
+        const newHeight = Math.max(400, Math.min(800, maxAvailableHeight))
+        
+        if (newHeight !== height) {
+          onHeightChange?.(newHeight)
+        }
       }
 
       const handleMouseUp = () => {
@@ -212,11 +268,10 @@ export function ComponentLibraryPanel({
       const deltaY = e.clientY - startY
       let newHeight = startHeight + deltaY
       
-      // 动态计算最大高度，防止超出屏幕
-      const windowHeight = window.innerHeight
+      // 使用窗口状态计算最大高度，防止超出屏幕
       const panelTop = position.y
       const bottomPadding = 20
-      const maxAvailableHeight = windowHeight - panelTop - bottomPadding
+      const maxAvailableHeight = windowSize.height - panelTop - bottomPadding
       
       newHeight = Math.max(400, Math.min(Math.min(800, maxAvailableHeight), newHeight))
       onHeightChange?.(newHeight)
