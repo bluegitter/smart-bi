@@ -544,6 +544,9 @@ export function DashboardCanvas({
         }}
         onSetShowHelpTip={setShowHelpTip}
         renderDraggableComponent={renderDraggableComponent}
+        onAddComponents={(newComponents) => {
+          setComponents(prev => [...prev, ...newComponents])
+        }}
       />
 
       {/* 属性面板 */}

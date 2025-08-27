@@ -1,11 +1,12 @@
 'use client'
 
 import React from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
+import { AIGenerateDashboardDialog } from './AIGenerateDashboardDialog'
 import { cn } from '@/lib/utils'
-import type { ComponentLayout, DragItem } from '@/types'
+import type { ComponentLayout, DragItem, Metric } from '@/types'
 
 interface DashboardCanvasAreaProps {
   canvasRef: React.RefObject<HTMLDivElement | null>
@@ -33,6 +34,7 @@ interface DashboardCanvasAreaProps {
   onDoubleClick: () => void
   onSetShowHelpTip: (show: boolean) => void
   renderDraggableComponent: (component: ComponentLayout) => React.ReactNode
+  onAddComponents: (components: ComponentLayout[]) => void
 }
 
 export function DashboardCanvasArea({
@@ -52,7 +54,8 @@ export function DashboardCanvasArea({
   onClick,
   onDoubleClick,
   onSetShowHelpTip,
-  renderDraggableComponent
+  renderDraggableComponent,
+  onAddComponents
 }: DashboardCanvasAreaProps) {
   return (
     <div 
@@ -104,7 +107,7 @@ export function DashboardCanvasArea({
           }}
         >
           {components.length === 0 && !isPreviewMode ? (
-            <EmptyCanvasPlaceholder />
+            <EmptyCanvasPlaceholder onAddComponents={onAddComponents} />
           ) : (
             <>
               <HelpTip 
@@ -136,24 +139,79 @@ export function DashboardCanvasArea({
   )
 }
 
-function EmptyCanvasPlaceholder() {
+function EmptyCanvasPlaceholder({ onAddComponents }: { onAddComponents: (components: ComponentLayout[]) => void }) {
+  const [showAIDialog, setShowAIDialog] = React.useState(false)
+  const [metrics, setMetrics] = React.useState<Metric[]>([])
+  const [loadingMetrics, setLoadingMetrics] = React.useState(false)
+
+  // 加载指标数据
+  const loadMetrics = async () => {
+    setLoadingMetrics(true)
+    try {
+      const response = await fetch('/api/metrics?limit=50')
+      if (response.ok) {
+        const data = await response.json()
+        setMetrics(data.metrics || [])
+      }
+    } catch (error) {
+      console.error('加载指标失败:', error)
+    } finally {
+      setLoadingMetrics(false)
+    }
+  }
+
+  const handleAIGenerate = async () => {
+    if (metrics.length === 0) {
+      await loadMetrics()
+    }
+    setShowAIDialog(true)
+  }
+
+  const handleGenerate = (components: ComponentLayout[]) => {
+    onAddComponents(components)
+  }
+
   return (
-    <div className="absolute inset-0 flex items-center justify-center">
-      <Card className="w-96">
-        <CardContent className="p-8 text-center">
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Plus className="h-8 w-8 text-slate-400" />
-          </div>
-          <h3 className="font-semibold mb-2">开始创建你的看板</h3>
-          <p className="text-slate-500 text-sm mb-4">
-            从左侧拖拽组件到画布，或使用AI智能生成看板
-          </p>
-          <Button className="w-full">
-            使用AI生成看板
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <Card className="w-96">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Plus className="h-8 w-8 text-slate-400" />
+            </div>
+            <h3 className="font-semibold mb-2">开始创建你的看板</h3>
+            <p className="text-slate-500 text-sm mb-4">
+              从左侧拖拽组件到画布，或使用AI智能生成看板
+            </p>
+            <Button 
+              className="w-full" 
+              onClick={handleAIGenerate}
+              disabled={loadingMetrics}
+            >
+              {loadingMetrics ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  加载中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  使用AI生成看板
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <AIGenerateDashboardDialog
+        isOpen={showAIDialog}
+        onClose={() => setShowAIDialog(false)}
+        onGenerate={handleGenerate}
+        metrics={metrics}
+        loading={loadingMetrics}
+      />
+    </>
   )
 }
 
