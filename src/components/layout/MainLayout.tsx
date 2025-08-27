@@ -52,7 +52,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar - 全屏模式或手动折叠时隐藏 */}
           {!(sidebarCollapsed || isFullscreen) && (
-            <div className="w-80 transition-all duration-300 ease-in-out">
+            <div className="w-56 transition-all duration-300 ease-in-out">
               <Sidebar />
             </div>
           )}

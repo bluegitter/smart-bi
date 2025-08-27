@@ -103,7 +103,7 @@ export function DashboardCanvas({
   const canvasWidth = React.useMemo(() => {
     let availableWidth = windowSize.width
     if (!isFullscreen && !sidebarCollapsed) {
-      availableWidth -= 320
+      availableWidth -= 224 // 侧边栏宽度调整为 w-56 (224px)
     }
     return Math.max(400, availableWidth)
   }, [windowSize.width, isFullscreen, sidebarCollapsed])
