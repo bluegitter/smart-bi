@@ -91,42 +91,42 @@ services:
       - "traefik.http.services.smart-bi.loadbalancer.server.port=3002"
 
   # MongoDB Express for database management (optional)
-  mongo-express:
-    image: mongo-express:1.0.2
-    container_name: smart-bi-mongo-express
-    restart: unless-stopped
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: adminpassword
-      ME_CONFIG_MONGODB_SERVER: mongodb
-      ME_CONFIG_MONGODB_PORT: 27017
-      ME_CONFIG_BASICAUTH_USERNAME: admin
-      ME_CONFIG_BASICAUTH_PASSWORD: adminpassword
-      ME_CONFIG_SITE_BASEURL: /mongo-express/
-    ports:
-      - "8082:8081"  # Changed from 8081 to 8082
-    depends_on:
-      mongodb:
-        condition: service_healthy  
-    networks:
-      - smart-bi-network
+  # mongo-express:
+  #   image: mongo-express:1.0.2
+  #   container_name: smart-bi-mongo-express
+  #   restart: unless-stopped
+  #   environment:
+  #     ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+  #     ME_CONFIG_MONGODB_ADMINPASSWORD: adminpassword
+  #     ME_CONFIG_MONGODB_SERVER: mongodb
+  #     ME_CONFIG_MONGODB_PORT: 27017
+  #     ME_CONFIG_BASICAUTH_USERNAME: admin
+  #     ME_CONFIG_BASICAUTH_PASSWORD: adminpassword
+  #     ME_CONFIG_SITE_BASEURL: /mongo-express/
+  #   ports:
+  #     - "8082:8081"  # Changed from 8081 to 8082
+  #   depends_on:
+  #     mongodb:
+  #       condition: service_healthy  
+  #   networks:
+  #     - smart-bi-network
 
   # Nginx reverse proxy (optional)
-  nginx:
-    image: nginx:alpine
-    container_name: smart-bi-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - logs_data:/var/log/nginx
-    depends_on:
-      - smart-bi-app
-    networks:
-      - smart-bi-network
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: smart-bi-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/ssl:/etc/nginx/ssl:ro
+  #     - logs_data:/var/log/nginx
+  #   depends_on:
+  #     - smart-bi-app
+  #   networks:
+  #     - smart-bi-network
 
 volumes:
   mongodb_data:
