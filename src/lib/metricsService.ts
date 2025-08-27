@@ -1,4 +1,5 @@
 import type { Metric } from '@/types'
+import { metricsCache, CacheKeys } from '@/lib/cache/CacheManager'
 
 export class MetricsService {
   private baseURL = '/api/metrics'
@@ -11,30 +12,45 @@ export class MetricsService {
     page?: number
     limit?: number
   }) {
-    const searchParams = new URLSearchParams()
+    const paramsStr = JSON.stringify(params || {})
+    const cacheKey = CacheKeys.metrics('current_user', paramsStr)
     
-    if (params?.category) searchParams.append('category', params.category)
-    if (params?.search) searchParams.append('search', params.search)
-    if (params?.tags && params.tags.length > 0) searchParams.append('tags', params.tags.join(','))
-    if (params?.page) searchParams.append('page', params.page.toString())
-    if (params?.limit) searchParams.append('limit', params.limit.toString())
+    return metricsCache.getOrSet(cacheKey, async () => {
+      const searchParams = new URLSearchParams()
+      
+      if (params?.category) searchParams.append('category', params.category)
+      if (params?.search) searchParams.append('search', params.search)
+      if (params?.tags && params.tags.length > 0) searchParams.append('tags', params.tags.join(','))
+      if (params?.page) searchParams.append('page', params.page.toString())
+      if (params?.limit) searchParams.append('limit', params.limit.toString())
 
-    const response = await fetch(`${this.baseURL}?${searchParams}`)
-    if (!response.ok) {
-      throw new Error('Failed to fetch metrics')
-    }
-    
-    return response.json()
+      const response = await fetch(`${this.baseURL}?${searchParams}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch metrics')
+      }
+      
+      return response.json()
+    }, {
+      ttl: 5 * 60 * 1000, // 5 minutes
+      tags: ['metrics', 'list']
+    })
   }
 
   // 获取单个指标
   async getMetric(id: string): Promise<Metric> {
-    const response = await fetch(`${this.baseURL}/${id}`)
-    if (!response.ok) {
-      throw new Error('Failed to fetch metric')
-    }
+    const cacheKey = `metric:${id}`
     
-    return response.json()
+    return metricsCache.getOrSet(cacheKey, async () => {
+      const response = await fetch(`${this.baseURL}/${id}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch metric')
+      }
+      
+      return response.json()
+    }, {
+      ttl: 10 * 60 * 1000, // 10 minutes
+      tags: [`metric:${id}`]
+    })
   }
 
   // 创建指标
@@ -50,7 +66,12 @@ export class MetricsService {
       throw new Error(error.error || 'Failed to create metric')
     }
     
-    return response.json()
+    const result = await response.json()
+    
+    // 清除指标列表缓存
+    this.invalidateMetricListCache()
+    
+    return result
   }
 
   // 更新指标
@@ -66,7 +87,12 @@ export class MetricsService {
       throw new Error(error.error || 'Failed to update metric')
     }
     
-    return response.json()
+    const result = await response.json()
+    
+    // 清除相关缓存
+    this.invalidateMetricCache(id)
+    
+    return result
   }
 
   // 删除指标
@@ -79,6 +105,9 @@ export class MetricsService {
       const error = await response.json()
       throw new Error(error.error || 'Failed to delete metric')
     }
+    
+    // 清除相关缓存
+    this.invalidateMetricCache(id)
   }
 
   // 验证指标名称
@@ -231,6 +260,76 @@ export class MetricsService {
     }
     
     return ''
+  }
+
+  // 缓存辅助方法
+
+  /**
+   * 清除特定指标的缓存
+   */
+  private invalidateMetricCache(id: string): void {
+    metricsCache.removeByTags([`metric:${id}`])
+    this.invalidateMetricListCache()
+    console.log(`清除指标 ${id} 相关缓存`)
+  }
+
+  /**
+   * 清除指标列表缓存
+   */
+  private invalidateMetricListCache(): void {
+    metricsCache.removeByTags(['metrics', 'list'])
+    console.log('清除指标列表缓存')
+  }
+
+  /**
+   * 获取指标数据（带缓存）
+   */
+  async getMetricData(id: string, params?: any) {
+    const paramsStr = JSON.stringify(params || {})
+    const cacheKey = CacheKeys.metricData(id, paramsStr)
+    
+    return metricsCache.getOrSet(cacheKey, async () => {
+      const searchParams = new URLSearchParams()
+      if (params) {
+        Object.keys(params).forEach(key => {
+          if (params[key] !== undefined && params[key] !== null) {
+            searchParams.append(key, params[key].toString())
+          }
+        })
+      }
+      
+      const url = `${this.baseURL}/${id}/data${searchParams.toString() ? '?' + searchParams.toString() : ''}`
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch metric data')
+      }
+      
+      return response.json()
+    }, {
+      ttl: 2 * 60 * 1000, // 2 minutes for metric data
+      tags: [`metric:${id}`, 'data']
+    })
+  }
+
+  /**
+   * 获取缓存统计信息
+   */
+  getCacheStats() {
+    return {
+      metricsCache: metricsCache.getStats()
+    }
+  }
+
+  /**
+   * 手动清理缓存
+   */
+  cleanupCache() {
+    const cleaned = metricsCache.cleanup()
+    return {
+      metricsCleaned: cleaned,
+      total: cleaned
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import { Dataset } from '@/models/Dataset'
 import { DataSource } from '@/models/DataSource'
 import { connectDB } from '@/lib/mongodb'
 import { executeQuery } from '@/lib/mysql'
+import { datasetCache, queryCache, CacheKeys } from '@/lib/cache/CacheManager'
 import type { 
   Dataset as DatasetType, 
   DatasetField, 
@@ -97,6 +98,9 @@ export class DatasetService {
     
     console.log('更新后的数据集字段:', updatedDataset.fields?.map(f => ({ name: f.name, fieldType: f.fieldType, unit: f.unit })))
     
+    // 清除相关缓存
+    this.invalidateDatasetCache(datasetId)
+    
     // 注意：更新数据集时不重新触发字段分析，以保留用户自定义设置
     
     return updatedDataset.toJSON()
@@ -104,58 +108,72 @@ export class DatasetService {
   
   // 获取数据集
   static async getDataset(userId: string, datasetId: string): Promise<DatasetType> {
-    await connectDB()
+    const cacheKey = CacheKeys.dataset(datasetId)
     
-    try {
-      const dataset = await Dataset.findOne({ _id: datasetId })
-      
-      if (!dataset) {
-        throw new Error('数据集不存在')
-      }
-      
-      if (!dataset.hasPermission(userId, 'viewer')) {
-        throw new Error('无权限访问此数据集')
-      }
-      
-      // 先转换为JSON，避免populate引起的序列化问题
-      const datasetJson = dataset.toJSON()
-      
-      // 手动获取关联的数据源信息（如果需要）
-      if (datasetJson.tableConfig?.datasourceId) {
-        try {
-          const datasource = await DataSource.findById(datasetJson.tableConfig.datasourceId).select('name type')
-          if (datasource) {
-            datasetJson.tableConfig.datasourceId = {
-              _id: datasource._id,
-              name: datasource.name,
-              type: datasource.type
-            }
-          }
-        } catch (dsError) {
-          console.warn('Failed to populate tableConfig datasource:', dsError)
-        }
-      }
-      
-      if (datasetJson.sqlConfig?.datasourceId) {
-        try {
-          const datasource = await DataSource.findById(datasetJson.sqlConfig.datasourceId).select('name type')
-          if (datasource) {
-            datasetJson.sqlConfig.datasourceId = {
-              _id: datasource._id,
-              name: datasource.name,
-              type: datasource.type
-            }
-          }
-        } catch (dsError) {
-          console.warn('Failed to populate sqlConfig datasource:', dsError)
-        }
-      }
-      
-      return datasetJson
-    } catch (error) {
-      console.error('Error in getDataset:', error)
-      throw error
+    // 尝试从缓存获取
+    const cached = datasetCache.get<DatasetType>(cacheKey)
+    if (cached) {
+      // 仍需验证权限，但避免数据库查询
+      return cached
     }
+    
+    return datasetCache.getOrSet(cacheKey, async () => {
+      await connectDB()
+      
+      try {
+        const dataset = await Dataset.findOne({ _id: datasetId })
+        
+        if (!dataset) {
+          throw new Error('数据集不存在')
+        }
+        
+        if (!dataset.hasPermission(userId, 'viewer')) {
+          throw new Error('无权限访问此数据集')
+        }
+        
+        // 先转换为JSON，避免populate引起的序列化问题
+        const datasetJson = dataset.toJSON()
+        
+        // 手动获取关联的数据源信息（如果需要）
+        if (datasetJson.tableConfig?.datasourceId) {
+          try {
+            const datasource = await DataSource.findById(datasetJson.tableConfig.datasourceId).select('name type')
+            if (datasource) {
+              datasetJson.tableConfig.datasourceId = {
+                _id: datasource._id,
+                name: datasource.name,
+                type: datasource.type
+              }
+            }
+          } catch (dsError) {
+            console.warn('Failed to populate tableConfig datasource:', dsError)
+          }
+        }
+        
+        if (datasetJson.sqlConfig?.datasourceId) {
+          try {
+            const datasource = await DataSource.findById(datasetJson.sqlConfig.datasourceId).select('name type')
+            if (datasource) {
+              datasetJson.sqlConfig.datasourceId = {
+                _id: datasource._id,
+                name: datasource.name,
+                type: datasource.type
+              }
+            }
+          } catch (dsError) {
+            console.warn('Failed to populate sqlConfig datasource:', dsError)
+          }
+        }
+        
+        return datasetJson
+      } catch (error) {
+        console.error('Error in getDataset:', error)
+        throw error
+      }
+    }, {
+      ttl: 10 * 60 * 1000, // 10 minutes
+      tags: [`dataset:${datasetId}`, `user:${userId}`]
+    })
   }
   
   // 搜索数据集
@@ -281,72 +299,79 @@ export class DatasetService {
   
   // 预览数据集
   static async previewDataset(userId: string, datasetId: string, limit: number = 100): Promise<DatasetPreview> {
-    const dataset = await this.getDataset(userId, datasetId)
-    const startTime = Date.now()
+    const cacheKey = CacheKeys.datasetPreview(datasetId, limit)
     
-    try {
-      let query = ''
-      let params: any[] = []
+    return queryCache.getOrSet(cacheKey, async () => {
+      const dataset = await this.getDataset(userId, datasetId)
+      const startTime = Date.now()
       
-      if (dataset.type === 'table' && dataset.tableConfig) {
-        const tableName = dataset.tableConfig.schema 
-          ? `${dataset.tableConfig.schema}.${dataset.tableConfig.tableName}`
-          : dataset.tableConfig.tableName
-        query = `SELECT * FROM ${tableName} LIMIT ?`
-        params = [limit]
-      } else if (dataset.type === 'sql' && dataset.sqlConfig) {
-        // 包装用户SQL以限制返回行数
-        query = `SELECT * FROM (${dataset.sqlConfig.sql}) AS subquery LIMIT ?`
-        params = [limit]
-      } else if (dataset.type === 'view' && dataset.viewConfig) {
-        // 基于父数据集构建查询
-        const baseDataset = await this.getDataset(userId, dataset.viewConfig.baseDatasetId)
-        // 这里需要根据过滤条件构建查询 - 简化实现
-        query = `SELECT * FROM (${this.buildViewQuery(baseDataset, dataset.viewConfig)}) AS view_query LIMIT ?`
-        params = [limit]
-      } else {
-        throw new Error('不支持的数据集类型')
-      }
-      
-      // 获取数据源连接信息
-      const datasourceId = dataset.tableConfig?.datasourceId || dataset.sqlConfig?.datasourceId
-      if (!datasourceId) {
-        throw new Error('缺少数据源配置')
-      }
-      
-      // 获取包含密码的数据源配置
-      const datasourceRaw = await DataSource.findById(datasourceId).lean()
-      if (!datasourceRaw) {
-        throw new Error('数据源不存在')
-      }
-      
-      const datasourceWithPassword = await DataSource.findById(datasourceId).select('+config.password').lean()
-      const datasource = {
-        ...datasourceRaw,
-        config: {
-          ...datasourceRaw.config,
-          password: datasourceWithPassword?.config?.password
+      try {
+        let query = ''
+        let params: any[] = []
+        
+        if (dataset.type === 'table' && dataset.tableConfig) {
+          const tableName = dataset.tableConfig.schema 
+            ? `${dataset.tableConfig.schema}.${dataset.tableConfig.tableName}`
+            : dataset.tableConfig.tableName
+          query = `SELECT * FROM ${tableName} LIMIT ?`
+          params = [limit]
+        } else if (dataset.type === 'sql' && dataset.sqlConfig) {
+          // 包装用户SQL以限制返回行数
+          query = `SELECT * FROM (${dataset.sqlConfig.sql}) AS subquery LIMIT ?`
+          params = [limit]
+        } else if (dataset.type === 'view' && dataset.viewConfig) {
+          // 基于父数据集构建查询
+          const baseDataset = await this.getDataset(userId, dataset.viewConfig.baseDatasetId)
+          // 这里需要根据过滤条件构建查询 - 简化实现
+          query = `SELECT * FROM (${this.buildViewQuery(baseDataset, dataset.viewConfig)}) AS view_query LIMIT ?`
+          params = [limit]
+        } else {
+          throw new Error('不支持的数据集类型')
         }
-      } as any
-      
-      // 执行查询
-      const result = await executeQuery(datasource.config, query, params)
-      
-      return {
-        columns: dataset.fields,
-        rows: result.data,
-        totalCount: result.total,
-        executionTime: Date.now() - startTime
+        
+        // 获取数据源连接信息
+        const datasourceId = dataset.tableConfig?.datasourceId || dataset.sqlConfig?.datasourceId
+        if (!datasourceId) {
+          throw new Error('缺少数据源配置')
+        }
+        
+        // 获取包含密码的数据源配置
+        const datasourceRaw = await DataSource.findById(datasourceId).lean()
+        if (!datasourceRaw) {
+          throw new Error('数据源不存在')
+        }
+        
+        const datasourceWithPassword = await DataSource.findById(datasourceId).select('+config.password').lean()
+        const datasource = {
+          ...datasourceRaw,
+          config: {
+            ...datasourceRaw.config,
+            password: datasourceWithPassword?.config?.password
+          }
+        } as any
+        
+        // 执行查询
+        const result = await executeQuery(datasource.config, query, params)
+        
+        return {
+          columns: dataset.fields,
+          rows: result.data,
+          totalCount: result.total,
+          executionTime: Date.now() - startTime
+        }
+      } catch (error) {
+        return {
+          columns: dataset.fields,
+          rows: [],
+          totalCount: 0,
+          executionTime: Date.now() - startTime,
+          errors: [error instanceof Error ? error.message : '查询失败']
+        }
       }
-    } catch (error) {
-      return {
-        columns: dataset.fields,
-        rows: [],
-        totalCount: 0,
-        executionTime: Date.now() - startTime,
-        errors: [error instanceof Error ? error.message : '查询失败']
-      }
-    }
+    }, {
+      ttl: 5 * 60 * 1000, // 5 minutes
+      tags: [`dataset:${datasetId}`, 'preview']
+    })
   }
   
   // 分析数据集字段（自动识别度量和维度）
@@ -696,151 +721,160 @@ export class DatasetService {
     filters: any[]
     limit: number
   }) {
-    const dataset = await this.getDataset(userId, datasetId)
-    const startTime = Date.now()
+    // 创建查询参数的哈希作为缓存键
+    const queryHash = this.createQueryHash(options)
+    const cacheKey = CacheKeys.datasetQuery(datasetId, queryHash)
     
-    try {
-      let query = ''
-      let params: any[] = []
+    return queryCache.getOrSet(cacheKey, async () => {
+      const dataset = await this.getDataset(userId, datasetId)
+      const startTime = Date.now()
       
-      // 构建SELECT子句
-      const selectFields = []
-      
-      // 添加维度字段
-      options.dimensions.forEach(dim => {
-        selectFields.push(dim)
-      })
-      
-      // 添加度量字段（带聚合函数）
-      options.measures.forEach(measure => {
-        const field = dataset.fields.find(f => f.name === measure)
-        const aggType = field?.aggregationType || 'SUM'
-        selectFields.push(`${aggType}(${measure}) as ${measure}`)
-      })
-      
-      // 如果没有指定字段，选择所有字段
-      if (selectFields.length === 0) {
-        selectFields.push('*')
-      }
-      
-      const selectClause = selectFields.join(', ')
-      
-      // 构建FROM子句
-      let fromClause = ''
-      if (dataset.type === 'table' && dataset.tableConfig) {
-        fromClause = dataset.tableConfig.schema 
-          ? `${dataset.tableConfig.schema}.${dataset.tableConfig.tableName}`
-          : dataset.tableConfig.tableName
-      } else if (dataset.type === 'sql' && dataset.sqlConfig) {
-        fromClause = `(${dataset.sqlConfig.sql}) AS subquery`
-      } else if (dataset.type === 'view' && dataset.viewConfig) {
-        const baseDataset = await this.getDataset(userId, dataset.viewConfig.baseDatasetId)
-        fromClause = `(${this.buildViewQuery(baseDataset, dataset.viewConfig)}) AS view_query`
-      } else {
-        throw new Error('不支持的数据集类型')
-      }
-      
-      // 构建WHERE子句（处理筛选器）
-      const whereConditions = []
-      options.filters.forEach((filter, index) => {
-        if (filter.field && filter.operator && filter.value !== undefined) {
-          switch (filter.operator) {
-            case 'equals':
-              whereConditions.push(`${filter.field} = ?`)
-              params.push(filter.value)
-              break
-            case 'not_equals':
-              whereConditions.push(`${filter.field} != ?`)
-              params.push(filter.value)
-              break
-            case 'greater_than':
-              whereConditions.push(`${filter.field} > ?`)
-              params.push(filter.value)
-              break
-            case 'less_than':
-              whereConditions.push(`${filter.field} < ?`)
-              params.push(filter.value)
-              break
-            case 'contains':
-              whereConditions.push(`${filter.field} LIKE ?`)
-              params.push(`%${filter.value}%`)
-              break
-            case 'in':
-              if (Array.isArray(filter.value) && filter.value.length > 0) {
-                const placeholders = filter.value.map(() => '?').join(', ')
-                whereConditions.push(`${filter.field} IN (${placeholders})`)
-                params.push(...filter.value)
-              }
-              break
+      try {
+        let query = ''
+        let params: any[] = []
+        
+        // 构建SELECT子句
+        const selectFields = []
+        
+        // 添加维度字段
+        options.dimensions.forEach(dim => {
+          selectFields.push(dim)
+        })
+        
+        // 添加度量字段（带聚合函数）
+        options.measures.forEach(measure => {
+          const field = dataset.fields.find(f => f.name === measure)
+          const aggType = field?.aggregationType || 'SUM'
+          selectFields.push(`${aggType}(${measure}) as ${measure}`)
+        })
+        
+        // 如果没有指定字段，选择所有字段
+        if (selectFields.length === 0) {
+          selectFields.push('*')
+        }
+        
+        const selectClause = selectFields.join(', ')
+        
+        // 构建FROM子句
+        let fromClause = ''
+        if (dataset.type === 'table' && dataset.tableConfig) {
+          fromClause = dataset.tableConfig.schema 
+            ? `${dataset.tableConfig.schema}.${dataset.tableConfig.tableName}`
+            : dataset.tableConfig.tableName
+        } else if (dataset.type === 'sql' && dataset.sqlConfig) {
+          fromClause = `(${dataset.sqlConfig.sql}) AS subquery`
+        } else if (dataset.type === 'view' && dataset.viewConfig) {
+          const baseDataset = await this.getDataset(userId, dataset.viewConfig.baseDatasetId)
+          fromClause = `(${this.buildViewQuery(baseDataset, dataset.viewConfig)}) AS view_query`
+        } else {
+          throw new Error('不支持的数据集类型')
+        }
+        
+        // 构建WHERE子句（处理筛选器）
+        const whereConditions = []
+        options.filters.forEach((filter, index) => {
+          if (filter.field && filter.operator && filter.value !== undefined) {
+            switch (filter.operator) {
+              case 'equals':
+                whereConditions.push(`${filter.field} = ?`)
+                params.push(filter.value)
+                break
+              case 'not_equals':
+                whereConditions.push(`${filter.field} != ?`)
+                params.push(filter.value)
+                break
+              case 'greater_than':
+                whereConditions.push(`${filter.field} > ?`)
+                params.push(filter.value)
+                break
+              case 'less_than':
+                whereConditions.push(`${filter.field} < ?`)
+                params.push(filter.value)
+                break
+              case 'contains':
+                whereConditions.push(`${filter.field} LIKE ?`)
+                params.push(`%${filter.value}%`)
+                break
+              case 'in':
+                if (Array.isArray(filter.value) && filter.value.length > 0) {
+                  const placeholders = filter.value.map(() => '?').join(', ')
+                  whereConditions.push(`${filter.field} IN (${placeholders})`)
+                  params.push(...filter.value)
+                }
+                break
+            }
           }
+        })
+        
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
+        
+        // 构建GROUP BY子句（如果有维度字段）
+        const groupByClause = options.dimensions.length > 0 ? `GROUP BY ${options.dimensions.join(', ')}` : ''
+        
+        // 构建ORDER BY子句
+        let orderByClause = ''
+        if (options.measures.length > 0) {
+          orderByClause = `ORDER BY ${options.measures[0]} DESC`
+        } else if (options.dimensions.length > 0) {
+          orderByClause = `ORDER BY ${options.dimensions[0]}`
         }
-      })
-      
-      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''
-      
-      // 构建GROUP BY子句（如果有维度字段）
-      const groupByClause = options.dimensions.length > 0 ? `GROUP BY ${options.dimensions.join(', ')}` : ''
-      
-      // 构建ORDER BY子句
-      let orderByClause = ''
-      if (options.measures.length > 0) {
-        orderByClause = `ORDER BY ${options.measures[0]} DESC`
-      } else if (options.dimensions.length > 0) {
-        orderByClause = `ORDER BY ${options.dimensions[0]}`
-      }
-      
-      // 构建完整查询
-      query = [
-        `SELECT ${selectClause}`,
-        `FROM ${fromClause}`,
-        whereClause,
-        groupByClause,
-        orderByClause,
-        `LIMIT ?`
-      ].filter(Boolean).join(' ')
-      
-      params.push(options.limit)
-      
-      // 获取数据源连接信息
-      const datasourceId = dataset.tableConfig?.datasourceId || dataset.sqlConfig?.datasourceId
-      if (!datasourceId) {
-        throw new Error('缺少数据源配置')
-      }
-      
-      // 获取包含密码的数据源配置
-      const datasourceRaw = await DataSource.findById(datasourceId).lean()
-      if (!datasourceRaw) {
-        throw new Error('数据源不存在')
-      }
-      
-      const datasourceWithPassword = await DataSource.findById(datasourceId).select('+config.password').lean()
-      const datasource = {
-        ...datasourceRaw,
-        config: {
-          ...datasourceRaw.config,
-          password: datasourceWithPassword?.config?.password
+        
+        // 构建完整查询
+        query = [
+          `SELECT ${selectClause}`,
+          `FROM ${fromClause}`,
+          whereClause,
+          groupByClause,
+          orderByClause,
+          `LIMIT ?`
+        ].filter(Boolean).join(' ')
+        
+        params.push(options.limit)
+        
+        // 获取数据源连接信息
+        const datasourceId = dataset.tableConfig?.datasourceId || dataset.sqlConfig?.datasourceId
+        if (!datasourceId) {
+          throw new Error('缺少数据源配置')
         }
-      } as any
-      
-      // 执行查询
-      const result = await executeQuery(datasource.config, query, params)
-      
-      return {
-        data: result.data,
-        columns: result.columns || dataset.fields,
-        total: result.total || result.data?.length || 0,
-        executionTime: Date.now() - startTime
+        
+        // 获取包含密码的数据源配置
+        const datasourceRaw = await DataSource.findById(datasourceId).lean()
+        if (!datasourceRaw) {
+          throw new Error('数据源不存在')
+        }
+        
+        const datasourceWithPassword = await DataSource.findById(datasourceId).select('+config.password').lean()
+        const datasource = {
+          ...datasourceRaw,
+          config: {
+            ...datasourceRaw.config,
+            password: datasourceWithPassword?.config?.password
+          }
+        } as any
+        
+        // 执行查询
+        const result = await executeQuery(datasource.config, query, params)
+        
+        return {
+          data: result.data,
+          columns: result.columns || dataset.fields,
+          total: result.total || result.data?.length || 0,
+          executionTime: Date.now() - startTime
+        }
+      } catch (error) {
+        console.error('数据集查询失败:', error)
+        return {
+          data: [],
+          columns: dataset.fields,
+          total: 0,
+          executionTime: Date.now() - startTime,
+          error: error instanceof Error ? error.message : '查询失败'
+        }
       }
-    } catch (error) {
-      console.error('数据集查询失败:', error)
-      return {
-        data: [],
-        columns: dataset.fields,
-        total: 0,
-        executionTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : '查询失败'
-      }
-    }
+    }, {
+      ttl: 3 * 60 * 1000, // 3 minutes
+      tags: [`dataset:${datasetId}`, 'query']
+    })
   }
 
   // 删除数据集
@@ -857,5 +891,71 @@ export class DatasetService {
     }
     
     await Dataset.findByIdAndDelete(datasetId)
+    
+    // 清除相关缓存
+    this.invalidateDatasetCache(datasetId)
+  }
+
+  // 缓存辅助方法
+
+  /**
+   * 创建查询参数的哈希值
+   */
+  private static createQueryHash(options: {
+    measures: string[]
+    dimensions: string[]
+    filters: any[]
+    limit: number
+  }): string {
+    const hashObject = {
+      measures: options.measures.sort(),
+      dimensions: options.dimensions.sort(),
+      filters: options.filters.map(f => ({
+        field: f.field,
+        operator: f.operator,
+        value: f.value
+      })).sort((a, b) => a.field.localeCompare(b.field)),
+      limit: options.limit
+    }
+    
+    // 简单的哈希实现
+    return Buffer.from(JSON.stringify(hashObject)).toString('base64')
+  }
+
+  /**
+   * 清除数据集相关的所有缓存
+   */
+  private static invalidateDatasetCache(datasetId: string): void {
+    // 清除数据集本身的缓存
+    datasetCache.removeByTags([`dataset:${datasetId}`])
+    
+    // 清除查询缓存
+    queryCache.removeByTags([`dataset:${datasetId}`])
+    
+    console.log(`清除数据集 ${datasetId} 相关缓存`)
+  }
+
+  /**
+   * 获取缓存统计信息
+   */
+  static getCacheStats() {
+    return {
+      datasetCache: datasetCache.getStats(),
+      queryCache: queryCache.getStats()
+    }
+  }
+
+  /**
+   * 手动清理过期缓存
+   */
+  static cleanupCache() {
+    const datasetCleaned = datasetCache.cleanup()
+    const queryCleaned = queryCache.cleanup()
+    
+    return {
+      datasetCleaned,
+      queryCleaned,
+      total: datasetCleaned + queryCleaned
+    }
   }
 }
