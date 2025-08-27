@@ -51,7 +51,7 @@ export async function GET(
       }
     } as any
 
-    let tables: any[] = []
+    const tables: any[] = []
 
     // 根据数据源类型获取表结构
     if (datasource.type === 'mysql') {
@@ -112,13 +112,6 @@ export async function GET(
             ORDER BY TABLE_TYPE, TABLE_NAME
           `, [datasource.config.database])
           
-          console.log('Found tables and views:', (tablesResult as any[]).map(t => ({
-            name: t.table_name,
-            type: t.table_type,
-            comment: t.table_comment,
-            hasComment: !!t.table_comment && t.table_comment.trim() !== ''
-          })))
-
           // 为每个表和视图获取列信息
           for (const tableRow of tablesResult as any[]) {
             const tableName = tableRow.table_name

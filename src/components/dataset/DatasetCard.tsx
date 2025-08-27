@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { cn } from '@/lib/utils'
 import type { Dataset } from '@/types/dataset'
 
@@ -29,6 +30,7 @@ interface DatasetCardProps {
 export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
   const router = useRouter()
   const [showMenu, setShowMenu] = React.useState(false)
+  const { showConfirm, confirmDialog } = useConfirmDialog()
 
   const getTypeInfo = () => {
     switch (dataset.type) {
@@ -95,18 +97,32 @@ export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
     setShowMenu(false)
   }
 
-  const handleDelete = async () => {
-    if (!confirm('确定要删除此数据集吗？此操作不可恢复。')) return
-    
-    try {
-      // TODO: 实现删除逻辑
-      console.log('Delete dataset:', dataset._id)
-      onRefresh?.()
-    } catch (error) {
-      console.error('删除失败:', error)
-      alert('删除失败，请重试')
-    }
+  const handleDelete = () => {
     setShowMenu(false)
+    showConfirm({
+      title: '删除数据集',
+      message: `确定要删除数据集"${dataset.displayName}"吗？此操作不可恢复。`,
+      confirmText: '确认删除',
+      cancelText: '取消',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/datasets/${dataset._id}`, {
+            method: 'DELETE'
+          })
+          
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || '删除失败')
+          }
+          
+          onRefresh?.()
+        } catch (error) {
+          console.error('删除失败:', error)
+          throw error
+        }
+      }
+    })
   }
 
   return (
@@ -188,7 +204,7 @@ export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
             <div className="text-lg font-semibold text-gray-900">
-              {dataset.fieldCount || 0}
+              {dataset.fields?.length || 0}
             </div>
             <div className="text-xs text-gray-500">总字段</div>
           </div>
@@ -196,7 +212,7 @@ export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
             <div className="flex items-center justify-center gap-1">
               <Type className="h-3 w-3 text-purple-600" />
               <span className="text-lg font-semibold text-gray-900">
-                {dataset.dimensionCount || 0}
+                {dataset.fields?.filter(f => f.fieldType === 'dimension').length || 0}
               </span>
             </div>
             <div className="text-xs text-gray-500">维度</div>
@@ -205,7 +221,7 @@ export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
             <div className="flex items-center justify-center gap-1">
               <Hash className="h-3 w-3 text-green-600" />
               <span className="text-lg font-semibold text-gray-900">
-                {dataset.measureCount || 0}
+                {dataset.fields?.filter(f => f.fieldType === 'measure').length || 0}
               </span>
             </div>
             <div className="text-xs text-gray-500">度量</div>
@@ -249,6 +265,7 @@ export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
           </div>
         </div>
       </CardContent>
+      {confirmDialog}
     </Card>
   )
 }

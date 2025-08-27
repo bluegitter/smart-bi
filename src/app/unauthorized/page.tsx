@@ -36,7 +36,7 @@ export default function UnauthorizedPage() {
             
             <Button 
               variant="outline"
-              onClick={() => router.push('/dashboards')}
+              onClick={() => router.push('/')}
               className="w-full"
             >
               回到首页

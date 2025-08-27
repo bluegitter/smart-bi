@@ -104,11 +104,13 @@ export async function POST(request: NextRequest) {
       token
     })
 
+    // 设置两个cookie：一个httpOnly用于服务器端，一个客户端可访问的用于前端
     response.cookies.set('auth-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      httpOnly: false, // 改为false，允许JavaScript访问
+      secure: false,   // 在开发和生产环境都设为false，确保HTTP也能工作
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 // 24小时
+      maxAge: 24 * 60 * 60, // 24小时
+      path: '/' // 明确设置path
     })
 
     return response

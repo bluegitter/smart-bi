@@ -19,9 +19,9 @@ interface SidebarProps {
 
 const sidebarItems = [
   { icon: Home, label: '首页', href: '/' },
-  { icon: BarChart3, label: '看板', href: '/dashboards' },
   { icon: Database, label: '数据源', href: '/datasources' },
   { icon: Table, label: '数据集', href: '/datasets' },
+  { icon: BarChart3, label: '看板', href: '/dashboards' },
   { icon: Settings, label: '设置', href: '/settings' },
 ]
 

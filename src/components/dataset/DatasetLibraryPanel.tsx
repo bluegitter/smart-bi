@@ -103,27 +103,49 @@ export function DatasetLibraryPanel({
     return ['全部', ...uniqueCategories]
   }, [datasets])
 
-  // 过滤数据集
-  const filteredDatasets = React.useMemo(() => {
+  // 过滤数据集和字段
+  const { filteredDatasets, getFilteredFields } = React.useMemo(() => {
     let filtered = datasets
 
-    if (searchTerm) {
-      filtered = filtered.filter(dataset =>
-        dataset.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dataset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dataset.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dataset.fields.some(field => 
-          field.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          field.name.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
-    }
-
+    // 按分类过滤
     if (selectedCategory !== '全部') {
       filtered = filtered.filter(dataset => dataset.category === selectedCategory)
     }
 
-    return filtered.filter(d => d.status === 'active')
+    // 只显示active状态的数据集
+    filtered = filtered.filter(d => d.status === 'active')
+
+    // 如果有搜索词，进行搜索过滤
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase()
+      
+      // 过滤数据集：数据集名称匹配 或 包含匹配的字段
+      filtered = filtered.filter(dataset => {
+        const datasetMatches = dataset.displayName.toLowerCase().includes(searchLower) ||
+          dataset.name.toLowerCase().includes(searchLower) ||
+          dataset.description?.toLowerCase().includes(searchLower)
+        
+        const hasMatchingFields = dataset.fields && dataset.fields.some(field => 
+          field.displayName.toLowerCase().includes(searchLower) ||
+          field.name.toLowerCase().includes(searchLower)
+        )
+        
+        return datasetMatches || hasMatchingFields
+      })
+    }
+
+    // 创建字段过滤函数
+    const getFilteredFields = (dataset: Dataset) => {
+      if (!searchTerm || !dataset.fields) return dataset.fields || []
+      
+      const searchLower = searchTerm.toLowerCase()
+      return dataset.fields.filter(field => 
+        field.displayName.toLowerCase().includes(searchLower) ||
+        field.name.toLowerCase().includes(searchLower)
+      )
+    }
+
+    return { filteredDatasets: filtered, getFilteredFields }
   }, [datasets, searchTerm, selectedCategory])
 
   const toggleDataset = (datasetId: string) => {
@@ -132,6 +154,20 @@ export function DatasetLibraryPanel({
       [datasetId]: !prev[datasetId]
     }))
   }
+
+  // 当搜索字段时自动展开包含匹配字段的数据集
+  React.useEffect(() => {
+    if (searchTerm) {
+      const newExpanded: Record<string, boolean> = {}
+      filteredDatasets.forEach(dataset => {
+        const filteredFields = getFilteredFields(dataset)
+        if (filteredFields.length > 0 && filteredFields.length < (dataset.fields?.length || 0)) {
+          newExpanded[dataset._id] = true
+        }
+      })
+      setExpandedDatasets(prev => ({ ...prev, ...newExpanded }))
+    }
+  }, [searchTerm, filteredDatasets, getFilteredFields])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.panel-header')) {
@@ -291,48 +327,55 @@ export function DatasetLibraryPanel({
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{dataset.displayName}</div>
                     <div className="text-xs text-gray-500">
-                      {dataset.dimensionCount || 0} 维度, {dataset.measureCount || 0} 度量
+                      {dataset.fields?.filter(f => f.fieldType === 'dimension').length || 0} 维度, {dataset.fields?.filter(f => f.fieldType === 'measure').length || 0} 度量
                     </div>
                   </div>
                 </div>
                 
-                {expandedDatasets[dataset._id] && (
-                  <div className="ml-6 mb-2 space-y-1">
-                    {/* 显示维度 */}
-                    {dataset.fields.filter(f => f.fieldType === 'dimension').length > 0 && (
-                      <div>
-                        <div className="text-xs text-gray-500 font-medium mb-1 px-2">维度</div>
-                        {dataset.fields
-                          .filter(f => f.fieldType === 'dimension' && !f.hidden)
-                          .map((field) => (
+                {expandedDatasets[dataset._id] && (() => {
+                  const filteredFields = getFilteredFields(dataset)
+                  const dimensions = filteredFields.filter(f => f.fieldType === 'dimension' && !f.hidden)
+                  const measures = filteredFields.filter(f => f.fieldType === 'measure' && !f.hidden)
+                  
+                  return (
+                    <div className="ml-6 mb-2 space-y-1">
+                      {/* 显示维度 */}
+                      {dimensions.length > 0 && (
+                        <div>
+                          <div className="text-xs text-gray-500 font-medium mb-1 px-2">维度</div>
+                          {dimensions.map((field) => (
                             <DraggableField
                               key={field.name}
                               field={field}
                               dataset={dataset}
                             />
-                          ))
-                        }
-                      </div>
-                    )}
-                    
-                    {/* 显示度量 */}
-                    {dataset.fields.filter(f => f.fieldType === 'measure').length > 0 && (
-                      <div>
-                        <div className="text-xs text-gray-500 font-medium mb-1 px-2">度量</div>
-                        {dataset.fields
-                          .filter(f => f.fieldType === 'measure' && !f.hidden)
-                          .map((field) => (
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* 显示度量 */}
+                      {measures.length > 0 && (
+                        <div>
+                          <div className="text-xs text-gray-500 font-medium mb-1 px-2">度量</div>
+                          {measures.map((field) => (
                             <DraggableField
                               key={field.name}
                               field={field}
                               dataset={dataset}
                             />
-                          ))
-                        }
-                      </div>
-                    )}
-                  </div>
-                )}
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* 搜索时无匹配字段提示 */}
+                      {searchTerm && dimensions.length === 0 && measures.length === 0 && (
+                        <div className="text-center py-2 text-xs text-gray-500">
+                          该数据集中无匹配的字段
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             ))
           )}
