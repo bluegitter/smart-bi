@@ -40,7 +40,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isFullscreen = useIsFullscreen()
   
   // 检查是否在看板页面，需要特殊的滚动处理
-  const isDashboardPage = pathname?.includes('/dashboard')
+  const isDatasetEditorPage = pathname?.includes('datasets/editor')
   
   return (
     <DndWrapper>
@@ -59,12 +59,11 @@ export function MainLayout({ children }: MainLayoutProps) {
           
           {/* Main content */}
           <main className={cn(
-            "flex-1 flex flex-col",
-            isDashboardPage ? "overflow-visible" : "overflow-hidden"
+            "flex-1 flex flex-col overflow-hidden",
           )}>
             <div className={cn(
-              "flex-1",
-              isDashboardPage ? "overflow-visible" : "overflow-auto"
+              "flex-1 overflow-auto",
+              isDatasetEditorPage ? "overflow-hidden" : "overflow-auto"
             )}>
               {children}
             </div>

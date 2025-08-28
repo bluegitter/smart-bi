@@ -217,13 +217,14 @@ export function DatasetEditor({
       // 否则生成模拟预览数据
       if (fields.length > 0) {
         // 根据字段生成模拟预览数据
-        const sampleData = Array.from({ length: 3 }, (_, i) => {
+        const sampleData = Array.from({ length: 20 }, (_, i) => {
           const row: any = {}
           fields.forEach(field => {
             if (field.fieldType === 'measure') {
               row[field.displayName] = (Math.random() * 10000).toFixed(1)
             } else if (field.type === 'date') {
-              row[field.displayName] = `2024-0${i + 1}-01`
+              const monthIndex = (i % 12) + 1
+              row[field.displayName] = `2024-${monthIndex.toString().padStart(2, '0')}-${((i % 28) + 1).toString().padStart(2, '0')}`
             } else {
               row[field.displayName] = `示例${field.displayName}${i + 1}`
             }
@@ -233,12 +234,19 @@ export function DatasetEditor({
         
         setPreviewData(sampleData)
       } else {
-        // 使用默认模拟数据
-        setPreviewData([
-          { 月份: '1月', 门店: 'DT广州天河店', 年份: 2024, 实际数: 10000.0, 预算数: 8000.0 },
-          { 月份: '3月', 门店: 'DT广州天河店', 年份: 2024, 实际数: 30000.0, 预算数: 40000.0 },
-          { 月份: '2月', 门店: 'DT玉林容县峰府店', 年份: 2024, 实际数: 20000.0, 预算数: 150000.0 }
-        ])
+        // 使用默认模拟数据 - 扩展到20行
+        const defaultSampleData = Array.from({ length: 20 }, (_, i) => {
+          const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+          const stores = ['DT广州天河店', 'DT玉林容县峰府店', 'DT深圳南山店', 'DT北京朝阳店', 'DT上海浦东店']
+          return {
+            月份: months[i % 12],
+            门店: stores[i % stores.length],
+            年份: 2024,
+            实际数: (Math.random() * 50000 + 10000).toFixed(1),
+            预算数: (Math.random() * 60000 + 8000).toFixed(1)
+          }
+        })
+        setPreviewData(defaultSampleData)
       }
       setPreviewLoading(false)
     } catch (error) {
@@ -676,7 +684,7 @@ export function DatasetEditor({
         {/* 左侧配置面板 - 独立滚动 */}
         <div 
           className="bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex flex-col relative overflow-hidden"
-          style={{ width: leftPanelWidth }}
+          style={{ width: leftPanelWidth, height: 'calc(100vh - 64px - 64px - 32px)' }}
         >
           {/* 左侧面板滚动容器 */}
           <div className="flex-1 overflow-y-auto">
@@ -1324,7 +1332,7 @@ export function DatasetEditor({
         </div>
 
         {/* 右侧主内容区 */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-auto">
           {/* SQL编辑器（仅SQL类型显示） */}
           {datasetType === 'sql' && (
             <div className="h-2/5 border-b border-gray-200 bg-gray-900 flex-shrink-0">
@@ -1398,7 +1406,7 @@ WHERE condition = 'value';"
               </div>
             </div>
             
-            <div className="flex-1 bg-gray-50">
+            <div className="flex-1 bg-gray-50 overflow-hidden">
               {previewLoading ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">
@@ -1407,17 +1415,21 @@ WHERE condition = 'value';"
                   </div>
                 </div>
               ) : previewData.length > 0 ? (
-                <div className="h-full p-4">
-                  <div className="bg-white rounded-lg shadow-sm overflow-hidden h-full">
-                    <div className="h-full overflow-auto">
-                    <table className="w-full">
-                      <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white sticky top-0">
+                <div className="p-4" style={{ height: 'calc(100vh - 64px - 72px)' }}>
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200" style={{ height: 'calc(100% - 64px - 18px)', overflow: 'auto' }}>
+                    <table className="w-full" style={{ minWidth: 'max-content' }}>
+                      <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white sticky top-0 z-10">
                         <tr>
-                          {Object.keys(previewData[0]).map(col => (
-                            <th key={col} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">
-                              {col}
-                            </th>
-                          ))}
+                          {Object.keys(previewData[0]).map(col => {
+                            // 查找对应的字段配置，优先显示中文显示名
+                            const field = fields.find(f => f.name === col)
+                            const displayName = field?.displayName || col
+                            return (
+                              <th key={col} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ whiteSpace: 'nowrap', minWidth: '120px' }}>
+                                {displayName}
+                              </th>
+                            )
+                          })}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1427,8 +1439,8 @@ WHERE condition = 'value';"
                             i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                           )}>
                             {Object.values(row).map((value: any, j) => (
-                              <td key={j} className="px-4 py-3 text-sm text-gray-900">
-                                <div className="max-w-xs truncate">
+                              <td key={j} className="px-4 py-3 text-sm text-gray-900" style={{ whiteSpace: 'nowrap', minWidth: '120px' }}>
+                                <div>
                                   {typeof value === 'number' ? (
                                     <span className="font-mono">{value.toLocaleString()}</span>
                                   ) : (
@@ -1441,7 +1453,6 @@ WHERE condition = 'value';"
                         ))}
                       </tbody>
                     </table>
-                    </div>
                   </div>
                 </div>
               ) : (
