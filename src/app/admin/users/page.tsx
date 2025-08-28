@@ -673,7 +673,7 @@ function CreateUserDialog({ onClose, onSuccess }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>添加用户</CardTitle>
@@ -833,7 +833,7 @@ function EditUserDialog({ user, onClose, onSuccess }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>编辑用户</CardTitle>
