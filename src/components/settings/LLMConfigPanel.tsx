@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/hooks/useToast'
+import { getAuthHeaders } from '@/lib/authUtils'
 import type { LLMConfig, LLMProvider, CreateLLMConfigRequest, UpdateLLMConfigRequest, LLMTestResult, LLMProviderPreset } from '@/types/llm'
 import { LLM_PROVIDER_PRESETS } from '@/types/llm'
 
@@ -26,7 +27,10 @@ export function LLMConfigPanel({ className }: LLMConfigPanelProps) {
   // 加载LLM配置列表
   const loadConfigs = async () => {
     try {
-      const response = await fetch('/api/llm/configs')
+      const response = await fetch('/api/llm/configs', {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
       if (response.ok) {
         const data = await response.json()
         setConfigs(data.configs || [])
@@ -50,7 +54,8 @@ export function LLMConfigPanel({ className }: LLMConfigPanelProps) {
     setTestingConfig(configId)
     try {
       const response = await fetch(`/api/llm/configs/${configId}/test`, {
-        method: 'POST'
+        method: 'POST',
+        headers: getAuthHeaders()
       })
       const result = await response.json()
       setTestResults(prev => ({
@@ -76,7 +81,7 @@ export function LLMConfigPanel({ className }: LLMConfigPanelProps) {
     try {
       const response = await fetch(`/api/llm/configs/${configId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ isDefault: true })
       })
 
@@ -100,7 +105,8 @@ export function LLMConfigPanel({ className }: LLMConfigPanelProps) {
 
     try {
       const response = await fetch(`/api/llm/configs/${configId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       })
 
       if (response.ok) {
@@ -360,8 +366,8 @@ function CreateConfigDialog({ isOpen, onClose, onSuccess }: CreateConfigDialogPr
 
     try {
       const response = await fetch('/api/llm/configs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+        headers: getAuthHeaders(),
         body: JSON.stringify(form)
       })
 
@@ -618,7 +624,7 @@ function EditConfigDialog({ isOpen, config, onClose, onSuccess }: EditConfigDial
     try {
       const response = await fetch(`/api/llm/configs/${config._id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(form)
       })
 

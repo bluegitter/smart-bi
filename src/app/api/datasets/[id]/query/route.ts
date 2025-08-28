@@ -2,19 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/middleware/auth'
 import { DatasetService } from '@/lib/services/datasetService'
 
-// GET /api/datasets/[id]/query - 查询数据集数据
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// POST /api/datasets/[id]/query - 查询数据集数据
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {
       return NextResponse.json(error, { status: error.status })
     }
 
-    const { searchParams } = new URL(request.url)
-    const measures = searchParams.get('measures')?.split(',') || []
-    const dimensions = searchParams.get('dimensions')?.split(',') || []
-    const filters = searchParams.get('filters') ? JSON.parse(searchParams.get('filters')!) : []
-    const limit = parseInt(searchParams.get('limit') || '100')
+    // 从请求体获取查询参数
+    let queryParams = {}
+    try {
+      queryParams = await request.json()
+    } catch {
+      // 如果没有请求体，使用默认值
+    }
+    
+    const measures = queryParams.measures || []
+    const dimensions = queryParams.dimensions || []
+    const filters = queryParams.filters || []
+    const limit = parseInt(queryParams.limit || '100')
 
     const { id } = await params
     

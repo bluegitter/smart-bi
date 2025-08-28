@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { TableSelector } from '@/components/dataset/TableSelector'
 import { CustomSelect, type SelectItem } from '@/components/ui/CustomSelect'
 import { useDataSources } from '@/hooks/useDataSources'
+import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
 import type { DatasetType } from '@/types/dataset'
 
@@ -30,30 +31,19 @@ export function CreateDatasetModal({ isOpen, onClose, onSuccess }: CreateDataset
   const [selectedSchema, setSelectedSchema] = React.useState('')
   const [selectedTable, setSelectedTable] = React.useState('')
 
-  // 监听表选择变更，自动填充数据集名称
-  React.useEffect(() => {
-    if (selectedDataSource && selectedTable && selectedType === 'table') {
-      // 获取数据表信息以填充名称
-      fetchTableInfo(selectedDataSource, selectedSchema, selectedTable)
-    }
-  }, [selectedDataSource, selectedSchema, selectedTable, selectedType])
-
-  // 获取表信息用于自动填充
-  const fetchTableInfo = async (datasourceId: string, schema: string, tableName: string) => {
-    try {
-      const response = await fetch(`/api/datasources/${datasourceId}/schema`)
-      if (response.ok) {
-        const data = await response.json()
-        const table = data.tables?.find((t: any) => t.name === tableName)
-        
-        if (table) {
-          // 自动填充数据集名称和显示名称
-          setDatasetName(table.name)
-          setDatasetDisplayName(table.displayName || table.name)
-        }
+  // 处理表选择变更，自动填充数据集名称和显示名称
+  const handleTableChange = (tableName: string, tableInfo?: any) => {
+    setSelectedTable(tableName)
+    if (tableInfo && selectedType === 'table') {
+      setDatasetName(tableName)
+      // 优先使用表的comment作为显示名称，否则使用displayName或表名
+      if (tableInfo.comment && tableInfo.comment.trim()) {
+        setDatasetDisplayName(tableInfo.comment.trim())
+      } else if (tableInfo.displayName && tableInfo.displayName !== tableName) {
+        setDatasetDisplayName(tableInfo.displayName)
+      } else {
+        setDatasetDisplayName(tableName)
       }
-    } catch (error) {
-      console.error('获取表信息失败:', error)
     }
   }
 
@@ -184,7 +174,7 @@ export function CreateDatasetModal({ isOpen, onClose, onSuccess }: CreateDataset
                     selectedTable={selectedTable}
                     onDataSourceChange={setSelectedDataSource}
                     onSchemaChange={setSelectedSchema}
-                    onTableChange={setSelectedTable}
+                    onTableChange={handleTableChange}
                     disabled={dataSourcesLoading}
                   />
                 )}

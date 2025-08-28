@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import { DataSource } from '@/models/DataSource'
 import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/middleware/auth'
 import { z } from 'zod'
 import { ObjectId } from 'mongodb'
 
@@ -22,22 +23,18 @@ const updateDataSourceSchema = z.object({
   isActive: z.boolean().optional()
 })
 
-// GET - 获取单个数据源
-export async function GET(
+// POST - 获取单个数据源
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const { id } = await params
@@ -73,14 +70,10 @@ export async function PUT(
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const { id } = await params
@@ -159,14 +152,10 @@ export async function DELETE(
   try {
     await connectDB()
     
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json({ error: '未授权访问' }, { status: 401 })
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json({ error: '无效的令牌' }, { status: 401 })
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
     }
 
     const { id } = await params

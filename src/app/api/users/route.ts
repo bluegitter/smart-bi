@@ -12,8 +12,8 @@ const createUserSchema = z.object({
 })
 
 
-// GET /api/users - 获取用户列表
-export async function GET(request: NextRequest) {
+// POST /api/users - 获取用户列表
+export async function POST(request: NextRequest) {
   try {
     // 验证用户权限
     const { user, error } = await requireAuth(request)
@@ -65,8 +65,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/users - 创建用户
-export async function POST(request: NextRequest) {
+// PUT /api/users - 创建用户
+export async function PUT(request: NextRequest) {
   try {
     // 验证用户权限
     const { user, error } = await requireAuth(request)

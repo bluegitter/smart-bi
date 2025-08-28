@@ -3,8 +3,8 @@ import { requireAuth } from '@/lib/middleware/auth'
 import { datasetCache, metricsCache, queryCache } from '@/lib/cache/CacheManager'
 import type { CacheConfig } from '@/lib/cache/CacheManager'
 
-// GET /api/cache/config - 获取缓存配置
-export async function GET(request: NextRequest) {
+// POST /api/cache/config - 获取缓存配置
+export async function POST(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {
@@ -145,8 +145,8 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// POST /api/cache/config - 重置缓存配置到默认值
-export async function POST(request: NextRequest) {
+// DELETE /api/cache/config - 重置缓存配置到默认值
+export async function DELETE(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {

@@ -3,8 +3,8 @@ import { requireAuth } from '@/lib/middleware/auth'
 import { DatasetService } from '@/lib/services/datasetService'
 import type { UpdateDatasetRequest } from '@/types/dataset'
 
-// GET /api/datasets/[id] - 获取数据集详情
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// POST /api/datasets/[id] - 获取数据集详情
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {

@@ -71,14 +71,13 @@ export function useDataSources() {
     setError(null)
 
     try {
-      const query = new URLSearchParams()
-      if (params?.page) query.append('page', params.page.toString())
-      if (params?.limit) query.append('limit', params.limit.toString())
-      if (params?.type) query.append('type', params.type)
-      if (params?.search) query.append('search', params.search)
-
-      const response = await fetch(`/api/datasources?${query}`, {
-        headers: getAuthHeaders()
+      const response = await fetch('/api/datasources', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(params || {})
       })
 
       if (!response.ok) {
@@ -100,7 +99,12 @@ export function useDataSources() {
   // 获取单个数据源
   const fetchDataSource = async (id: string): Promise<DataSource> => {
     const response = await fetch(`/api/datasources/${id}`, {
-      headers: getAuthHeaders()
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
     })
 
     if (!response.ok) {
@@ -117,7 +121,7 @@ export function useDataSources() {
 
     try {
       const response = await fetch('/api/datasources', {
-        method: 'POST',
+        method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(data)
       })

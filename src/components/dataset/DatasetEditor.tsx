@@ -33,6 +33,7 @@ import { FieldEditorDialog } from '@/components/dataset/FieldEditorDialog'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { useDataset } from '@/hooks/useDatasets'
 import { useDataSources } from '@/hooks/useDataSources'
+import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
 import type { Dataset, DatasetField, DatasetType } from '@/types/dataset'
 import type { DataSource } from '@/types'
@@ -275,7 +276,10 @@ export function DatasetEditor({
   // 自动分析表字段
   const analyzeTableFields = async (datasourceId: string, schema: string, tableName: string) => {
     try {
-      const response = await fetch(`/api/datasources/${datasourceId}/schema`)
+      const response = await fetch(`/api/datasources/${datasourceId}/schema`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
       if (response.ok) {
         const data = await response.json()
         const table = data.tables?.find((t: any) => t.name === tableName)
@@ -366,6 +370,31 @@ export function DatasetEditor({
       .trim()
   }
 
+  // 单独获取表信息用于填充显示名称
+  const analyzeTableForDisplayName = async (datasourceId: string, schema: string, tableName: string) => {
+    try {
+      const response = await fetch(`/api/datasources/${datasourceId}/schema`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const table = data.tables?.find((t: any) => t.name === tableName)
+        
+        if (table) {
+          // 自动填充数据集显示名称为表的comment，如果没有comment则使用表名
+          if (table.comment && table.comment.trim()) {
+            setDatasetDisplayName(table.comment.trim())
+          } else {
+            setDatasetDisplayName(generateDisplayName(tableName))
+          }
+        }
+      }
+    } catch (error) {
+      console.error('获取表信息失败:', error)
+    }
+  }
+
   // 监听表选择变化，自动分析字段
   React.useEffect(() => {
     if (selectedDataSource && selectedTable && datasetType === 'table') {
@@ -373,6 +402,13 @@ export function DatasetEditor({
       analyzeTableFields(selectedDataSource, selectedSchema, selectedTable)
     }
   }, [selectedDataSource, selectedSchema, selectedTable, datasetType])
+
+  // 创建模式下，在表选择完成后自动填充显示名称
+  React.useEffect(() => {
+    if (mode === 'create' && selectedDataSource && selectedTable && datasetType === 'table' && !datasetDisplayName) {
+      analyzeTableForDisplayName(selectedDataSource, selectedSchema, selectedTable)
+    }
+  }, [mode, selectedDataSource, selectedSchema, selectedTable, datasetType, datasetDisplayName])
 
   // 处理保存
   const handleSave = async () => {
@@ -772,7 +808,7 @@ export function DatasetEditor({
                     selectedTable={selectedTable}
                     onDataSourceChange={setSelectedDataSource}
                     onSchemaChange={setSelectedSchema}
-                    onTableChange={setSelectedTable}
+                    onTableChange={(tableName) => setSelectedTable(tableName)}
                     disabled={mode === 'view'}
                   />
                 )}

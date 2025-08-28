@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Metric } from '@/models/Metric'
+import { requireAuth } from '@/lib/middleware/auth'
 
 /**
  * 获取指标的版本历史
- * GET /api/metrics/{id}/versions
+ * POST /api/metrics/{id}/versions
  */
-export async function GET(
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+    
     const { id } = await params
     
     if (!id) {
@@ -70,9 +77,9 @@ export async function GET(
 
 /**
  * 创建指标新版本
- * POST /api/metrics/{id}/versions
+ * PUT /api/metrics/{id}/versions
  */
-export async function POST(
+export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {

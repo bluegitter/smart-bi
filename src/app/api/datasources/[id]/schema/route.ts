@@ -7,9 +7,9 @@ import { connectDB } from '@/lib/mongodb'
 
 /**
  * 获取数据源的表结构信息
- * GET /api/datasources/{id}/schema
+ * POST /api/datasources/{id}/schema
  */
-export async function GET(
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -173,9 +173,9 @@ export async function GET(
 
 /**
  * 刷新数据源的表结构信息
- * POST /api/datasources/{id}/schema
+ * PUT /api/datasources/{id}/schema
  */
-export async function POST(
+export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -197,8 +197,8 @@ export async function POST(
       return NextResponse.json(error, { status: error.status })
     }
 
-    // 强制刷新表结构，逻辑与GET相同
-    return GET(request, { params })
+    // 强制刷新表结构，逻辑与POST相同
+    return POST(request, { params })
 
   } catch (error) {
     console.error('刷新数据源表结构失败:', error)

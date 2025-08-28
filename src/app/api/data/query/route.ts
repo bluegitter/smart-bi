@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery, executeMetricQuery } from '@/lib/mysql'
+import { requireAuth } from '@/lib/middleware/auth'
 
 export async function POST(request: NextRequest) {
   try {
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+    
     const body = await request.json()
     const { query, params = [], datasourceId } = body
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/middleware/auth'
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     

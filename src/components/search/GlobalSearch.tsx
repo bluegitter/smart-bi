@@ -51,7 +51,15 @@ export function GlobalSearch({ className, onClose }: GlobalSearchProps) {
 
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`)
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ q: searchQuery })
+      })
       if (response.ok) {
         const data = await response.json()
         setResults(data.results || [])

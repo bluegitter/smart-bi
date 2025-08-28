@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
 import type { Dataset } from '@/types/dataset'
 
@@ -110,7 +111,8 @@ export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
       onConfirm: async () => {
         try {
           const response = await fetch(`/api/datasets/${dataset._id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           })
           
           if (!response.ok) {
@@ -132,7 +134,8 @@ export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
     setShowMenu(false)
     try {
       const response = await fetch(`/api/datasets/${dataset._id}/refresh`, {
-        method: 'POST'
+        method: 'POST',
+        headers: getAuthHeaders()
       })
       
       if (!response.ok) {

@@ -331,8 +331,8 @@ let mockMetrics = [
   }
 ]
 
-// GET - 获取指标列表
-export async function GET(request: NextRequest) {
+// POST - 获取指标列表
+export async function POST(request: NextRequest) {
   try {
     await connectDB()
     
@@ -341,14 +341,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(error, { status: error.status })
     }
 
-    const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
-    const category = searchParams.get('category')
-    const type = searchParams.get('type')
-    const search = searchParams.get('search')
-    const datasourceId = searchParams.get('datasourceId')
-    const tags = searchParams.get('tags')?.split(',').filter(Boolean)
+    // 从请求体获取查询参数
+    let queryParams = {}
+    try {
+      queryParams = await request.json()
+    } catch {
+      // 如果没有请求体，使用默认值
+    }
+
+    const page = parseInt(queryParams.page || '1')
+    const limit = parseInt(queryParams.limit || '20')
+    const category = queryParams.category
+    const type = queryParams.type
+    const search = queryParams.search
+    const datasourceId = queryParams.datasourceId
+    const tags = queryParams.tags ? (Array.isArray(queryParams.tags) ? queryParams.tags : queryParams.tags.split(',').filter(Boolean)) : undefined
 
     const skip = (page - 1) * limit
 
@@ -539,8 +546,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - 创建指标
-export async function POST(request: NextRequest) {
+// PUT - 创建指标
+export async function PUT(request: NextRequest) {
   try {
     await connectDB()
     

@@ -3,26 +3,32 @@ import { requireAuth } from '@/lib/middleware/auth'
 import { DatasetService } from '@/lib/services/datasetService'
 import type { CreateDatasetRequest, DatasetSearchParams } from '@/types/dataset'
 
-// GET /api/datasets - 获取数据集列表
-export async function GET(request: NextRequest) {
+// POST /api/datasets - 获取数据集列表
+export async function POST(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {
       return NextResponse.json(error, { status: error.status })
     }
 
-    const { searchParams } = new URL(request.url)
+    // 从请求体获取查询参数
+    let bodyParams = {}
+    try {
+      bodyParams = await request.json()
+    } catch {
+      // 如果没有请求体，使用默认值
+    }
     
     const params: DatasetSearchParams = {
-      keyword: searchParams.get('keyword') || undefined,
-      category: searchParams.get('category') || undefined,
-      tags: searchParams.get('tags')?.split(',') || undefined,
-      type: searchParams.get('type') as any || undefined,
-      status: searchParams.get('status') as any || 'active',
-      sortBy: searchParams.get('sortBy') as any || 'updatedAt',
-      sortOrder: searchParams.get('sortOrder') as any || 'desc',
-      page: parseInt(searchParams.get('page') || '1'),
-      limit: parseInt(searchParams.get('limit') || '20')
+      keyword: bodyParams.keyword || undefined,
+      category: bodyParams.category || undefined,
+      tags: bodyParams.tags ? (Array.isArray(bodyParams.tags) ? bodyParams.tags : bodyParams.tags.split(',')) : undefined,
+      type: bodyParams.type as any || undefined,
+      status: bodyParams.status as any || 'active',
+      sortBy: bodyParams.sortBy as any || 'updatedAt',
+      sortOrder: bodyParams.sortOrder as any || 'desc',
+      page: parseInt(bodyParams.page || '1'),
+      limit: parseInt(bodyParams.limit || '20')
     }
 
     const result = await DatasetService.searchDatasets(user._id, params)
@@ -41,8 +47,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/datasets - 创建数据集
-export async function POST(request: NextRequest) {
+// PUT /api/datasets - 创建数据集
+export async function PUT(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {

@@ -31,7 +31,6 @@ const sidebarItems = [
   { icon: Database, label: '数据源', href: '/datasources', badge: null },
   { icon: Table, label: '数据集', href: '/datasets', badge: null },
   { icon: BarChart3, label: '看板', href: '/dashboards', badge: null },
-  { icon: Users, label: '用户管理', href: '/admin/users', badge: null, adminOnly: true },
   { icon: Settings, label: '设置', href: '/settings', badge: null },
 ]
 

@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Dashboard } from '@/types'
 import { dashboardModel } from '@/lib/db/dashboardModel'
+import { requireAuth } from '@/lib/middleware/auth'
 
-// GET /api/dashboards/[id] - 获取单个看板
-export async function GET(
+// POST /api/dashboards/[id] - 获取单个看板
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+    
     const { id } = await params
-    const userId = request.nextUrl.searchParams.get('userId') || 'user1'
+    const userId = user._id
     
     const dashboard = await dashboardModel.getDashboard(id, userId)
     return NextResponse.json(dashboard)

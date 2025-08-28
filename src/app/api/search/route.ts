@@ -15,20 +15,28 @@ interface SearchResult {
   category?: string
 }
 
-// GET /api/search - 全局搜索
-export async function GET(request: NextRequest) {
+// POST /api/search - 全局搜索
+export async function POST(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {
       return NextResponse.json(error, { status: error.status })
     }
 
-    const { searchParams } = new URL(request.url)
-    const query = searchParams.get('q')?.trim()
+    // 从请求体获取搜索参数
+    let query
+    try {
+      const body = await request.json()
+      query = body.q || body.query || ''
+    } catch {
+      query = ''
+    }
 
-    if (!query) {
+    if (!query.trim()) {
       return NextResponse.json({ results: [] })
     }
+
+    query = query.trim()
 
     await connectDB()
 

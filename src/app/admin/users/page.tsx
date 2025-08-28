@@ -4,6 +4,7 @@ import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { getAuthHeaders } from '@/lib/authUtils'
 import { 
   Users, 
   Search, 
@@ -56,7 +57,16 @@ export default function UsersPage() {
         ...(selectedRole && { role: selectedRole })
       })
       
-      const response = await fetch(`/api/users?${params}`)
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          page: currentPage,
+          limit: 20,
+          ...(searchTerm && { search: searchTerm }),
+          ...(selectedRole && { role: selectedRole })
+        })
+      })
       if (response.ok) {
         const data = await response.json()
         setUsers(data.users)
@@ -73,7 +83,10 @@ export default function UsersPage() {
   // 加载用户统计
   const loadUserStats = React.useCallback(async () => {
     try {
-      const response = await fetch('/api/users/stats')
+      const response = await fetch('/api/users/stats', {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
       if (response.ok) {
         const stats = await response.json()
         setUserStats(stats)
@@ -145,7 +158,8 @@ export default function UsersPage() {
 
     try {
       const response = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       })
 
       if (response.ok) {
@@ -651,10 +665,8 @@ function CreateUserDialog({ onClose, onSuccess }: {
 
     try {
       const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        method: 'PUT',
+        headers: getAuthHeaders(),
         body: JSON.stringify(formData)
       })
 
@@ -812,9 +824,7 @@ function EditUserDialog({ user, onClose, onSuccess }: {
     try {
       const response = await fetch(`/api/users/${user._id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(formData)
       })
 

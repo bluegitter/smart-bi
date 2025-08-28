@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { MetricCard } from './MetricCard'
+import { getAuthHeaders } from '@/lib/authUtils'
 import type { Metric, ComponentLayout } from '@/types'
 
 interface MetricRecommendationsProps {
@@ -45,7 +46,7 @@ export function MetricRecommendations({ onClose, availableMetrics = [] }: Metric
     try {
       const response = await fetch('/api/metrics/recommendations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           type: 'query',
           query: queryInput
@@ -69,7 +70,7 @@ export function MetricRecommendations({ onClose, availableMetrics = [] }: Metric
     try {
       const response = await fetch('/api/metrics/recommendations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           type: 'component',
           componentType: selectedComponent
@@ -95,7 +96,7 @@ export function MetricRecommendations({ onClose, availableMetrics = [] }: Metric
     try {
       const response = await fetch('/api/metrics/recommendations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           type: 'combination',
           baseMetrics: selectedMetrics

@@ -16,8 +16,8 @@ const updateUserSchema = z.object({
   isActive: z.boolean().optional()
 })
 
-// GET /api/users/[id] - 获取单个用户信息
-export async function GET(
+// POST /api/users/[id] - 获取单个用户信息
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {

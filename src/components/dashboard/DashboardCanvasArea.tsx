@@ -5,6 +5,7 @@ import { Plus, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { AIGenerateDashboardDialog } from './AIGenerateDashboardDialog'
+import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
 import type { ComponentLayout, DragItem, Dataset } from '@/types'
 
@@ -151,7 +152,11 @@ function EmptyCanvasPlaceholder({ onAddComponents }: { onAddComponents: (compone
   const loadDatasets = async () => {
     setLoadingDatasets(true)
     try {
-      const response = await fetch('/api/datasets?limit=50')
+      const response = await fetch('/api/datasets', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ limit: 50 })
+      })
       if (response.ok) {
         const data = await response.json()
         setDatasets(data.datasets || [])

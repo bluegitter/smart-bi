@@ -56,14 +56,18 @@ export function useMetrics(options: UseMetricsOptions = {}): UseMetricsReturn {
       setLoading(true)
       setError(null)
       
-      const query = new URLSearchParams()
-      if (category) query.append('category', category)
-      if (search) query.append('search', search)
-      if (tags.length > 0) query.append('tags', tags.join(','))
-      query.append('limit', '50')
+      const queryParams: any = { limit: 50 }
+      if (category) queryParams.category = category
+      if (search) queryParams.search = search
+      if (tags.length > 0) queryParams.tags = tags
       
-      const response = await fetch(`/api/metrics?${query}`, {
-        headers: getAuthHeaders()
+      const response = await fetch('/api/metrics', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(queryParams)
       })
 
       if (!response.ok) {
@@ -90,7 +94,7 @@ export function useMetrics(options: UseMetricsOptions = {}): UseMetricsReturn {
     try {
       setError(null)
       const response = await fetch('/api/metrics', {
-        method: 'POST',
+        method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(metricData)
       })
@@ -197,11 +201,13 @@ export function useMetricsList(limit = 20) {
     const fetchMetrics = async () => {
       try {
         const token = localStorage.getItem('token')
-        const response = await fetch(`/api/metrics?limit=${limit}`, {
+        const response = await fetch('/api/metrics', {
+          method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({ limit })
         })
 
         if (response.ok) {
@@ -239,10 +245,12 @@ export function useMetric(id: string) {
         setError(null)
         const token = localStorage.getItem('token')
         const response = await fetch(`/api/metrics/${id}`, {
+          method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({})
         })
 
         if (response.ok) {

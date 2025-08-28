@@ -35,17 +35,12 @@ export function useDatasetData({
 
     try {
       // 构建查询参数
-      const queryParams = new URLSearchParams()
-      if (selectedMeasures.length > 0) {
-        queryParams.append('measures', selectedMeasures.join(','))
+      const queryBody = {
+        measures: selectedMeasures.length > 0 ? selectedMeasures : undefined,
+        dimensions: selectedDimensions.length > 0 ? selectedDimensions : undefined,
+        filters: filters.length > 0 ? filters : undefined,
+        limit: 100
       }
-      if (selectedDimensions.length > 0) {
-        queryParams.append('dimensions', selectedDimensions.join(','))
-      }
-      if (filters.length > 0) {
-        queryParams.append('filters', JSON.stringify(filters))
-      }
-      queryParams.append('limit', '100') // 限制返回行数
 
       console.log('Fetching dataset data:', {
         datasetId,
@@ -54,14 +49,24 @@ export function useDatasetData({
         filters
       })
 
-      const response = await fetch(`/api/datasets/${datasetId}/query?${queryParams.toString()}`, {
-        headers: getAuthHeaders()
+      const response = await fetch(`/api/datasets/${datasetId}/query`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(queryBody)
       })
       
       if (!response.ok) {
         // 如果查询API不存在，尝试使用预览API
-        const previewResponse = await fetch(`/api/datasets/${datasetId}/preview?limit=50`, {
-          headers: getAuthHeaders()
+        const previewResponse = await fetch(`/api/datasets/${datasetId}/preview`, {
+          method: 'POST',
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ limit: 50 })
         })
         if (previewResponse.ok) {
           const previewResult = await previewResponse.json()

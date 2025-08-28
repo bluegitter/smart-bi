@@ -1,30 +1,29 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { 
   User, 
   Bell, 
   Shield, 
   Palette, 
   Database, 
-  Globe, 
   Save,
   ChevronRight,
   Monitor,
   Moon,
   Sun,
   Loader2,
-  Bot
+  Bot,
+  Users
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { LLMConfigPanel } from '@/components/settings/LLMConfigPanel'
+import { UserManagementPanel } from '@/components/settings/UserManagementPanel'
 
 export default function SettingsPage() {
-  const router = useRouter()
   const { user } = useAuth()
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('profile')
@@ -80,6 +79,7 @@ export default function SettingsPage() {
     { id: 'security', label: '安全设置', icon: Shield },
     { id: 'data', label: '数据设置', icon: Database },
     { id: 'llm', label: 'AI模型配置', icon: Bot },
+    { id: 'users', label: '用户管理', icon: Users, adminOnly: true },
   ]
 
   const renderProfileSettings = () => (
@@ -372,6 +372,10 @@ export default function SettingsPage() {
     </div>
   )
 
+  const renderUsersManagement = () => {
+    return <UserManagementPanel />
+  }
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'profile':
@@ -386,6 +390,8 @@ export default function SettingsPage() {
         return renderDataSettings()
       case 'llm':
         return <LLMConfigPanel />
+      case 'users':
+        return renderUsersManagement()
       default:
         return renderProfileSettings()
     }
@@ -396,7 +402,7 @@ export default function SettingsPage() {
       <div className="flex-1 overflow-auto bg-slate-50/30">
         {/* 页面标题 */}
         <div className="bg-white border-b border-slate-200/60">
-          <div className="max-w-7xl mx-auto px-8 py-8">
+          <div className="max-w-8xl mx-auto px-8 py-8">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">系统设置</h1>
@@ -425,13 +431,18 @@ export default function SettingsPage() {
         </div>
 
         {/* 设置内容 */}
-        <div className="max-w-7xl mx-auto px-8 py-8">
+        <div className="max-w-8xl mx-auto px-8 py-8">
           <div className="grid lg:grid-cols-4 gap-8">
             {/* 侧边栏导航 */}
             <div className="lg:col-span-1">
               <div className="bg-white border border-slate-200/60 rounded-2xl p-2 shadow-sm">
                 <nav className="space-y-1">
                   {tabs.map((tab) => {
+                    // 如果是仅管理员可见的标签，检查用户权限
+                    if (tab.adminOnly && user?.role !== 'admin') {
+                      return null
+                    }
+
                     const Icon = tab.icon
                     return (
                       <button
@@ -462,7 +473,7 @@ export default function SettingsPage() {
 
             {/* 设置内容区 */}
             <div className="lg:col-span-3">
-              {activeTab === 'llm' ? (
+              {(activeTab === 'llm' || activeTab === 'users') ? (
                 renderTabContent()
               ) : (
                 <Card className="border-slate-200/60 shadow-sm">

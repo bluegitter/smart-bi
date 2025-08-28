@@ -38,8 +38,8 @@ const createLLMConfigSchema = z.object({
   tags: z.array(z.string()).optional()
 })
 
-// GET /api/llm/configs - 获取用户的LLM配置列表
-export async function GET(request: NextRequest) {
+// POST /api/llm/configs - 获取用户的LLM配置列表  
+export async function POST(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {
@@ -104,8 +104,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/llm/configs - 创建LLM配置
-export async function POST(request: NextRequest) {
+// PUT /api/llm/configs - 创建LLM配置
+export async function PUT(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {

@@ -5,6 +5,7 @@ import { X, Database, Globe, FileText, Server, Check } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 
@@ -154,13 +155,9 @@ export function CreateDataSourceModal({ isOpen, onClose, onCreateDataSource }: C
         }
       }
 
-      const token = localStorage.getItem('token')
       const response = await fetch('/api/datasources/test', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           type: selectedType,
           config

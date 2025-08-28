@@ -25,20 +25,13 @@ export function useDatasets() {
     setError(null)
 
     try {
-      const searchParams = new URLSearchParams()
-      
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          if (Array.isArray(value)) {
-            searchParams.set(key, value.join(','))
-          } else {
-            searchParams.set(key, String(value))
-          }
-        }
-      })
-
-      const response = await fetch(`/api/datasets?${searchParams}`, {
-        headers: getAuthHeaders()
+      const response = await fetch('/api/datasets', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(params)
       })
 
       if (!response.ok) {
@@ -103,7 +96,12 @@ export function useDataset(datasetId?: string) {
 
     try {
       const response = await fetch(`/api/datasets/${id}`, {
-        headers: getAuthHeaders()
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
       })
 
       if (!response.ok) {
@@ -126,7 +124,7 @@ export function useDataset(datasetId?: string) {
 
     try {
       const url = datasetId ? `/api/datasets/${datasetId}` : '/api/datasets'
-      const method = datasetId ? 'PUT' : 'POST'
+      const method = datasetId ? 'PUT' : 'PUT'
 
       const response = await fetch(url, {
         method,
@@ -156,8 +154,13 @@ export function useDataset(datasetId?: string) {
 
   const preview = useCallback(async (id: string, limit: number = 100) => {
     try {
-      const response = await fetch(`/api/datasets/${id}/preview?limit=${limit}`, {
-        headers: getAuthHeaders()
+      const response = await fetch(`/api/datasets/${id}/preview`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ limit })
       })
 
       if (!response.ok) {

@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
+import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
 
 interface Message {
@@ -52,7 +53,10 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
 
   const checkLLMConfig = async () => {
     try {
-      const response = await fetch('/api/llm/configs')
+      const response = await fetch('/api/llm/configs', {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
       if (response.ok) {
         const data = await response.json()
         setHasLLMConfig(data.configs && data.configs.length > 0)
@@ -83,9 +87,7 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           message: userMessage.content,
           history: messages.slice(-10) // 只发送最近10条消息作为上下文

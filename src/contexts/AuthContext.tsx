@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@/types'
-import { setAuthToken, removeAuthToken } from '@/lib/authUtils'
+import { setAuthToken, removeAuthToken, getAuthHeaders } from '@/lib/authUtils'
 
 interface AuthContextType {
   user: User | null
@@ -37,6 +37,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshUser = async () => {
     try {
       const response = await fetch('/api/auth/me', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({}),
         credentials: 'include'
       })
 

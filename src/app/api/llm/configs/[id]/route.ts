@@ -40,8 +40,8 @@ const updateLLMConfigSchema = z.object({
   isDefault: z.boolean().optional()
 })
 
-// GET /api/llm/configs/[id] - 获取指定LLM配置
-export async function GET(
+// POST /api/llm/configs/[id] - 获取指定LLM配置
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {

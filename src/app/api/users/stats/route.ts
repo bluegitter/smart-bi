@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { UserService } from '@/lib/services/userService'
 import { requireAuth } from '@/lib/middleware/auth'
 
-// GET /api/users/stats - 获取用户统计信息
-export async function GET(request: NextRequest) {
+// POST /api/users/stats - 获取用户统计信息
+export async function POST(request: NextRequest) {
   try {
     // 验证用户权限
     const { user, error } = await requireAuth(request)

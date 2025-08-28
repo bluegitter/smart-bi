@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { metricRecommendationService } from '@/lib/metricRecommendationService'
+import { requireAuth } from '@/lib/middleware/auth'
 import type { Metric } from '@/types'
 
 // Mock metrics data - 在实际项目中应该从数据库获取
@@ -223,8 +224,20 @@ export async function POST(request: NextRequest) {
 // GET /api/metrics/recommendations - 获取推荐配置信息
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const info = searchParams.get('info')
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+    
+    // 从请求体获取参数
+    let queryParams = {}
+    try {
+      queryParams = await request.json()
+    } catch {
+      // 如果没有请求体，使用默认值
+    }
+    const info = queryParams.info
 
     if (info === 'types') {
       // 返回支持的推荐类型

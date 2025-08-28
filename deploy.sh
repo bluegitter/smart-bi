@@ -222,8 +222,6 @@ stop_existing_services() {
         if [ -f docker-compose.yml ]; then
             docker compose down --remove-orphans || true
         fi
-        # Clean up any orphaned containers
-        docker container prune -f || true
     " || true
     log_success "现有服务已停止"
 }
@@ -294,8 +292,8 @@ show_deployment_info() {
     echo "停止服务: ssh $TARGET_SERVER 'cd $TARGET_DIR && docker compose down'"
     echo ""
     echo "=== 数据库连接信息 ==="
-    echo "MongoDB连接字符串: mongodb://admin:SmartBI@2024!@$TARGET_SERVER:27018/smartbi?authSource=admin"
-    echo "MongoDB Express: http://$TARGET_SERVER:8082 (用户名: admin, 密码: SmartBI@2024!)"
+    echo "MongoDB连接字符串: mongodb://admin:adminpassword@$TARGET_SERVER:27018/smartbi?authSource=admin"
+    echo "MongoDB Express: http://$TARGET_SERVER:8082 (用户名: admin, 密码: adminpassword)"
 }
 
 # Main deployment function
@@ -303,11 +301,11 @@ main() {
     log_info "开始Smart-BI Docker部署..."
     
     check_ssh_access
-    check_docker_on_server
-    configure_docker_registry
+    # check_docker_on_server
+    # configure_docker_registry
     create_server_directories
     copy_files_to_server
-    create_mongo_init_script
+    # create_mongo_init_script
     create_env_file
     stop_existing_services
     start_services

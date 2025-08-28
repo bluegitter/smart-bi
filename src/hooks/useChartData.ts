@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getAuthHeaders } from '@/lib/authUtils'
 
 interface ChartDataHookOptions {
   metricId?: string
@@ -33,21 +34,20 @@ export function useChartData(options: ChartDataHookOptions = {}) {
     try {
       let response: Response
 
+
       if (metricId) {
         // 获取特定指标的数据
         response = await fetch(`/api/metrics/${metricId}/data`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({})
         })
       } else if (metricType) {
         // 获取预定义指标类型的数据
-        response = await fetch(`/api/data/query?metric=${metricType}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
+        response = await fetch('/api/data/query', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ metric: metricType })
         })
       } else {
         throw new Error('需要提供 metricId 或 metricType')

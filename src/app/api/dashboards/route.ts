@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Dashboard } from '@/types'
 import { dashboardModel } from '@/lib/db/dashboardModel'
+import { requireAuth } from '@/lib/middleware/auth'
 
-// GET /api/dashboards - 获取看板列表
-export async function GET(request: NextRequest) {
+// POST /api/dashboards - 获取看板列表
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId') || 'user1'
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
-    const search = searchParams.get('search') || undefined
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+    
+    // 从请求体获取参数
+    let queryParams = {}
+    try {
+      queryParams = await request.json()
+    } catch {
+      // 如果没有请求体，使用默认值
+    }
+    
+    const userId = user._id
+    const page = parseInt(queryParams.page || '1')
+    const limit = parseInt(queryParams.limit || '20')
+    const search = queryParams.search || undefined
 
     const result = await dashboardModel.getDashboards({
       userId,
@@ -28,8 +42,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/dashboards - 创建新看板
-export async function POST(request: NextRequest) {
+// PUT /api/dashboards - 创建新看板
+export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
     

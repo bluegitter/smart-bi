@@ -1,4 +1,5 @@
 import type { Dashboard, ComponentLayout } from '@/types'
+import { getAuthHeaders } from '@/lib/authUtils'
 
 export class DashboardService {
   private baseURL = '/api/dashboards'
@@ -17,7 +18,11 @@ export class DashboardService {
     if (params?.limit) searchParams.append('limit', params.limit.toString())
     if (params?.search) searchParams.append('search', params.search)
 
-    const response = await fetch(`${this.baseURL}?${searchParams}`)
+    const response = await fetch(`${this.baseURL}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ params })
+    })
     if (!response.ok) {
       throw new Error('Failed to fetch dashboards')
     }
@@ -30,7 +35,11 @@ export class DashboardService {
     const searchParams = new URLSearchParams()
     if (userId) searchParams.append('userId', userId)
 
-    const response = await fetch(`${this.baseURL}/${id}?${searchParams}`)
+    const response = await fetch(`${this.baseURL}/${id}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ userId })
+    })
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Dashboard not found')
@@ -46,8 +55,8 @@ export class DashboardService {
   // 创建看板
   async createDashboard(dashboard: Partial<Dashboard>): Promise<Dashboard> {
     const response = await fetch(this.baseURL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PUT',
+      headers: getAuthHeaders(),
       body: JSON.stringify(dashboard)
     })
     
@@ -63,7 +72,7 @@ export class DashboardService {
   async updateDashboard(id: string, dashboard: Partial<Dashboard>): Promise<Dashboard> {
     const response = await fetch(`${this.baseURL}/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(dashboard)
     })
     
@@ -80,8 +89,10 @@ export class DashboardService {
     const searchParams = new URLSearchParams()
     if (userId) searchParams.append('userId', userId)
 
-    const response = await fetch(`${this.baseURL}/${id}?${searchParams}`, {
-      method: 'DELETE'
+    const response = await fetch(`${this.baseURL}/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ userId })
     })
     
     if (!response.ok) {
@@ -94,7 +105,7 @@ export class DashboardService {
   async cloneDashboard(id: string, newName: string, userId?: string): Promise<Dashboard> {
     const response = await fetch(`${this.baseURL}/clone`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ id, newName, userId })
     })
     

@@ -3,8 +3,8 @@ import { requireAuth } from '@/lib/middleware/auth'
 import { CacheInvalidator } from '@/lib/cache/CacheInvalidator'
 import { datasetCache, metricsCache, queryCache } from '@/lib/cache/CacheManager'
 
-// GET /api/cache/stats - 获取缓存统计信息
-export async function GET(request: NextRequest) {
+// POST /api/cache/stats - 获取缓存统计信息
+export async function POST(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {
@@ -60,8 +60,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/cache/stats - 清理过期缓存或执行缓存操作
-export async function POST(request: NextRequest) {
+// PUT /api/cache/stats - 清理过期缓存或执行缓存操作
+export async function PUT(request: NextRequest) {
   try {
     const { user, error } = await requireAuth(request)
     if (error) {

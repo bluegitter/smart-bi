@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { executeQuery } from '@/lib/mysql'
 import { MetricQueryService } from '@/lib/services/metricQueryService'
+import { requireAuth } from '@/lib/middleware/auth'
 
 // 兼容性：指标ID到SQL查询的映射（逐步废弃）
 const legacyMetricQueries: Record<string, string> = {
@@ -22,13 +23,18 @@ const legacyMetricQueries: Record<string, string> = {
   'user_002': 'SELECT action_type as name, COUNT(*) as value FROM user_behavior GROUP BY action_type ORDER BY value DESC'
 }
 
-export async function GET(
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: metricId } = await params
-    const { searchParams } = new URL(request.url)
+    
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
     
     if (!metricId) {
       return NextResponse.json(
@@ -37,16 +43,15 @@ export async function GET(
       )
     }
 
-    // 解析查询参数
-    const parameters: Record<string, any> = {}
-    searchParams.forEach((value, key) => {
-      // 尝试解析JSON参数
-      try {
-        parameters[key] = JSON.parse(value)
-      } catch {
-        parameters[key] = value
-      }
-    })
+    // 从请求体中获取参数
+    let parameters: Record<string, any> = {}
+    try {
+      const body = await request.json()
+      parameters = body.parameters || body || {}
+    } catch {
+      // 如果没有请求体，使用空对象
+      parameters = {}
+    }
 
     console.log(`获取指标 ${metricId} 的数据，参数:`, parameters)
 
@@ -110,12 +115,18 @@ export async function GET(
   }
 }
 
-// POST方法用于自定义查询
-export async function POST(
+// PUT方法用于自定义查询
+export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 验证认证
+    const { user, error } = await requireAuth(request)
+    if (error) {
+      return NextResponse.json(error, { status: error.status })
+    }
+    
     const { id: metricId } = await params
     const body = await request.json()
     const { timeRange, filters, customQuery } = body
