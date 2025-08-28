@@ -48,7 +48,7 @@ export function DashboardToolbar({
 }: DashboardToolbarProps) {
   return (
     <div 
-      className="h-12 border-b border-slate-200 pr-4 flex items-center justify-between flex-shrink-0 bg-white z-50"
+      className="h-12 border-b border-slate-200 pr-4 flex items-center justify-between flex-shrink-0 bg-white z-10"
       style={{
         paddingLeft: (() => {
           let padding = 16
