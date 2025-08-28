@@ -68,15 +68,6 @@ export async function GET(
         console.log('Available config keys:', Object.keys(config))
       }
 
-      // 调试：打印连接信息（不包括密码）
-      console.log('Attempting to connect to MySQL with config:', {
-        host: config.host || config.hostname || 'localhost',
-        user: config.username || config.user || 'root',
-        database: config.database,
-        port: config.port || 3306,
-        hasPassword: !!config.password
-      })
-
       // 验证必要的连接信息
       if (!config.host && !config.hostname) {
         throw new Error('缺少数据库主机地址配置')
