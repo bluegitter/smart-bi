@@ -82,13 +82,28 @@ export async function POST(
       // 实际查询数据库获取表结构
       try {
         const mysql = await import('mysql2/promise')
-        const connection = await mysql.createConnection({
+        
+        // 准备连接配置
+        const connectionConfig = {
           host: config.host || config.hostname || 'localhost',
           user: config.username || config.user || 'root',
           password: config.password || '',
           database: config.database,
-          port: config.port || 3306
+          port: config.port || 3306,
+          connectTimeout: 10000, // 10秒连接超时
+          acquireTimeout: 10000, // 10秒获取连接超时
+          timeout: 20000 // 20秒查询超时
+        }
+        
+        console.log('尝试连接MySQL数据库:', {
+          host: connectionConfig.host,
+          port: connectionConfig.port,
+          user: connectionConfig.user,
+          database: connectionConfig.database,
+          hasPassword: !!connectionConfig.password
         })
+        
+        const connection = await mysql.createConnection(connectionConfig)
 
           // 获取所有表和视图的名称和注释
           const [tablesResult] = await connection.execute(`
@@ -141,9 +156,40 @@ export async function POST(
           }
 
         await connection.end()
-      } catch (queryError) {
+      } catch (queryError: any) {
         console.error('MySQL query failed:', queryError)
-        throw new Error(`数据库查询失败: ${queryError instanceof Error ? queryError.message : '未知错误'}`)
+        
+        // 提供更详细的错误信息
+        let errorMessage = '数据库连接失败'
+        
+        if (queryError.code) {
+          switch (queryError.code) {
+            case 'ECONNREFUSED':
+              errorMessage = `无法连接到数据库服务器 (${config.host || 'localhost'}:${config.port || 3306})，请检查：
+1. 数据库服务是否正在运行
+2. 主机地址和端口是否正确
+3. 防火墙是否允许连接`
+              break
+            case 'ENOTFOUND':
+              errorMessage = `找不到数据库主机 "${config.host || 'localhost'}"，请检查主机地址是否正确`
+              break
+            case 'ER_ACCESS_DENIED_ERROR':
+              errorMessage = `数据库认证失败，请检查用户名和密码是否正确`
+              break
+            case 'ER_BAD_DB_ERROR':
+              errorMessage = `数据库 "${config.database}" 不存在`
+              break
+            case 'ETIMEDOUT':
+              errorMessage = `连接数据库超时，请检查网络连接和防火墙设置`
+              break
+            default:
+              errorMessage = `数据库连接错误 (${queryError.code}): ${queryError.message}`
+          }
+        } else if (queryError.message) {
+          errorMessage = queryError.message
+        }
+        
+        throw new Error(errorMessage)
       }
     }
     

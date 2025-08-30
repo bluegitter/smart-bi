@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { 
   User, 
   Bell, 
@@ -25,8 +26,17 @@ import { UserManagementPanel } from '@/components/settings/UserManagementPanel'
 
 export default function SettingsPage() {
   const { user } = useAuth()
+  const searchParams = useSearchParams()
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('profile')
+
+  // 根据URL参数设置默认的活动标签页
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
 
   const [settings, setSettings] = useState({
     profile: {

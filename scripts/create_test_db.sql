@@ -5,38 +5,38 @@ USE smart_bi_test;
 
 -- 创建销售数据表
 CREATE TABLE IF NOT EXISTS sales_data (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    date DATE NOT NULL,
-    product_name VARCHAR(100) NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    region VARCHAR(50) NOT NULL,
-    sales_amount DECIMAL(10,2) NOT NULL,
-    quantity INT NOT NULL,
-    customer_count INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID，自增',
+    date DATE NOT NULL COMMENT '销售日期',
+    product_name VARCHAR(100) NOT NULL COMMENT '产品名称',
+    category VARCHAR(50) NOT NULL COMMENT '产品类别',
+    region VARCHAR(50) NOT NULL COMMENT '销售区域',
+    sales_amount DECIMAL(10,2) NOT NULL COMMENT '销售金额（元）',
+    quantity INT NOT NULL COMMENT '销售数量',
+    customer_count INT NOT NULL COMMENT '购买客户数',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间'
+) COMMENT='销售数据表，记录每日各产品的销售情况';
 
 -- 创建用户行为数据表
 CREATE TABLE IF NOT EXISTS user_behavior (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id VARCHAR(50) NOT NULL,
-    action_type VARCHAR(50) NOT NULL,
-    page_url VARCHAR(200),
-    duration_seconds INT,
-    device_type VARCHAR(20),
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID，自增',
+    user_id VARCHAR(50) NOT NULL COMMENT '用户唯一标识',
+    action_type VARCHAR(50) NOT NULL COMMENT '行为类型（如page_view、click、search等）',
+    page_url VARCHAR(200) COMMENT '访问的页面URL',
+    duration_seconds INT COMMENT '停留时长（秒）',
+    device_type VARCHAR(20) COMMENT '设备类型（desktop、mobile、tablet）',
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '行为发生时间'
+) COMMENT='用户行为数据表，记录用户在网站的各种操作行为';
 
 -- 创建财务数据表
 CREATE TABLE IF NOT EXISTS financial_data (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    date DATE NOT NULL,
-    revenue DECIMAL(12,2) NOT NULL,
-    cost DECIMAL(12,2) NOT NULL,
-    profit DECIMAL(12,2) NOT NULL,
-    department VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    id INT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID，自增',
+    date DATE NOT NULL COMMENT '财务数据日期',
+    revenue DECIMAL(12,2) NOT NULL COMMENT '营收金额（元）',
+    cost DECIMAL(12,2) NOT NULL COMMENT '成本金额（元）',
+    profit DECIMAL(12,2) NOT NULL COMMENT '利润金额（元）',
+    department VARCHAR(50) NOT NULL COMMENT '所属部门',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间'
+) COMMENT='财务数据表，记录各部门的日常财务收支情况';
 
 -- 插入销售测试数据
 INSERT INTO sales_data (date, product_name, category, region, sales_amount, quantity, customer_count) VALUES

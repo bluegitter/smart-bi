@@ -222,6 +222,7 @@ export interface CreateDatasetRequest {
   category: string
   tags?: string[]
   cacheConfig?: Dataset['cacheConfig']
+  fields?: DatasetField[] // 允许前端传递字段定义
 }
 
 export interface UpdateDatasetRequest extends Partial<CreateDatasetRequest> {

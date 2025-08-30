@@ -40,15 +40,16 @@ export class DatasetService {
       ...request,
       userId,
       status: 'active', // 确保状态为active
-      fields: [{
+      // 使用前端传递的字段，如果没有则使用临时字段
+      fields: request.fields && request.fields.length > 0 ? request.fields : [{
         name: 'temp',
         displayName: '临时字段',
         type: 'string',
         fieldType: 'dimension',
         isNullable: true
-      }], // 临时字段，后续通过分析替换
+      }],
       metadata: {
-        columns: 1, // 临时设为1，避免验证错误
+        columns: request.fields ? request.fields.length : 1,
         recordCount: 0
       },
       permissions: [{
@@ -303,6 +304,14 @@ export class DatasetService {
     
     return queryCache.getOrSet(cacheKey, async () => {
       const dataset = await this.getDataset(userId, datasetId)
+      console.log('🔍 预览数据集:', dataset.name, 'ID:', datasetId)
+      console.log('🔍 数据集配置:', {
+        type: dataset.type,
+        tableConfig: dataset.tableConfig,
+        sqlConfig: dataset.sqlConfig,
+        fieldsCount: dataset.fields?.length
+      })
+      
       const startTime = Date.now()
       
       try {
@@ -313,18 +322,18 @@ export class DatasetService {
           const tableName = dataset.tableConfig.schema 
             ? `${dataset.tableConfig.schema}.${dataset.tableConfig.tableName}`
             : dataset.tableConfig.tableName
-          query = `SELECT * FROM ${tableName} LIMIT ?`
-          params = [limit]
+          query = `SELECT * FROM ${tableName} LIMIT ${limit}`
+          params = []
         } else if (dataset.type === 'sql' && dataset.sqlConfig) {
           // 包装用户SQL以限制返回行数
-          query = `SELECT * FROM (${dataset.sqlConfig.sql}) AS subquery LIMIT ?`
-          params = [limit]
+          query = `SELECT * FROM (${dataset.sqlConfig.sql}) AS subquery LIMIT ${limit}`
+          params = []
         } else if (dataset.type === 'view' && dataset.viewConfig) {
           // 基于父数据集构建查询
           const baseDataset = await this.getDataset(userId, dataset.viewConfig.baseDatasetId)
           // 这里需要根据过滤条件构建查询 - 简化实现
-          query = `SELECT * FROM (${this.buildViewQuery(baseDataset, dataset.viewConfig)}) AS view_query LIMIT ?`
-          params = [limit]
+          query = `SELECT * FROM (${this.buildViewQuery(baseDataset, dataset.viewConfig)}) AS view_query LIMIT ${limit}`
+          params = []
         } else {
           throw new Error('不支持的数据集类型')
         }
@@ -351,7 +360,15 @@ export class DatasetService {
         } as any
         
         // 执行查询
+        console.log('🔍 执行预览查询:', query)
+        console.log('🔍 查询参数:', params)
+        
         const result = await executeQuery(datasource.config, query, params)
+        console.log('🔍 查询结果:', {
+          dataLength: result.data?.length,
+          columnsLength: result.columns?.length,
+          total: result.total
+        })
         
         return {
           columns: dataset.fields,

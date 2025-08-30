@@ -180,7 +180,7 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => window.open('/settings', '_blank')}
+              onClick={() => window.open('/settings?tab=llm', '_blank')}
               className="text-slate-500 hover:text-slate-700 hover:bg-slate-100/60 rounded-lg transition-colors"
               title="配置LLM"
             >
@@ -211,7 +211,7 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
                 要使用AI问答功能，请先配置至少一个大语言模型。支持OpenAI、智谱AI、月之暗面、DeepSeek等多种提供商。
               </p>
               <Button 
-                onClick={() => window.open('/settings', '_blank')}
+                onClick={() => window.open('/settings?tab=llm', '_blank')}
                 className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
               >
                 <Settings className="h-4 w-4" />

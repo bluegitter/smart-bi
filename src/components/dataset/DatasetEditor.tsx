@@ -63,6 +63,12 @@ export function DatasetEditor({
   const { dataSources, loading: dataSourcesLoading } = useDataSources()
   const { dataset, loading, error, save, preview, refresh } = useDataset(datasetId)
   
+  // 内部模式状态，允许从创建模式切换到编辑模式
+  const [currentMode, setCurrentMode] = React.useState(mode)
+  
+  
+  
+  
   // 编辑器状态
   const [datasetType, setDatasetType] = React.useState<DatasetType>(initialType || 'table')
   const [selectedDataSource, setSelectedDataSource] = React.useState<string>(initialDataSource || '')
@@ -160,9 +166,11 @@ export function DatasetEditor({
   // 初始化数据 - 只有在数据集ID改变或刚保存后才重新初始化
   React.useEffect(() => {
     const currentDatasetId = dataset?.id || dataset?._id || ''
-    const shouldInitialize = dataset && mode !== 'create' && (
-      currentDatasetId !== lastDatasetId || // 数据集ID改变了
-      justSaved // 或者刚保存完毕
+    // 避免在刚从创建模式切换到编辑模式时重新初始化
+    const isJustCreated = currentMode === 'edit' && justSaved && lastDatasetId === ''
+    const shouldInitialize = dataset && currentMode !== 'create' && (
+      currentDatasetId !== lastDatasetId && // 数据集ID改变了
+      !isJustCreated // 并且不是刚从创建模式切换过来的
     )
     
     if (shouldInitialize) {
@@ -172,7 +180,12 @@ export function DatasetEditor({
       setDatasetDisplayName(dataset.displayName)
       setDatasetDescription(dataset.description || '')
       setDatasetCategory(dataset.category)
-      setFields(dataset.fields || [])
+      
+      // 只有在非刚创建的情况下才更新字段，避免覆盖用户编辑的字段
+      if (!isJustCreated) {
+        setFields(dataset.fields || [])
+      }
+      
       setLastDatasetId(currentDatasetId)
       
       
@@ -195,8 +208,12 @@ export function DatasetEditor({
     // 如果刚保存完，重置标记
     if (justSaved) {
       setJustSaved(false)
+      // 如果是刚创建的，需要更新lastDatasetId以避免下次不必要的初始化
+      if (isJustCreated && currentDatasetId) {
+        setLastDatasetId(currentDatasetId)
+      }
     }
-  }, [dataset, mode, justSaved, lastDatasetId])
+  }, [dataset, currentMode, justSaved, lastDatasetId])
 
   // 处理预览
   const handlePreview = React.useCallback(async () => {
@@ -205,7 +222,7 @@ export function DatasetEditor({
     
     try {
       // 如果是编辑模式且有datasetId，获取真实预览数据
-      if (mode === 'edit' && datasetId) {
+      if (currentMode === 'edit' && datasetId) {
         const previewResult = await preview(datasetId)
         if (previewResult && previewResult.rows && previewResult.rows.length > 0) {
           setPreviewData(previewResult.rows)
@@ -214,7 +231,53 @@ export function DatasetEditor({
         }
       }
       
-      // 否则生成模拟预览数据
+      // 对于创建模式，如果已选择数据表，也尝试获取真实预览数据
+      if (currentMode === 'create' && datasetType === 'table' && selectedDataSource && selectedTable) {
+        console.log('🔄 尝试获取真实预览数据', {
+          currentMode,
+          datasetType, 
+          selectedDataSource,
+          selectedTable,
+          selectedSchema
+        })
+        
+        try {
+          // 调用API获取数据表预览
+          const response = await fetch('/api/datasets/preview-table', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders()
+            },
+            body: JSON.stringify({
+              datasourceId: selectedDataSource,
+              schema: selectedSchema,
+              tableName: selectedTable,
+              limit: 100
+            })
+          })
+          
+          console.log('📡 预览API响应状态:', response.status)
+          
+          if (response.ok) {
+            const previewResult = await response.json()
+            console.log('✅ 获取到真实预览数据:', previewResult)
+            
+            if (previewResult.rows && previewResult.rows.length > 0) {
+              setPreviewData(previewResult.rows)
+              setPreviewLoading(false)
+              return
+            }
+          } else {
+            const errorText = await response.text()
+            console.error('❌ 预览API返回错误:', response.status, errorText)
+          }
+        } catch (error) {
+          console.error('❌ 获取真实预览数据失败:', error)
+        }
+      }
+      
+      // 最后生成模拟预览数据
       if (fields.length > 0) {
         // 根据字段生成模拟预览数据
         const sampleData = Array.from({ length: 20 }, (_, i) => {
@@ -253,19 +316,19 @@ export function DatasetEditor({
       setPreviewError(error instanceof Error ? error.message : '预览失败')
       setPreviewLoading(false)
     }
-  }, [mode, datasetId, preview, fields])
+  }, [currentMode, datasetId, preview, fields])
 
   // 在编辑模式下自动加载预览数据
   React.useEffect(() => {
-    if (mode === 'edit' && dataset && !loading && fields.length > 0 && previewData.length === 0) {
+    if (currentMode === 'edit' && dataset && !loading && fields.length > 0 && previewData.length === 0) {
       handlePreview()
     }
-  }, [mode, dataset?.id, loading, fields.length, previewData.length])
+  }, [currentMode, dataset?.id, loading, fields.length, previewData.length])
 
 
   // 监听变化，标记未保存状态
   React.useEffect(() => {
-    if (mode === 'view') return
+    if (currentMode === 'view') return
     
     if (dataset) {
       const hasChanges = (
@@ -276,10 +339,10 @@ export function DatasetEditor({
         JSON.stringify(fields) !== JSON.stringify(dataset.fields || [])
       )
       setHasUnsavedChanges(hasChanges)
-    } else if (mode === 'create') {
+    } else if (currentMode === 'create') {
       setHasUnsavedChanges(datasetName.trim() !== '' || fields.length > 0)
     }
-  }, [dataset, datasetName, datasetDisplayName, datasetDescription, datasetCategory, fields, mode])
+  }, [dataset, datasetName, datasetDisplayName, datasetDescription, datasetCategory, fields, currentMode])
 
   // 自动分析表字段
   const analyzeTableFields = async (datasourceId: string, schema: string, tableName: string) => {
@@ -413,14 +476,30 @@ export function DatasetEditor({
 
   // 创建模式下，在表选择完成后自动填充显示名称
   React.useEffect(() => {
-    if (mode === 'create' && selectedDataSource && selectedTable && datasetType === 'table' && !datasetDisplayName) {
+    if (currentMode === 'create' && selectedDataSource && selectedTable && datasetType === 'table' && !datasetDisplayName) {
       analyzeTableForDisplayName(selectedDataSource, selectedSchema, selectedTable)
     }
-  }, [mode, selectedDataSource, selectedSchema, selectedTable, datasetType, datasetDisplayName])
+  }, [currentMode, selectedDataSource, selectedSchema, selectedTable, datasetType, datasetDisplayName])
 
   // 处理保存
-  const handleSave = async () => {
+  const [isSaving, setIsSaving] = React.useState(false)
+  
+  
+  const handleSave = async (e?: React.MouseEvent) => {
+    // 阻止所有可能的默认行为和事件冒泡
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    
+    // 防止重复提交
+    if (isSaving) {
+      return
+    }
+    
     try {
+      setIsSaving(true)
+      
       const datasetData = {
         name: datasetName,
         displayName: datasetDisplayName,
@@ -444,17 +523,23 @@ export function DatasetEditor({
         })
       }
       
-      
-      setJustSaved(true) // 设置刚保存标记，防止重新加载覆盖本地状态
-      setIsUserEditing(false) // 保存后重置用户编辑状态
-      await save(datasetData)
+      const savedDataset = await save(datasetData)
       setHasUnsavedChanges(false)
       
-      if (mode === 'create') {
-        router.push('/datasets')
+      // 首次创建后留在编辑器中，不跳转到列表页
+      if (currentMode === 'create' && savedDataset?.id) {
+        setJustSaved(true)
+        setIsUserEditing(false)
+        setCurrentMode('edit')
+      } else {
+        setJustSaved(true)
+        setIsUserEditing(false)
       }
+      
     } catch (error) {
       console.error('保存失败:', error)
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -638,7 +723,7 @@ export function DatasetEditor({
             </div>
             <div>
               <h1 className="font-semibold text-gray-900">
-                {mode === 'create' ? '新建数据集' : dataset?.displayName || '数据集编辑'}
+                {currentMode === 'create' ? '新建数据集' : dataset?.displayName || '数据集编辑'}
                 {hasUnsavedChanges && <span className="text-orange-500 ml-1">*</span>}
               </h1>
               {dataset && (
@@ -663,18 +748,18 @@ export function DatasetEditor({
             预览数据
           </Button>
           
-          {mode !== 'view' && (
+          {currentMode !== 'view' && (
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={!hasUnsavedChanges}
+              disabled={!hasUnsavedChanges || isSaving}
               className={cn(
                 "bg-blue-600 hover:bg-blue-700 text-white shadow-md",
-                !hasUnsavedChanges && "opacity-50"
+                (!hasUnsavedChanges || isSaving) && "opacity-50"
               )}
             >
-              <Save className="h-4 w-4 mr-2" />
-              保存更改
+              <Save className={cn("h-4 w-4 mr-2", isSaving && "animate-spin")} />
+              {isSaving ? '保存中...' : '保存更改'}
             </Button>
           )}
         </div>
@@ -714,7 +799,7 @@ export function DatasetEditor({
                       value={datasetName}
                       onChange={(e) => setDatasetName(e.target.value)}
                       placeholder="数据集名称"
-                      disabled={mode === 'view'}
+                      disabled={currentMode === 'view'}
                       className="h-8 text-sm"
                     />
                   </div>
@@ -724,7 +809,7 @@ export function DatasetEditor({
                       value={datasetDisplayName}
                       onChange={(e) => setDatasetDisplayName(e.target.value)}
                       placeholder="显示名称"
-                      disabled={mode === 'view'}
+                      disabled={currentMode === 'view'}
                       className="h-8 text-sm"
                     />
                   </div>
@@ -735,7 +820,7 @@ export function DatasetEditor({
                     value={datasetDescription}
                     onChange={(e) => setDatasetDescription(e.target.value)}
                     placeholder="数据集描述"
-                    disabled={mode === 'view'}
+                    disabled={currentMode === 'view'}
                     className="h-8 text-sm"
                   />
                 </div>
@@ -745,7 +830,7 @@ export function DatasetEditor({
                     value={datasetCategory}
                     onChange={(e) => setDatasetCategory(e.target.value)}
                     placeholder="分类名称"
-                    disabled={mode === 'view'}
+                    disabled={currentMode === 'view'}
                     className="h-8 text-sm"
                   />
                 </div>
@@ -789,7 +874,7 @@ export function DatasetEditor({
                       variant={datasetType === 'table' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setDatasetType('table')}
-                      disabled={mode === 'view'}
+                      disabled={currentMode === 'view'}
                       className="h-7 text-xs flex-1"
                     >
                       <Table className="h-3 w-3 mr-1" />
@@ -799,7 +884,7 @@ export function DatasetEditor({
                       variant={datasetType === 'sql' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setDatasetType('sql')}
-                      disabled={mode === 'view'}
+                      disabled={currentMode === 'view'}
                       className="h-7 text-xs flex-1"
                     >
                       <Database className="h-3 w-3 mr-1" />
@@ -817,7 +902,7 @@ export function DatasetEditor({
                     onDataSourceChange={setSelectedDataSource}
                     onSchemaChange={setSelectedSchema}
                     onTableChange={(tableName) => setSelectedTable(tableName)}
-                    disabled={mode === 'view'}
+                    disabled={currentMode === 'view'}
                   />
                 )}
                 
@@ -835,7 +920,7 @@ export function DatasetEditor({
                       value={selectedDataSource}
                       onValueChange={setSelectedDataSource}
                       placeholder="选择数据源"
-                      disabled={mode === 'view'}
+                      disabled={currentMode === 'view'}
                       compact={true}
                     />
                   </div>
@@ -862,7 +947,7 @@ export function DatasetEditor({
                     variant="ghost"
                     size="sm"
                     onClick={handleAddNewField}
-                    disabled={mode === 'view'}
+                    disabled={currentMode === 'view'}
                     className="h-8 px-2 text-xs hover:bg-purple-50 text-purple-700"
                     title="新增字段"
                   >
@@ -980,7 +1065,7 @@ export function DatasetEditor({
                     <p className="text-gray-600 mb-6 text-sm leading-relaxed">
                       {fieldSearchQuery ? '尝试调整搜索条件，或者清空搜索查看所有字段' : '开始添加维度和度量字段来构建您的数据集'}
                     </p>
-                    {!fieldSearchQuery && mode !== 'view' && (
+                    {!fieldSearchQuery && currentMode !== 'view' && (
                       <Button 
                         onClick={handleAddNewField}
                         className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg"
@@ -1038,7 +1123,7 @@ export function DatasetEditor({
                             <button
                               className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
                               onClick={() => handleFieldVisibilityToggle(field.name)}
-                              disabled={mode === 'view'}
+                              disabled={currentMode === 'view'}
                               title={field.hidden ? "显示字段" : "隐藏字段"}
                             >
                               {field.hidden ? (
@@ -1081,7 +1166,7 @@ export function DatasetEditor({
                           </div>
 
                           {/* 操作按钮 */}
-                          {mode !== 'view' && (
+                          {currentMode !== 'view' && (
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                               <FieldTypeSelector
                                 field={field}
@@ -1143,7 +1228,7 @@ export function DatasetEditor({
                             <button
                               className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
                               onClick={() => handleFieldVisibilityToggle(field.name)}
-                              disabled={mode === 'view'}
+                              disabled={currentMode === 'view'}
                               title={field.hidden ? "显示字段" : "隐藏字段"}
                             >
                               {field.hidden ? (
@@ -1185,7 +1270,7 @@ export function DatasetEditor({
                           </div>
 
                           {/* 操作按钮 */}
-                          {mode !== 'view' && (
+                          {currentMode !== 'view' && (
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                               <FieldTypeSelector
                                 field={field}
@@ -1247,7 +1332,7 @@ export function DatasetEditor({
                             <button
                               className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
                               onClick={() => handleFieldVisibilityToggle(field.name)}
-                              disabled={mode === 'view'}
+                              disabled={currentMode === 'view'}
                               title={field.hidden ? "显示字段" : "隐藏字段"}
                             >
                               {field.hidden ? (
@@ -1292,7 +1377,7 @@ export function DatasetEditor({
                           </div>
 
                           {/* 操作按钮 */}
-                          {mode !== 'view' && (
+                          {currentMode !== 'view' && (
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                               <FieldTypeSelector
                                 field={field}
@@ -1361,7 +1446,7 @@ export function DatasetEditor({
 SELECT column1, column2 
 FROM your_table 
 WHERE condition = 'value';"
-                    disabled={mode === 'view'}
+                    disabled={currentMode === 'view'}
                   />
                 </div>
               </div>

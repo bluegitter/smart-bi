@@ -50,7 +50,12 @@ async function performInitialization(): Promise<void> {
           await UserService.createUser(userData)
           console.log(`✅ 创建默认用户: ${userData.email}`)
         } catch (error: any) {
-          if (error.message !== '邮箱已被注册') {
+          // 检查是否是邮箱已存在的错误（自定义错误或 MongoDB 重复键错误）
+          const isDuplicateError = 
+            error.message === '邮箱已被注册' || 
+            (error.code === 11000 && error.keyPattern?.email)
+          
+          if (!isDuplicateError) {
             console.error(`❌ 创建用户失败 ${userData.email}:`, error)
           }
         }

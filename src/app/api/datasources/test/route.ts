@@ -17,124 +17,219 @@ const testConnectionSchema = z.object({
   })
 })
 
-// 模拟测试连接函数
+// 真实测试连接函数
 async function testDatabaseConnection(type: string, config: any) {
-  // 这里应该实现真实的数据库连接测试
-  // 为了演示，我们返回模拟结果
-  
-  await new Promise(resolve => setTimeout(resolve, 1000)) // 模拟连接延迟
-  
   switch (type) {
     case 'mysql':
+      return await testMySQLConnection(config)
     case 'postgresql':
-      if (!config.host || !config.database) {
-        throw new Error('缺少必要的连接参数')
-      }
-      return {
-        success: true,
-        message: '数据库连接成功',
-        schema: {
-          tables: [
-            {
-              name: 'users',
-              columns: [
-                { name: 'id', type: 'int', nullable: false },
-                { name: 'name', type: 'varchar', nullable: false },
-                { name: 'email', type: 'varchar', nullable: true },
-                { name: 'created_at', type: 'timestamp', nullable: false }
-              ]
-            },
-            {
-              name: 'orders',
-              columns: [
-                { name: 'id', type: 'int', nullable: false },
-                { name: 'user_id', type: 'int', nullable: false },
-                { name: 'amount', type: 'decimal', nullable: false },
-                { name: 'status', type: 'varchar', nullable: false },
-                { name: 'created_at', type: 'timestamp', nullable: false }
-              ]
-            }
-          ]
-        }
-      }
-    
+      return await testPostgreSQLConnection(config)
     case 'mongodb':
-      if (!config.host || !config.database) {
-        throw new Error('缺少必要的连接参数')
-      }
-      return {
-        success: true,
-        message: 'MongoDB连接成功',
-        schema: {
-          tables: [
-            {
-              name: 'users',
-              columns: [
-                { name: '_id', type: 'ObjectId', nullable: false },
-                { name: 'name', type: 'String', nullable: false },
-                { name: 'email', type: 'String', nullable: true },
-                { name: 'createdAt', type: 'Date', nullable: false }
-              ]
-            },
-            {
-              name: 'orders',
-              columns: [
-                { name: '_id', type: 'ObjectId', nullable: false },
-                { name: 'userId', type: 'ObjectId', nullable: false },
-                { name: 'amount', type: 'Number', nullable: false },
-                { name: 'status', type: 'String', nullable: false },
-                { name: 'createdAt', type: 'Date', nullable: false }
-              ]
-            }
-          ]
-        }
-      }
-    
+      return await testMongoDBConnection(config)
     case 'api':
-      if (!config.apiUrl) {
-        throw new Error('缺少API URL')
-      }
-      // 模拟API测试
-      return {
-        success: true,
-        message: 'API连接成功',
-        schema: {
-          tables: [
-            {
-              name: 'api_data',
-              columns: [
-                { name: 'id', type: 'string', nullable: false },
-                { name: 'data', type: 'object', nullable: false },
-                { name: 'timestamp', type: 'string', nullable: false }
-              ]
-            }
-          ]
-        }
-      }
-    
+      return await testAPIConnection(config)
     case 'csv':
-      if (!config.filePath) {
-        throw new Error('缺少文件路径')
-      }
-      return {
-        success: true,
-        message: 'CSV文件读取成功',
-        schema: {
-          tables: [
-            {
-              name: 'csv_data',
-              columns: [
-                { name: 'column1', type: 'string', nullable: true },
-                { name: 'column2', type: 'string', nullable: true },
-                { name: 'column3', type: 'number', nullable: true }
-              ]
-            }
-          ]
-        }
-      }
-    
+      return await testCSVConnection(config)
     default:
       throw new Error('不支持的数据源类型')
+  }
+}
+
+// MySQL连接测试
+async function testMySQLConnection(config: any) {
+  if (!config.host || !config.database) {
+    throw new Error('缺少必要的连接参数：主机地址和数据库名称')
+  }
+  
+  if (!config.username) {
+    throw new Error('缺少必要的连接参数：用户名')
+  }
+
+  try {
+    const mysql = await import('mysql2/promise')
+    
+    const connectionConfig = {
+      host: config.host,
+      user: config.username,
+      password: config.password || '',
+      database: config.database,
+      port: config.port || 3306,
+      connectTimeout: 5000, // 5秒连接超时
+    }
+    
+    // 尝试建立连接
+    const connection = await mysql.createConnection(connectionConfig)
+    
+    // 测试简单查询
+    await connection.execute('SELECT 1 as test')
+    
+    // 获取数据库中的表数量（可选）
+    const [tables] = await connection.execute(`
+      SELECT COUNT(*) as table_count
+      FROM information_schema.TABLES 
+      WHERE TABLE_SCHEMA = ?
+    `, [config.database])
+    
+    const tableCount = (tables as any[])[0]?.table_count || 0
+    
+    await connection.end()
+    
+    return {
+      success: true,
+      message: `MySQL连接成功，数据库 "${config.database}" 包含 ${tableCount} 个表`,
+      details: {
+        host: config.host,
+        port: config.port || 3306,
+        database: config.database,
+        tableCount
+      }
+    }
+  } catch (error: any) {
+    console.error('MySQL connection test failed:', error)
+    
+    let errorMessage = 'MySQL连接失败'
+    
+    if (error.code) {
+      switch (error.code) {
+        case 'ECONNREFUSED':
+          errorMessage = `无法连接到MySQL服务器 (${config.host}:${config.port || 3306})，请检查服务器是否运行`
+          break
+        case 'ENOTFOUND':
+          errorMessage = `找不到MySQL主机 "${config.host}"，请检查主机地址`
+          break
+        case 'ER_ACCESS_DENIED_ERROR':
+          errorMessage = `MySQL认证失败，请检查用户名"${config.username}"和密码是否正确`
+          break
+        case 'ER_BAD_DB_ERROR':
+          errorMessage = `MySQL数据库 "${config.database}" 不存在`
+          break
+        case 'ETIMEDOUT':
+          errorMessage = `连接MySQL超时，请检查网络连接`
+          break
+        default:
+          errorMessage = `MySQL连接错误 (${error.code}): ${error.message}`
+      }
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    throw new Error(errorMessage)
+  }
+}
+
+// PostgreSQL连接测试
+async function testPostgreSQLConnection(config: any) {
+  if (!config.host || !config.database) {
+    throw new Error('缺少必要的连接参数')
+  }
+  
+  // 这里可以实现真实的PostgreSQL连接测试
+  // 目前返回模拟结果
+  return {
+    success: true,
+    message: 'PostgreSQL连接测试（模拟）',
+    details: { note: '需要实现真实的PostgreSQL连接测试' }
+  }
+}
+
+// MongoDB连接测试  
+async function testMongoDBConnection(config: any) {
+  if (!config.host || !config.database) {
+    throw new Error('缺少必要的连接参数')
+  }
+  
+  // 这里可以实现真实的MongoDB连接测试
+  // 目前返回模拟结果
+  return {
+    success: true,
+    message: 'MongoDB连接测试（模拟）',
+    details: { note: '需要实现真实的MongoDB连接测试' }
+  }
+}
+
+// API连接测试
+async function testAPIConnection(config: any) {
+  if (!config.apiUrl) {
+    throw new Error('缺少API URL')
+  }
+  
+  try {
+    const response = await fetch(config.apiUrl, {
+      method: 'GET',
+      headers: config.headers || {},
+      signal: AbortSignal.timeout(10000) // 10秒超时
+    })
+    
+    if (!response.ok) {
+      throw new Error(`API请求失败: ${response.status} ${response.statusText}`)
+    }
+    
+    return {
+      success: true,
+      message: `API连接成功，状态码: ${response.status}`,
+      details: {
+        url: config.apiUrl,
+        status: response.status,
+        statusText: response.statusText
+      }
+    }
+  } catch (error: any) {
+    console.error('API connection test failed:', error)
+    
+    let errorMessage = 'API连接失败'
+    
+    if (error.name === 'AbortError') {
+      errorMessage = 'API请求超时'
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    throw new Error(errorMessage)
+  }
+}
+
+// CSV连接测试
+async function testCSVConnection(config: any) {
+  if (!config.filePath) {
+    throw new Error('缺少文件路径')
+  }
+  
+  try {
+    const fs = await import('fs/promises')
+    
+    // 检查文件是否存在
+    await fs.access(config.filePath)
+    
+    // 读取文件的前几行来验证
+    const content = await fs.readFile(config.filePath, 'utf-8')
+    const lines = content.split('\n').slice(0, 5) // 只读前5行
+    
+    if (lines.length === 0) {
+      throw new Error('CSV文件为空')
+    }
+    
+    return {
+      success: true,
+      message: `CSV文件读取成功，包含 ${lines.length} 行数据（预览）`,
+      details: {
+        filePath: config.filePath,
+        previewLines: lines.length
+      }
+    }
+  } catch (error: any) {
+    console.error('CSV connection test failed:', error)
+    
+    let errorMessage = 'CSV文件读取失败'
+    
+    if (error.code === 'ENOENT') {
+      errorMessage = `找不到CSV文件: ${config.filePath}`
+    } else if (error.code === 'EACCES') {
+      errorMessage = `没有权限读取CSV文件: ${config.filePath}`
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    throw new Error(errorMessage)
   }
 }
 

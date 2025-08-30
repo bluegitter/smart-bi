@@ -107,7 +107,8 @@ export default function DataSourcesPage() {
       }
     } catch (err) {
       console.error('Connection test failed:', err)
-      showError('连接测试失败', '网络错误或服务异常')
+      const errorMessage = err instanceof Error ? err.message : '网络错误或服务异常'
+      showError('连接测试失败', errorMessage)
     } finally {
       setTestingConnections(prev => {
         const newSet = new Set(prev)

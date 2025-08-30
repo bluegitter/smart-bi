@@ -208,12 +208,19 @@ export function useDataSources() {
       body: JSON.stringify(data)
     })
 
+    const result = await response.json()
+
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || 'Connection test failed')
+      // 如果API返回了错误，直接抛出错误消息
+      throw new Error(result.error || 'Connection test failed')
     }
 
-    return response.json()
+    // 检查返回的结果是否表示失败
+    if (result.success === false) {
+      throw new Error(result.error || result.message || 'Connection test failed')
+    }
+
+    return result
   }
 
   // 初始加载

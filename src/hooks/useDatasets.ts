@@ -20,7 +20,16 @@ export function useDatasets() {
     types: [] as string[]
   })
 
+  // 防重复请求
+  const requestInProgress = useRef<boolean>(false)
+
   const searchDatasets = useCallback(async (params: DatasetSearchParams = {}) => {
+    // 防止重复请求
+    if (requestInProgress.current) {
+      return
+    }
+    
+    requestInProgress.current = true
     setLoading(true)
     setError(null)
 
@@ -48,6 +57,7 @@ export function useDatasets() {
       setError(error instanceof Error ? error.message : '获取数据集列表失败')
     } finally {
       setLoading(false)
+      requestInProgress.current = false
     }
   }, [])
 
@@ -118,7 +128,16 @@ export function useDataset(datasetId?: string) {
     }
   }, [])
 
+  // 保存防重复请求
+  const saveInProgress = useRef<boolean>(false)
+
   const save = useCallback(async (datasetData: any) => {
+    // 防止重复保存
+    if (saveInProgress.current) {
+      return dataset
+    }
+
+    saveInProgress.current = true
     setLoading(true)
     setError(null)
 
@@ -149,8 +168,9 @@ export function useDataset(datasetId?: string) {
       throw error
     } finally {
       setLoading(false)
+      saveInProgress.current = false
     }
-  }, [datasetId])
+  }, [datasetId, dataset])
 
   const preview = useCallback(async (id: string, limit: number = 100) => {
     try {
