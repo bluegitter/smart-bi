@@ -145,13 +145,41 @@ export async function PUT(
       }
     }
 
+    // 构建更新对象，支持部分更新
+    const updateData: any = {
+      updatedAt: new Date()
+    }
+
+    // 只更新提供的字段
+    if (data.name !== undefined) updateData.name = data.name
+    if (data.displayName !== undefined) updateData.displayName = data.displayName
+    if (data.provider !== undefined) updateData.provider = data.provider
+    if (data.description !== undefined) updateData.description = data.description
+    if (data.tags !== undefined) updateData.tags = data.tags
+    if (data.isActive !== undefined) updateData.isActive = data.isActive
+    if (data.isDefault !== undefined) updateData.isDefault = data.isDefault
+    if (data.capabilities !== undefined) updateData.capabilities = data.capabilities
+    if (data.limits !== undefined) updateData.limits = data.limits
+
+    // 处理config对象的部分更新
+    if (data.config) {
+      const configUpdate: any = {}
+      if (data.config.apiKey !== undefined) configUpdate['config.apiKey'] = data.config.apiKey
+      if (data.config.apiUrl !== undefined) configUpdate['config.apiUrl'] = data.config.apiUrl
+      if (data.config.model !== undefined) configUpdate['config.model'] = data.config.model
+      if (data.config.temperature !== undefined) configUpdate['config.temperature'] = data.config.temperature
+      if (data.config.maxTokens !== undefined) configUpdate['config.maxTokens'] = data.config.maxTokens
+      if (data.config.topP !== undefined) configUpdate['config.topP'] = data.config.topP
+      if (data.config.frequencyPenalty !== undefined) configUpdate['config.frequencyPenalty'] = data.config.frequencyPenalty
+      if (data.config.presencePenalty !== undefined) configUpdate['config.presencePenalty'] = data.config.presencePenalty
+      
+      Object.assign(updateData, configUpdate)
+    }
+
     // 更新配置
     const updatedConfig = await LLMConfig.findByIdAndUpdate(
       id,
-      {
-        ...data,
-        updatedAt: new Date()
-      },
+      { $set: updateData },
       { new: true, runValidators: true }
     )
 
@@ -206,10 +234,34 @@ export async function DELETE(
       )
     }
 
-    // 删除配置
+    // 检查是否还有其他活跃配置，避免删除最后一个配置
+    const activeConfigCount = await LLMConfig.countDocuments({
+      userId: user._id,
+      isActive: true,
+      _id: { $ne: id }
+    })
+
+    if (activeConfigCount === 0) {
+      return NextResponse.json(
+        { error: '不能删除最后一个活跃配置，请先添加其他配置或停用当前配置' },
+        { status: 400 }
+      )
+    }
+
+    // 记录删除操作日志
+    console.log(`用户 ${user._id} 删除LLM配置: ${existingConfig.name} (${existingConfig.displayName})`)
+
+    // 执行删除操作
     await LLMConfig.findByIdAndDelete(id)
 
-    return NextResponse.json({ message: '配置删除成功' })
+    return NextResponse.json({ 
+      message: '配置删除成功',
+      deletedConfig: {
+        name: existingConfig.name,
+        displayName: existingConfig.displayName,
+        provider: existingConfig.provider
+      }
+    })
   } catch (error) {
     console.error('删除LLM配置失败:', error)
     return NextResponse.json(

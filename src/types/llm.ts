@@ -144,7 +144,15 @@ export interface CreateLLMConfigRequest {
 }
 
 // 更新LLM配置请求
-export interface UpdateLLMConfigRequest extends Partial<CreateLLMConfigRequest> {
+export interface UpdateLLMConfigRequest {
+  name?: string
+  displayName?: string
+  provider?: LLMProvider
+  config?: Partial<LLMConfig['config']>
+  capabilities?: LLMConfig['capabilities']
+  limits?: LLMConfig['limits']
+  description?: string
+  tags?: string[]
   isActive?: boolean
   isDefault?: boolean
 }

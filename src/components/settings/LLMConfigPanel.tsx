@@ -19,7 +19,9 @@ export function LLMConfigPanel({ className }: LLMConfigPanelProps) {
   const [loading, setLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [editingConfig, setEditingConfig] = useState<LLMConfig | null>(null)
+  const [deletingConfig, setDeletingConfig] = useState<LLMConfig | null>(null)
   const [testingConfig, setTestingConfig] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, LLMTestResult>>({})
   const { showSuccess, showError } = useToast()
@@ -98,19 +100,25 @@ export function LLMConfigPanel({ className }: LLMConfigPanelProps) {
   }
 
   // 删除配置
-  const handleDeleteConfig = async (configId: string) => {
-    if (!confirm('确定要删除这个配置吗？此操作不可撤销。')) {
-      return
-    }
+  const handleDeleteConfig = (config: LLMConfig) => {
+    setDeletingConfig(config)
+    setShowDeleteDialog(true)
+  }
+
+  // 确认删除配置
+  const confirmDeleteConfig = async () => {
+    if (!deletingConfig) return
 
     try {
-      const response = await fetch(`/api/llm/configs/${configId}`, {
+      const response = await fetch(`/api/llm/configs/${deletingConfig._id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       })
 
       if (response.ok) {
         showSuccess('成功', '删除配置成功')
+        setShowDeleteDialog(false)
+        setDeletingConfig(null)
         await loadConfigs()
       } else {
         const error = await response.json()
@@ -178,7 +186,7 @@ export function LLMConfigPanel({ className }: LLMConfigPanelProps) {
               onTest={() => handleTestConfig(config._id)}
               onSetDefault={() => handleSetDefault(config._id)}
               onEdit={() => handleEditConfig(config)}
-              onDelete={() => handleDeleteConfig(config._id)}
+              onDelete={() => handleDeleteConfig(config)}
             />
           ))}
         </div>
@@ -205,6 +213,16 @@ export function LLMConfigPanel({ className }: LLMConfigPanelProps) {
           setEditingConfig(null)
           loadConfigs()
         }}
+      />
+
+      <DeleteConfigDialog
+        isOpen={showDeleteDialog}
+        config={deletingConfig}
+        onClose={() => {
+          setShowDeleteDialog(false)
+          setDeletingConfig(null)
+        }}
+        onConfirm={confirmDeleteConfig}
       />
     </div>
   )
@@ -307,16 +325,19 @@ function ConfigCard({ config, testResult, isTesting, onTest, onSetDefault, onEdi
               <Settings className="h-4 w-4" />
             </Button>
             
-            {!config.isDefault && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onDelete}
-                className="text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              disabled={config.isDefault}
+              className={config.isDefault 
+                ? "text-gray-400 cursor-not-allowed" 
+                : "text-red-600 hover:text-red-700"
+              }
+              title={config.isDefault ? "默认配置无法删除，请先设置其他配置为默认" : "删除配置"}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -597,6 +618,7 @@ interface EditConfigDialogProps {
 
 function EditConfigDialog({ isOpen, config, onClose, onSuccess }: EditConfigDialogProps) {
   const [form, setForm] = useState<UpdateLLMConfigRequest>({})
+  const { showSuccess, showError } = useToast()
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -622,10 +644,18 @@ function EditConfigDialog({ isOpen, config, onClose, onSuccess }: EditConfigDial
     setLoading(true)
 
     try {
+      // 构建更新数据，如果API密钥为空则不包含在更新中
+      const updateData = { ...form }
+      if (updateData.config?.apiKey === '') {
+        // 如果API密钥为空，从config中移除，保持原有密钥
+        const { apiKey: _, ...restConfig } = updateData.config
+        updateData.config = restConfig
+      }
+
       const response = await fetch(`/api/llm/configs/${config._id}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(form)
+        body: JSON.stringify(updateData)
       })
 
       if (response.ok) {
@@ -799,6 +829,144 @@ function EditConfigDialog({ isOpen, config, onClose, onSuccess }: EditConfigDial
             </Button>
           </div>
         </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 删除配置确认对话框
+interface DeleteConfigDialogProps {
+  isOpen: boolean
+  config: LLMConfig | null
+  onClose: () => void
+  onConfirm: () => Promise<void>
+}
+
+function DeleteConfigDialog({ isOpen, config, onClose, onConfirm }: DeleteConfigDialogProps) {
+  const [loading, setLoading] = useState(false)
+  const { showError } = useToast()
+
+  const handleConfirm = async () => {
+    setLoading(true)
+    try {
+      await onConfirm()
+    } catch (error) {
+      console.error('删除配置失败:', error)
+      showError('错误', '删除配置失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!config || !isOpen) return null
+
+  const providerPreset = LLM_PROVIDER_PRESETS.find(p => p.provider === config.provider)
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md border border-gray-200">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-600 to-red-700 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Trash2 className="h-4 w-4 text-white" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">删除LLM配置</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            >
+              <X className="h-5 w-5 text-white" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">确认删除配置</h3>
+                <p className="text-sm text-gray-500">此操作不可撤销</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">配置名称:</span>
+                  <span className="text-sm font-medium text-gray-900">{config.displayName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">提供商:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {providerPreset?.displayName || config.provider}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">模型:</span>
+                  <span className="text-sm font-medium text-gray-900">{config.config.model}</span>
+                </div>
+                {config.description && (
+                  <div className="pt-2 border-t border-gray-200">
+                    <span className="text-sm text-gray-600">描述:</span>
+                    <p className="text-sm text-gray-900 mt-1">{config.description}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-red-600 text-xs font-bold">!</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-red-800 mb-1">警告</h4>
+                  <p className="text-sm text-red-700">
+                    删除此配置后，相关的聊天记录和设置将无法再使用此配置。请确认是否继续删除。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose}
+              disabled={loading}
+              className="px-6 py-2.5 h-11"
+            >
+              取消
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleConfirm}
+              disabled={loading}
+              className="px-6 py-2.5 h-11 bg-red-600 hover:bg-red-700 text-white"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  删除中...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  确认删除
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
