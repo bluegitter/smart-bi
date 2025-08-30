@@ -8,11 +8,12 @@ import { GlobalSearch } from '@/components/search/GlobalSearch'
 import { AIChatDialog } from '@/components/ai/AIChatDialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { useActions } from '@/store/useAppStore'
+import { useDatasetAI } from '@/contexts/DatasetAIContext'
 
 export function Header() {
   const { user } = useAuth()
   const { toggleSidebar } = useActions()
-  const [isAIChatOpen, setIsAIChatOpen] = React.useState(false)
+  const { currentDataset, isAIChatOpen, setIsAIChatOpen } = useDatasetAI()
 
   return (
     <header className="h-16 border-b border-slate-200 bg-white px-4 flex items-center justify-between">
@@ -55,7 +56,9 @@ export function Header() {
       {/* AI聊天对话框 */}
       <AIChatDialog 
         isOpen={isAIChatOpen} 
-        onClose={() => setIsAIChatOpen(false)} 
+        onClose={() => setIsAIChatOpen(false)}
+        initialDatasetId={currentDataset?._id}
+        allowDatasetSelection={true}
       />
     </header>
   )

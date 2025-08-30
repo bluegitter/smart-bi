@@ -975,4 +975,124 @@ export class DatasetService {
       total: datasetCleaned + queryCleaned
     }
   }
+
+  // 检查数据集权限（静态方法，不依赖Mongoose实例）
+  private static checkDatasetPermission(dataset: any, userId: string, requiredRole: 'viewer' | 'editor' | 'owner' = 'viewer'): boolean {
+    // 数据集拥有者拥有所有权限
+    if (dataset.userId?.toString() === userId || dataset.userId === userId) {
+      return true
+    }
+    
+    // 检查权限列表
+    if (!dataset.permissions || !Array.isArray(dataset.permissions)) {
+      return false
+    }
+    
+    const permission = dataset.permissions.find((p: any) => {
+      const permissionUserId = p.userId?.toString() || p.userId
+      return permissionUserId === userId
+    })
+    
+    if (!permission) return false
+    
+    // 权限级别检查
+    const roleLevel = { viewer: 1, editor: 2, owner: 3 }
+    return roleLevel[permission.role] >= roleLevel[requiredRole]
+  }
+
+  // 执行自定义SQL查询
+  static async executeCustomSQL(userId: string, datasetId: string, sql: string): Promise<{
+    rows: any[]
+    columns: Array<{ name: string; displayName?: string }>
+    executionTime: number
+  }> {
+    const startTime = Date.now()
+    
+    try {
+      // 获取数据集信息
+      const dataset = await this.getDataset(userId, datasetId)
+      if (!dataset) {
+        throw new Error('数据集不存在')
+      }
+
+      // 检查用户权限（手动实现，避免依赖Mongoose实例方法）
+      const hasPermission = this.checkDatasetPermission(dataset, userId, 'viewer')
+      if (!hasPermission) {
+        throw new Error('没有访问权限')
+      }
+
+      // 获取数据源信息
+      let datasourceId: any
+      if (dataset.type === 'table' && dataset.tableConfig) {
+        datasourceId = dataset.tableConfig.datasourceId
+      } else if (dataset.type === 'sql' && dataset.sqlConfig) {
+        datasourceId = dataset.sqlConfig.datasourceId
+      } else if (dataset.type === 'view' && dataset.viewConfig) {
+        // 视图类型需要获取基础数据集的数据源
+        const baseDataset = await this.getDataset(userId, dataset.viewConfig.baseDatasetId)
+        if (baseDataset?.type === 'table' && baseDataset.tableConfig) {
+          datasourceId = baseDataset.tableConfig.datasourceId
+        } else if (baseDataset?.type === 'sql' && baseDataset.sqlConfig) {
+          datasourceId = baseDataset.sqlConfig.datasourceId
+        }
+      }
+      
+      if (!datasourceId) {
+        throw new Error('数据源配置缺失')
+      }
+
+      // 调试日志：检查datasourceId的类型和值
+      console.log(`🔍 datasourceId 类型: ${typeof datasourceId}, 值:`, datasourceId)
+      console.log(`🔍 datasourceId 字符串表示: ${JSON.stringify(datasourceId)}`)
+
+      console.log(`🔍 执行自定义SQL - 数据集: ${dataset.displayName}, SQL: ${sql.substring(0, 100)}...`)
+
+      // 获取数据源配置信息（需要包含密码）
+      let datasourceIdString: string
+      if (typeof datasourceId === 'string') {
+        datasourceIdString = datasourceId
+      } else if (datasourceId && typeof datasourceId === 'object') {
+        // 如果是对象，尝试获取 _id 或 id 字段
+        datasourceIdString = datasourceId._id || datasourceId.id || datasourceId.toString()
+      } else {
+        datasourceIdString = String(datasourceId)
+      }
+
+      console.log(`🔍 提取的datasourceIdString: ${datasourceIdString}`)
+      
+      const DataSource = (await import('@/models/DataSource')).DataSource
+      const datasource = await DataSource.findById(datasourceIdString).select('+config.password').lean()
+      
+      if (!datasource) {
+        throw new Error('数据源不存在')
+      }
+
+      // 构建数据源配置对象
+      const datasourceConfig = {
+        host: datasource.config.host,
+        port: datasource.config.port,
+        database: datasource.config.database,
+        username: datasource.config.username,
+        password: datasource.config.password
+      }
+
+      // 执行SQL查询，使用config, sql, params的调用方式
+      const result = await executeQuery(datasourceConfig, sql, [])
+      
+      const executionTime = Date.now() - startTime
+      
+      console.log(`✅ SQL执行完成 - 耗时: ${executionTime}ms, 返回行数: ${result.data?.length || 0}`)
+
+      return {
+        rows: result.data || [],
+        columns: result.columns || [],
+        executionTime
+      }
+
+    } catch (error) {
+      const executionTime = Date.now() - startTime
+      console.error(`❌ SQL执行失败 - 耗时: ${executionTime}ms, 错误:`, error)
+      throw error
+    }
+  }
 }

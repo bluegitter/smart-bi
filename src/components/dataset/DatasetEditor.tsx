@@ -33,6 +33,7 @@ import { FieldEditorDialog } from '@/components/dataset/FieldEditorDialog'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { useDataset } from '@/hooks/useDatasets'
 import { useDataSources } from '@/hooks/useDataSources'
+import { useDatasetAIRegistration } from '@/contexts/DatasetAIContext'
 import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
 import type { Dataset, DatasetField, DatasetType } from '@/types/dataset'
@@ -62,6 +63,9 @@ export function DatasetEditor({
   const router = useRouter()
   const { dataSources, loading: dataSourcesLoading } = useDataSources()
   const { dataset, loading, error, save, preview, refresh } = useDataset(datasetId)
+  
+  // 注册当前数据集到AI上下文
+  useDatasetAIRegistration(dataset)
   
   // 内部模式状态，允许从创建模式切换到编辑模式
   const [currentMode, setCurrentMode] = React.useState(mode)

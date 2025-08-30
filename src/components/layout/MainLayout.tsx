@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { StatusBar } from './StatusBar'
+import { DatasetAIProvider } from '@/contexts/DatasetAIContext'
 import { useSidebarCollapsed, useHeaderHidden, useIsFullscreen } from '@/store/useAppStore'
 import { cn } from '@/lib/utils'
 
@@ -43,36 +44,38 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isDatasetEditorPage = pathname?.includes('datasets/editor')
   
   return (
-    <DndWrapper>
-      <div className="h-screen flex flex-col bg-slate-50">
-        {/* Header - 可隐藏 */}
-        {!headerHidden && <Header />}
-        
-        {/* Main content area */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar - 全屏模式或手动折叠时隐藏 */}
-          {!(sidebarCollapsed || isFullscreen) && (
-            <div className="w-56 transition-all duration-300 ease-in-out">
-              <Sidebar />
-            </div>
-          )}
+    <DatasetAIProvider>
+      <DndWrapper>
+        <div className="h-screen flex flex-col bg-slate-50">
+          {/* Header - 可隐藏 */}
+          {!headerHidden && <Header />}
           
-          {/* Main content */}
-          <main className={cn(
-            "flex-1 flex flex-col overflow-hidden",
-          )}>
-            <div className={cn(
-              "flex-1 overflow-auto",
-              isDatasetEditorPage ? "overflow-hidden" : "overflow-auto"
+          {/* Main content area */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Sidebar - 全屏模式或手动折叠时隐藏 */}
+            {!(sidebarCollapsed || isFullscreen) && (
+              <div className="w-56 transition-all duration-300 ease-in-out">
+                <Sidebar />
+              </div>
+            )}
+            
+            {/* Main content */}
+            <main className={cn(
+              "flex-1 flex flex-col overflow-hidden",
             )}>
-              {children}
-            </div>
-          </main>
+              <div className={cn(
+                "flex-1 overflow-auto",
+                isDatasetEditorPage ? "overflow-hidden" : "overflow-auto"
+              )}>
+                {children}
+              </div>
+            </main>
+          </div>
+          
+          {/* Status bar - 全屏模式时隐藏 */}
+          {!isFullscreen && <StatusBar />}
         </div>
-        
-        {/* Status bar - 全屏模式时隐藏 */}
-        {!isFullscreen && <StatusBar />}
-      </div>
-    </DndWrapper>
+      </DndWrapper>
+    </DatasetAIProvider>
   )
 }

@@ -11,13 +11,19 @@ import {
   AlertCircle,
   Settings,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Database,
+  FileText,
+  Eye,
+  ChevronDown
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer'
 import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
+import type { Dataset } from '@/types/dataset'
 
 interface Message {
   id: string
@@ -29,22 +35,44 @@ interface Message {
 interface AIChatDialogProps {
   isOpen: boolean
   onClose: () => void
+  initialDatasetId?: string  // 可选的初始数据集ID
+  allowDatasetSelection?: boolean  // 是否允许选择数据集
 }
 
-export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
+export function AIChatDialog({ 
+  isOpen, 
+  onClose, 
+  initialDatasetId,
+  allowDatasetSelection = true 
+}: AIChatDialogProps) {
   const [messages, setMessages] = React.useState<Message[]>([])
   const [inputValue, setInputValue] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [hasLLMConfig, setHasLLMConfig] = React.useState(false)
+  // 数据集相关状态
+  const [selectedDataset, setSelectedDataset] = React.useState<Dataset | null>(null)
+  const [datasets, setDatasets] = React.useState<Dataset[]>([])
+  const [showDatasetSelector, setShowDatasetSelector] = React.useState(false)
+  const [contextSettings, setContextSettings] = React.useState({
+    includeSchema: true,
+    includePreview: false,
+    previewLimit: 10
+  })
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
-  // 检查LLM配置
+  // 检查LLM配置和加载数据集
   React.useEffect(() => {
     if (isOpen) {
       checkLLMConfig()
+      if (allowDatasetSelection) {
+        loadDatasets()
+      }
+      if (initialDatasetId) {
+        loadInitialDataset(initialDatasetId)
+      }
     }
-  }, [isOpen])
+  }, [isOpen, allowDatasetSelection, initialDatasetId])
 
   // 自动滚动到底部
   React.useEffect(() => {
@@ -69,6 +97,38 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
     }
   }
 
+  const loadDatasets = async () => {
+    try {
+      const response = await fetch('/api/datasets', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ limit: 50, sortBy: 'updatedAt', sortOrder: 'desc' })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setDatasets(data.datasets || [])
+      }
+    } catch (error) {
+      console.error('加载数据集失败:', error)
+    }
+  }
+
+  const loadInitialDataset = async (datasetId: string) => {
+    try {
+      const response = await fetch(`/api/datasets/${datasetId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({})
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setSelectedDataset(data.dataset)
+      }
+    } catch (error) {
+      console.error('加载初始数据集失败:', error)
+    }
+  }
+
   const sendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
 
@@ -85,13 +145,24 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
     setError(null)
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      // 根据是否选择了数据集决定使用哪个API
+      const apiUrl = selectedDataset ? '/api/ai/dataset-chat' : '/api/ai/chat'
+      const requestBody = selectedDataset ? {
+        datasetId: selectedDataset._id,
+        message: userMessage.content,
+        history: messages.slice(-8), // 数据集模式下少发送一些历史记录
+        includeSchema: contextSettings.includeSchema,
+        includePreview: contextSettings.includePreview,
+        previewLimit: contextSettings.previewLimit
+      } : {
+        message: userMessage.content,
+        history: messages.slice(-10) // 普通模式发送更多历史记录
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({
-          message: userMessage.content,
-          history: messages.slice(-10) // 只发送最近10条消息作为上下文
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
@@ -143,18 +214,98 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
     <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in-0 duration-200">
       <Card className="w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl border-0 bg-white/95 backdrop-blur-md animate-in slide-in-from-bottom-4 duration-300">
         {/* 头部 */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200/60 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Bot className="h-5 w-5 text-white" />
+        <div className={cn(
+          "flex items-center justify-between p-6 border-b border-slate-200/60",
+          selectedDataset 
+            ? "bg-gradient-to-r from-emerald-50/50 to-blue-50/50"
+            : "bg-gradient-to-r from-blue-50/50 to-purple-50/50"
+        )}>
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg",
+              selectedDataset
+                ? "bg-gradient-to-br from-emerald-500 via-emerald-600 to-blue-600"
+                : "bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600"
+            )}>
+              {selectedDataset ? (
+                <Database className="h-5 w-5 text-white" />
+              ) : (
+                <Bot className="h-5 w-5 text-white" />
+              )}
             </div>
-            <div>
-              <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">AI 智能问答</h2>
-              <p className="text-sm text-slate-600 font-medium">基于大语言模型的智能对话助手</p>
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <h2 className={cn(
+                  "text-xl font-bold bg-clip-text text-transparent",
+                  selectedDataset
+                    ? "bg-gradient-to-r from-emerald-600 to-blue-600"
+                    : "bg-gradient-to-r from-blue-600 to-purple-600"
+                )}>
+                  {selectedDataset ? '数据集智能问答' : 'AI 智能问答'}
+                </h2>
+                
+                {/* 数据集选择器 */}
+                {allowDatasetSelection && (
+                  <div className="relative">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDatasetSelector(!showDatasetSelector)}
+                      className="h-8 px-3 text-xs text-slate-600 hover:bg-slate-100/60 border border-slate-200"
+                    >
+                      {selectedDataset ? '切换数据集' : '选择数据集'}
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              
+              <p className="text-sm text-slate-600 font-medium mt-1">
+                {selectedDataset 
+                  ? `基于 ${selectedDataset.displayName} 数据集的智能分析助手`
+                  : '基于大语言模型的智能对话助手'
+                }
+              </p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
+            {/* 数据集上下文控制 */}
+            {selectedDataset && (
+              <div className="flex items-center gap-1 mr-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setContextSettings(prev => ({ ...prev, includeSchema: !prev.includeSchema }))}
+                  className={cn(
+                    "text-xs px-2 py-1 h-7 rounded transition-colors",
+                    contextSettings.includeSchema 
+                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" 
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                  )}
+                  title="包含数据集架构信息"
+                >
+                  <FileText className="h-3 w-3 mr-1" />
+                  架构
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setContextSettings(prev => ({ ...prev, includePreview: !prev.includePreview }))}
+                  className={cn(
+                    "text-xs px-2 py-1 h-7 rounded transition-colors",
+                    contextSettings.includePreview 
+                      ? "bg-blue-100 text-blue-700 hover:bg-blue-200" 
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                  )}
+                  title="包含数据预览"
+                >
+                  <Eye className="h-3 w-3 mr-1" />
+                  预览
+                </Button>
+              </div>
+            )}
+
             {messages.length > 0 && (
               <>
                 <Button
@@ -196,6 +347,78 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
             </Button>
           </div>
         </div>
+
+        {/* 数据集选择器下拉菜单 */}
+        {showDatasetSelector && allowDatasetSelection && (
+          <div className="relative">
+            <div className="absolute top-0 left-6 right-6 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+              <div className="p-3 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-800">选择数据集</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedDataset(null)
+                      setShowDatasetSelector(false)
+                    }}
+                    className="h-6 px-2 text-xs text-slate-500 hover:text-slate-700"
+                  >
+                    {selectedDataset ? '清除选择' : '通用模式'}
+                  </Button>
+                </div>
+              </div>
+              <div className="py-2">
+                {datasets.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-slate-500 text-center">
+                    没有可用的数据集
+                  </div>
+                ) : (
+                  datasets.map((dataset) => (
+                    <button
+                      key={dataset._id}
+                      onClick={() => {
+                        setSelectedDataset(dataset)
+                        setShowDatasetSelector(false)
+                        // 清空之前的对话历史
+                        setMessages([])
+                        setError(null)
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-left hover:bg-slate-50 transition-colors",
+                        selectedDataset?._id === dataset._id && "bg-emerald-50 border-l-2 border-l-emerald-500"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Database className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">
+                            {dataset.displayName}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-slate-500">
+                              {dataset.fields.length} 字段
+                            </span>
+                            {dataset.metadata.recordCount && (
+                              <>
+                                <span className="text-xs text-slate-400">•</span>
+                                <span className="text-xs text-slate-500">
+                                  {dataset.metadata.recordCount.toLocaleString()} 记录
+                                </span>
+                              </>
+                            )}
+                            <span className="text-xs text-slate-400">•</span>
+                            <span className="text-xs text-slate-500">{dataset.category}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 消息区域 */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-br from-slate-50/50 to-blue-50/30">
@@ -272,7 +495,14 @@ export function AIChatDialog({ isOpen, onClose }: AIChatDialogProps) {
                         : "bg-white/80 text-slate-800 border border-slate-200/60 backdrop-blur-sm"
                     )}
                   >
-                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    {message.role === 'assistant' ? (
+                      <MarkdownRenderer 
+                        content={message.content}
+                        className="text-slate-800"
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                    )}
                     <div
                       className={cn(
                         "text-xs mt-2 opacity-70 font-medium",

@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { DatasetChatButton } from '@/components/ai/DatasetChatButton'
 import { getAuthHeaders } from '@/lib/authUtils'
 import { cn } from '@/lib/utils'
 import type { Dataset } from '@/types/dataset'
@@ -310,6 +311,16 @@ export function DatasetCard({ dataset, onRefresh }: DatasetCardProps) {
               )}
             </div>
           </div>
+        </div>
+        
+        {/* AI问答快捷按钮 */}
+        <div className="border-t border-slate-200/60 pt-4">
+          <DatasetChatButton
+            dataset={dataset}
+            variant="outline"
+            size="sm"
+            className="w-full opacity-0 group-hover:opacity-100 transition-all duration-200"
+          />
         </div>
       </CardContent>
       {confirmDialog}

@@ -225,6 +225,23 @@ export function useDataset(datasetId?: string) {
     }
   }, [datasetId])
 
+  // AI问答相关功能
+  const startAIChat = useCallback((dataset: Dataset, options?: {
+    includeSchema?: boolean
+    includePreview?: boolean
+    previewLimit?: number
+  }) => {
+    // 这里可以触发全局AI对话状态，或者返回配置用于启动对话
+    return {
+      dataset,
+      options: {
+        includeSchema: options?.includeSchema ?? true,
+        includePreview: options?.includePreview ?? false,
+        previewLimit: options?.previewLimit ?? 10
+      }
+    }
+  }, [])
+
   return {
     dataset,
     loading,
@@ -232,6 +249,7 @@ export function useDataset(datasetId?: string) {
     save,
     preview,
     refresh,
-    delete: deleteDataset
+    delete: deleteDataset,
+    startAIChat
   }
 }
